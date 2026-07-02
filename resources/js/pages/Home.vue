@@ -267,7 +267,7 @@ const props = defineProps({
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#1e4066] text-white rounded-full">
-                      {{ product.category.cat_title }}
+                      {{ product.category?.cat_title }}
                     </span>
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#8e2527] text-white rounded-full">
                       China
@@ -336,7 +336,7 @@ const props = defineProps({
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#1e4066] text-white rounded-full">
-                      {{ product.category.cat_title }}
+                      {{ product.category?.cat_title }}
                     </span>
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#8e2527] text-white rounded-full">
                       Japan
@@ -344,7 +344,7 @@ const props = defineProps({
                   </div>
                   <div class="absolute top-4 right-4 z-10 flex gap-2">
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#1e4066] text-white rounded-full">
-                      {{ product.make.cat_title }}
+                      {{ product.make?.cat_title }}
                     </span>
                   </div>
                   <div class="absolute bottom-4 right-4 z-10 bg-black bg-opacity-80 p-2 rounded-md shadow-md">
@@ -409,7 +409,7 @@ const props = defineProps({
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#1e4066] text-white rounded-full">
-                      {{ product.category.cat_title }}
+                      {{ product.category?.cat_title }}
                     </span>
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#8e2527] text-white rounded-full">
                       Thailand
@@ -417,7 +417,7 @@ const props = defineProps({
                   </div>
                   <div class="absolute top-4 right-4 z-10 flex gap-2">
                     <span class="inline-block px-3 py-1 text-xs font-semibold bg-[#1e4066] text-white rounded-full">
-                      {{ product.make.cat_title }}
+                      {{ product.make?.cat_title }}
                     </span>
                   </div>
                   <div class="absolute bottom-4 right-4 z-10 bg-black bg-opacity-80 p-2 rounded-md shadow-md">

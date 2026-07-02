@@ -10,6 +10,7 @@ use App\Models\Newsletter;
 use App\Models\Products;
 use App\Models\QueryForm;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
@@ -19,47 +20,52 @@ class DashboardController extends Controller
 {
     public function home()
     {
-        $productCounts = Products::query()
-            ->whereNotNull('make_id')
-            ->groupBy('make_id')
-            ->selectRaw('make_id, COUNT(*) as count')
-            ->pluck('count', 'make_id');
+        // Home.vue consumes: categories/makes with `products_count`, and
+        // featured_products_{china,japan,thailand} cards that use the
+        // category relation, website and price.
+        $data = Cache::remember('home_page_data', 60, function () {
+            $makeCounts = Products::query()
+                ->whereNotNull('make_id')
+                ->groupBy('make_id')
+                ->selectRaw('make_id, COUNT(*) as count')
+                ->pluck('count', 'make_id');
 
-        $makes = Categories::where('type', 'make')
-            ->select('id', 'cat_title', 'image')
-            ->get()
-            ->map(fn ($make) => [
-                'category_id'   => (string) $make->id,
-                'cat_title'     => $make->cat_title,
-                'image'         => $make->image,
-                'product_count' => $productCounts[$make->id] ?? 0,
-            ]);
+            $makes = Categories::where('type', 'make')
+                ->select('id', 'cat_title', 'image')
+                ->get()
+                ->map(fn ($make) => [
+                    'id'             => $make->id,
+                    'cat_title'      => $make->cat_title,
+                    'image'          => $make->image,
+                    'products_count' => $makeCounts[$make->id] ?? 0,
+                ]);
 
-        $bodyStyle = Products::query()
-            ->whereNotNull('body_style')
-            ->groupBy('body_style')
-            ->selectRaw('body_style, COUNT(*) as count')
-            ->get();
+            $categories = Categories::query()
+                ->join('products', 'products.category_id', '=', 'categories.id')
+                ->where('categories.type', 'category')
+                ->groupBy('categories.id', 'categories.cat_title', 'categories.image', 'categories.created_at')
+                ->orderByDesc('categories.created_at')
+                ->selectRaw('categories.id, categories.cat_title, categories.image, COUNT(products.id) as products_count')
+                ->get();
 
-        $products = Products::where("body_style", "Sedan")
-            ->select("title", "front_image", "id", "product_details", "body_style")
-            ->limit(8)
-            ->get();
+            $featured = fn (string $country) => Products::with(['category', 'make'])
+                ->where('country', $country)
+                ->whereNotNull('front_image')
+                ->select('id', 'title', 'front_image', 'price', 'website', 'country', 'category_id', 'make_id', 'product_details')
+                ->latest('created_at')
+                ->limit(6)
+                ->get();
 
-        $country_products = Products::where("country", "China")
-            ->select("title", "front_image", "id", "product_details", "body_style")
-            ->limit(8)
-            ->get();
+            return [
+                'categories' => $categories,
+                'makes' => $makes,
+                'featured_products_china' => $featured('China'),
+                'featured_products_japan' => $featured('Japan'),
+                'featured_products_thailand' => $featured('Thailand'),
+            ];
+        });
 
-        $blogs = Blogs::orderBy("created_at", "DESC")->where("publish_status", "published")->limit(3)->get();
-
-        return Inertia::render('Home', [
-            'body_styles' => $bodyStyle,
-            'body_styles_products' => $products,
-            'country_products' => $country_products,
-            'makes' => $makes,
-            'blogs' => $blogs
-        ]);
+        return Inertia::render('Home', $data);
     }
 
 
