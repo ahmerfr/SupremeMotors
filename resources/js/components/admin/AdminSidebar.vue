@@ -52,13 +52,13 @@ const initials = computed(() =>
         <!-- Brand -->
         <Link href="/admin/dashboard" class="flex items-center gap-3 px-5 pb-5 pt-6">
             <img src="/assets/images/site-logo.png" alt="Supreme Motors" class="h-9 w-auto object-contain" />
-            <span class="text-[13px] font-semibold text-zinc-400 dark:text-zinc-500">Admin</span>
+            <span class="text-sm font-semibold text-zinc-400 dark:text-zinc-500">Admin</span>
         </Link>
 
         <!-- Nav -->
         <nav class="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-1">
             <div v-for="(group, gi) in groups" :key="gi">
-                <div v-if="group.label" class="mb-1.5 px-3 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+                <div v-if="group.label" class="mb-1.5 px-3 text-xs font-medium text-zinc-400 dark:text-zinc-500">
                     {{ group.label }}
                 </div>
                 <div class="space-y-0.5">
@@ -66,7 +66,7 @@ const initials = computed(() =>
                         v-for="item in group.items"
                         :key="item.href"
                         :href="item.href"
-                        class="relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                        class="relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
                         :class="isActive(item.href)
                             ? 'bg-zinc-100 text-zinc-900 dark:bg-white/[0.07] dark:text-white'
                             : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-white'"
@@ -89,8 +89,8 @@ const initials = computed(() =>
                     {{ initials }}
                 </div>
                 <div class="min-w-0 flex-1 leading-tight">
-                    <div class="truncate text-[13px] font-semibold text-zinc-900 dark:text-white">{{ user.name }}</div>
-                    <div class="truncate text-[11px] text-zinc-400 dark:text-zinc-500">{{ user.email }}</div>
+                    <div class="truncate text-sm font-semibold text-zinc-900 dark:text-white">{{ user.name }}</div>
+                    <div class="truncate text-xs text-zinc-400 dark:text-zinc-500">{{ user.email }}</div>
                 </div>
                 <Link href="/logout" method="post" as="button" class="rounded-md p-1.5 text-zinc-400 transition-colors duration-300 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200" title="Log out">
                     <LogOut class="h-4 w-4" :stroke-width="1.5" />
