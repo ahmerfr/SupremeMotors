@@ -65,13 +65,13 @@ const inputClass =
 
             <form v-else class="space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900" @submit.prevent="submitForm">
                 <div>
-                    <label class="text-sm font-bold text-zinc-700 dark:text-zinc-300">Title</label>
+                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Title</label>
                     <input v-model="category.title" type="text" :class="[inputClass, errors.title && 'border-red-500']" />
                     <p v-if="errors.title" class="mt-1 text-sm text-red-500">{{ errors.title[0] }}</p>
                 </div>
 
                 <div>
-                    <label class="text-sm font-bold text-zinc-700 dark:text-zinc-300">Type</label>
+                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Type</label>
                     <select v-model="category.type" :class="[inputClass, errors.type && 'border-red-500']">
                         <option value="" disabled>Select type</option>
                         <option value="category">Category</option>
@@ -81,7 +81,7 @@ const inputClass =
                 </div>
 
                 <div>
-                    <label class="text-sm font-bold text-zinc-700 dark:text-zinc-300">Logo / Image</label>
+                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Logo / Image</label>
                     <label
                         class="mt-1 flex h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 transition-colors hover:border-[#8e2527] dark:border-zinc-700"
                     >
@@ -98,7 +98,7 @@ const inputClass =
                 <button
                     type="submit"
                     :disabled="isLoading"
-                    class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#8e2527] font-bold text-white transition-colors hover:bg-[#a32c2f] disabled:opacity-60"
+                    class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#8e2527] font-medium text-white transition-colors hover:bg-[#a32c2f] disabled:opacity-60"
                 >
                     <Loader2 v-if="isLoading" class="h-4 w-4 animate-spin" />
                     Create Entry

@@ -37,7 +37,7 @@ const search = () => {
                     </div>
                     <Link
                         href="/admin/categories/create"
-                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-bold text-white transition-colors hover:bg-[#a32c2f]"
+                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-medium text-white transition-colors hover:bg-[#a32c2f]"
                     >
                         <Plus class="h-4 w-4" /> New Entry
                     </Link>
@@ -60,7 +60,7 @@ const search = () => {
                         <div class="min-w-0">
                             <div class="truncate font-bold text-zinc-900 dark:text-white">{{ c.cat_title }}</div>
                             <span
-                                class="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                                class="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium"
                                 :class="c.type === 'make'
                                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
                                     : 'bg-red-100 text-[#8e2527] dark:bg-red-950 dark:text-red-300'"

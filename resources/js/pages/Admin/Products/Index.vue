@@ -42,7 +42,7 @@ const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p
                     </div>
                     <Link
                         href="/admin/products/create"
-                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-bold text-white transition-colors hover:bg-[#a32c2f]"
+                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-medium text-white transition-colors hover:bg-[#a32c2f]"
                     >
                         <Plus class="h-4 w-4" /> New Product
                     </Link>
@@ -53,7 +53,7 @@ const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p
 
             <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <table class="w-full text-left text-sm">
-                    <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
                             <th class="px-5 py-3.5">Product</th>
                             <th class="px-5 py-3.5">Stock ID</th>
@@ -71,7 +71,7 @@ const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p
                                     <span class="max-w-64 truncate font-semibold text-zinc-900 dark:text-white">{{ p.title }}</span>
                                 </div>
                             </td>
-                            <td class="px-5 py-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">{{ p.stock_code }}</td>
+                            <td class="px-5 py-3 font-gauge text-xs text-zinc-500 dark:text-zinc-400">{{ p.stock_code }}</td>
                             <td class="px-5 py-3">
                                 <div class="flex max-w-56 flex-wrap gap-1">
                                     <span
@@ -85,7 +85,7 @@ const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p
                                 {{ p.category?.cat_title || '—' }}
                                 <span v-if="p.make" class="text-zinc-400 dark:text-zinc-500"> · {{ p.make.cat_title }}</span>
                             </td>
-                            <td class="px-5 py-3 text-right font-mono font-bold text-[#8e2527]">${{ Number(p.price).toLocaleString() }}</td>
+                            <td class="px-5 py-3 text-right font-gauge font-bold text-[#8e2527]">${{ Number(p.price).toLocaleString() }}</td>
                             <td class="px-5 py-3 text-right">
                                 <Link
                                     :href="`/admin/products/edit/${p.id}`"

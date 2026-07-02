@@ -42,7 +42,7 @@ const search = () => {
 
             <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <table class="w-full text-left text-sm">
-                    <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
                             <th class="px-5 py-3.5">Company</th>
                             <th class="px-5 py-3.5">Contact</th>
@@ -57,7 +57,7 @@ const search = () => {
                             <td class="px-5 py-3 font-semibold text-zinc-900 dark:text-white">{{ q.company || '—' }}</td>
                             <td class="px-5 py-3 text-zinc-600 dark:text-zinc-300">{{ q.contact_name || '—' }}</td>
                             <td class="px-5 py-3 text-zinc-600 dark:text-zinc-300">{{ q.email }}</td>
-                            <td class="px-5 py-3 font-mono text-xs text-zinc-500 dark:text-zinc-400">{{ q.phone || '—' }}</td>
+                            <td class="px-5 py-3 font-gauge text-xs text-zinc-500 dark:text-zinc-400">{{ q.phone || '—' }}</td>
                             <td class="px-5 py-3 text-right text-zinc-500 dark:text-zinc-400">
                                 {{ new Date(q.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}
                             </td>

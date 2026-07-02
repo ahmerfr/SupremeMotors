@@ -37,7 +37,7 @@ const search = () => {
                     </div>
                     <Link
                         href="/admin/blogs/create"
-                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-bold text-white transition-colors hover:bg-[#a32c2f]"
+                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-medium text-white transition-colors hover:bg-[#a32c2f]"
                     >
                         <Plus class="h-4 w-4" /> New Post
                     </Link>
@@ -59,7 +59,7 @@ const search = () => {
                     <div class="relative h-40 bg-zinc-100 dark:bg-zinc-800">
                         <img v-if="b.cover_image" :src="`/storage/${b.cover_image}`" alt="" class="h-full w-full object-cover" />
                         <span
-                            class="absolute left-3 top-3 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                            class="absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-medium"
                             :class="b.publish_status === 'published'
                                 ? 'bg-emerald-500 text-white'
                                 : 'bg-amber-500 text-white'"

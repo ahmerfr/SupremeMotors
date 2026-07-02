@@ -42,7 +42,7 @@ const search = () => {
 
             <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <table class="w-full text-left text-sm">
-                    <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
                             <th class="px-5 py-3.5">Email</th>
                             <th class="px-5 py-3.5 text-right">Subscribed</th>

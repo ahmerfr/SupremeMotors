@@ -137,3 +137,17 @@ html {
     --tw-bg-opacity: 1;
     background-color: rgb(242 245 252) !important;
 }
+/* Admin panel entry reveal */
+@media (prefers-reduced-motion: no-preference) {
+    .admin-reveal {
+        opacity: 0;
+        transform: translateY(12px);
+        animation: admin-reveal 0.7s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+    }
+    @keyframes admin-reveal {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+}

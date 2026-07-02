@@ -213,7 +213,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="space-y-6">
                             <div>
-                                <label for="title" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                <label for="title" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                                     Title
                                 </label>
                                 <input
@@ -230,7 +230,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Product Details Input (Quill Editor) -->
                             <div>
-                                <label for="product_details" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
+                                <label for="product_details" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                                     Product Details
                                 </label>
                                 <div id="description" style="height: 250px;"></div>
@@ -241,7 +241,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Category Dropdown -->
                             <div>
-                                <label for="category_id" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                <label for="category_id" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                                     Category
                                 </label>
                                 <select
@@ -262,7 +262,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Make Dropdown -->
                             <div>
-                                <label for="make_id" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                <label for="make_id" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                                     Make
                                 </label>
                                 <select
@@ -283,7 +283,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Price Input -->
                             <div>
-                                <label for="price" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                <label for="price" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                                     Price (USD)
                                 </label>
                                 <input
@@ -300,7 +300,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Country Dropdown -->
                             <div>
-                                <label for="country" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                                <label for="country" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                                     Country
                                 </label>
                                 <select
@@ -321,9 +321,9 @@ const makesList = props.categories.filter(item => item.type === 'make');
                             <!-- Vehicle Attributes -->
                             <div>
                                 <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">Vehicle Attributes</label>
+                                    <label class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Vehicle Attributes</label>
                                     <span v-if="props.product.stock_code" class="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Stock ID: <span class="font-mono text-gray-200">{{ props.product.stock_code }}</span>
+                                        Stock ID: <span class="font-gauge text-gray-200">{{ props.product.stock_code }}</span>
                                     </span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
@@ -362,7 +362,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                         <div class="space-y-6">
                             <!-- Front Image Input -->
                             <div>
-                                <label for="front_image" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
+                                <label for="front_image" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                                     Front Image
                                 </label>
                                 <div class="flex flex-col space-y-4">
@@ -410,7 +410,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Other Images Input (Gallery) -->
                             <div>
-                                <label for="other_images" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
+                                <label for="other_images" class="block text-[13px] font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                                     Other Images
                                 </label>
                                 <div class="flex flex-col space-y-4">

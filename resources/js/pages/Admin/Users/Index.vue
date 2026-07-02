@@ -50,7 +50,7 @@ const initials = (name) =>
 
             <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <table class="w-full text-left text-sm">
-                    <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
                             <th class="px-5 py-3.5">User</th>
                             <th class="px-5 py-3.5">Email</th>
@@ -79,7 +79,7 @@ const initials = (name) =>
                             <td class="px-5 py-3 text-zinc-600 dark:text-zinc-300">{{ u.email }}</td>
                             <td class="px-5 py-3">
                                 <span
-                                    class="rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                                    class="rounded-md px-1.5 py-0.5 text-[11px] font-medium"
                                     :class="u.email_verified_at
                                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                                         : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'"

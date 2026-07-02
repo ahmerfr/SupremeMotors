@@ -6,12 +6,12 @@ defineProps({
 </script>
 
 <template>
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-            <h1 class="font-display text-[34px] font-black uppercase leading-none tracking-tight text-zinc-900 dark:text-white">
+            <h1 class="text-[28px] font-semibold tracking-tight text-zinc-900 dark:text-white">
                 {{ title }}
             </h1>
-            <p v-if="subtitle" class="mt-2 font-gauge text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-400 dark:text-zinc-500">
+            <p v-if="subtitle" class="mt-1 text-[14px] text-zinc-500 dark:text-zinc-400">
                 {{ subtitle }}
             </p>
         </div>
