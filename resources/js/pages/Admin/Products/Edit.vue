@@ -1,0 +1,465 @@
+<script setup>
+import { ref, onMounted } from 'vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Image, Upload, CheckCircle } from 'lucide-vue-next';
+import Quill from 'quill';
+import 'quill/dist/quill.snow.css';
+
+// Props and other reactive data
+const props = defineProps({
+    auth: Object,
+    categories: Array,
+    product: Object,
+});
+
+// Base URL for storage
+const STORAGE_BASE_URL = '/storage/';
+
+// Initialize product reactive data
+const product = ref({
+    title: props.product.title || '',
+    category_id: props.product.category_id || '',
+    make_id: props.product.make_id || '',
+    price: props.product.price ? props.product.price.replace(/[^0-9.-]+/g, '') : '',
+    country: props.product.country || '',
+    front_image: null,
+    other_images: [],
+    product_details: props.product.product_details || '',
+});
+
+// Initialize image previews with full URLs
+const frontImagePreview = ref(props.product.front_image ? `${STORAGE_BASE_URL}${props.product.front_image}` : null);
+const otherImagesPreview = ref(
+    props.product.other_images ? props.product.other_images.map(url => `${STORAGE_BASE_URL}${url}`) : []
+);
+const removedImages = ref([]); // Track removed images
+
+const description_editor = ref(null);
+const errors = ref({});
+const showSuccess = ref(false);
+const isLoading = ref(false);
+
+// Initialize the description editor
+const init_description_editor = () => {
+    const desc_editor = new Quill('#description', {
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+            ],
+        },
+        theme: 'snow',
+    });
+    if (props.product.product_details) {
+        desc_editor.root.innerHTML = props.product.product_details;
+    }
+    description_editor.value = desc_editor;
+};
+
+onMounted(() => {
+    init_description_editor();
+});
+
+const previewFrontImage = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            frontImagePreview.value = reader.result;
+        };
+        reader.readAsDataURL(file);
+        product.value.front_image = file;
+        errors.value.front_image = null;
+    }
+};
+
+const previewOtherImages = (event) => {
+    const files = Array.from(event.target.files);
+    files.forEach((file) => {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                otherImagesPreview.value.push(reader.result);
+                product.value.other_images.push(file);
+                errors.value.other_images = null;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+};
+
+const removeOtherImage = (index) => {
+    const removedImage = otherImagesPreview.value[index];
+    // If the removed image is from the server (not a new upload), track it
+    if (removedImage.startsWith(STORAGE_BASE_URL)) {
+        // Extract the relative path (remove STORAGE_BASE_URL)
+        removedImages.value.push(removedImage.replace(STORAGE_BASE_URL, ''));
+    }
+    otherImagesPreview.value.splice(index, 1);
+    product.value.other_images.splice(index, 1);
+};
+
+const submitForm = async () => {
+    isLoading.value = true;
+    product.value.product_details = description_editor.value.root.innerHTML;
+
+    const formData = new FormData();
+    formData.append('id', props.product.id);
+    formData.append('title', product.value.title);
+    formData.append('category_id', product.value.category_id);
+    formData.append('make_id', product.value.make_id);
+    formData.append('price', product.value.price);
+    formData.append('country', product.value.country);
+    if (product.value.front_image) {
+        formData.append('front_image', product.value.front_image);
+    }
+    product.value.other_images.forEach((image, index) => {
+        formData.append(`other_images[${index}]`, image);
+    });
+    // Send removed images as a JSON string
+    formData.append('removed_images', JSON.stringify(removedImages.value));
+    formData.append('product_details', product.value.product_details);
+
+    try {
+        await axios.post(route('admin.products.update'), formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        errors.value = {};
+        showSuccess.value = true;
+        isLoading.value = false;
+        setTimeout(() => {
+            window.location.href = route('admin.products.index');
+        }, 2000);
+    } catch (error) {
+        isLoading.value = false;
+        showSuccess.value = false;
+        if (error.response && error.response.status === 422) {
+            errors.value = error.response.data.errors;
+        } else {
+            console.error('Error updating product:', error);
+        }
+    }
+};
+
+const categoriesList = props.categories.filter(item => item.type === 'category');
+const makesList = props.categories.filter(item => item.type === 'make');
+</script>
+
+<template>
+    <Head title="Products - Edit" />
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <div class="min-h-screen bg-black flex justify-center p-3">
+            <div class="w-full max-w-6xl">
+                <h2 class="text-3xl font-extrabold text-center text-white mb-8 tracking-tight">
+                    Edit Product
+                </h2>
+
+                <div
+                    v-if="showSuccess"
+                    class="mb-6 flex items-center justify-center space-x-2 text-green-500 text-lg font-medium animate-fade-in"
+                >
+                    <CheckCircle class="w-6 h-6" />
+                    <span>Product Updated successfully!</span>
+                </div>
+
+                <form @submit.prevent="submitForm" v-if="!showSuccess">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="space-y-6">
+                            <div>
+                                <label for="title" class="block text-sm font-medium text-gray-300">
+                                    Title
+                                </label>
+                                <input
+                                    type="text"
+                                    id="title"
+                                    v-model="product.title"
+                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    :class="{ 'border-red-500': errors.title }"
+                                />
+                                <p v-if="errors.title" class="mt-1 text-sm text-red-500">
+                                    {{ errors.title[0] }}
+                                </p>
+                            </div>
+
+                            <!-- Product Details Input (Quill Editor) -->
+                            <div>
+                                <label for="product_details" class="block text-sm font-medium text-gray-300 mb-2">
+                                    Product Details
+                                </label>
+                                <div id="description" style="height: 250px;"></div>
+                                <p v-if="errors.product_details" class="mt-1 text-sm text-red-500">
+                                    {{ errors.product_details[0] }}
+                                </p>
+                            </div>
+
+                            <!-- Category Dropdown -->
+                            <div>
+                                <label for="category_id" class="block text-sm font-medium text-gray-300">
+                                    Category
+                                </label>
+                                <select
+                                    id="category_id"
+                                    v-model="product.category_id"
+                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    :class="{ 'border-red-500': errors.category_id }"
+                                >
+                                    <option value="" disabled>Select Category</option>
+                                    <option v-for="category in categoriesList" :key="category.id" :value="category.id">
+                                        {{ category.cat_title }}
+                                    </option>
+                                </select>
+                                <p v-if="errors.category_id" class="mt-1 text-sm text-red-500">
+                                    {{ errors.category_id[0] }}
+                                </p>
+                            </div>
+
+                            <!-- Make Dropdown -->
+                            <div>
+                                <label for="make_id" class="block text-sm font-medium text-gray-300">
+                                    Make
+                                </label>
+                                <select
+                                    id="make_id"
+                                    v-model="product.make_id"
+                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    :class="{ 'border-red-500': errors.make_id }"
+                                >
+                                    <option value="" disabled>Select Make</option>
+                                    <option v-for="make in makesList" :key="make.id" :value="make.id">
+                                        {{ make.cat_title }}
+                                    </option>
+                                </select>
+                                <p v-if="errors.make_id" class="mt-1 text-sm text-red-500">
+                                    {{ errors.make_id[0] }}
+                                </p>
+                            </div>
+
+                            <!-- Price Input -->
+                            <div>
+                                <label for="price" class="block text-sm font-medium text-gray-300">
+                                    Price (USD)
+                                </label>
+                                <input
+                                    type="number"
+                                    id="price"
+                                    v-model="product.price"
+                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    :class="{ 'border-red-500': errors.price }"
+                                />
+                                <p v-if="errors.price" class="mt-1 text-sm text-red-500">
+                                    {{ errors.price[0] }}
+                                </p>
+                            </div>
+
+                            <!-- Country Dropdown -->
+                            <div>
+                                <label for="country" class="block text-sm font-medium text-gray-300">
+                                    Country
+                                </label>
+                                <select
+                                    id="country"
+                                    v-model="product.country"
+                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    :class="{ 'border-red-500': errors.country }"
+                                >
+                                    <option value="" disabled>Select Country</option>
+                                    <option value="China">China</option>
+                                    <option value="Japan">Japan</option>
+                                </select>
+                                <p v-if="errors.country" class="mt-1 text-sm text-red-500">
+                                    {{ errors.country[0] }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Images -->
+                        <div class="space-y-6">
+                            <!-- Front Image Input -->
+                            <div>
+                                <label for="front_image" class="block text-sm font-medium text-gray-300 mb-2">
+                                    Front Image
+                                </label>
+                                <div class="flex flex-col space-y-4">
+                                    <div class="flex justify-center">
+                                        <div
+                                            class="relative w-full h-48 bg-gray-900 border border-gray-700 rounded-lg overflow-hidden transition duration-300 hover:shadow-xl"
+                                            :class="{ 'border-dashed': !frontImagePreview, 'border-red-500': errors.front_image }"
+                                        >
+                                            <img
+                                                v-if="frontImagePreview"
+                                                :src="frontImagePreview"
+                                                alt="Front Image Preview"
+                                                class="w-full h-full object-cover"
+                                            />
+                                            <div
+                                                v-else
+                                                class="flex items-center justify-center h-full text-gray-400"
+                                            >
+                                                <Image class="w-10 h-10 mr-2" />
+                                                <span>No image selected</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-center space-x-4">
+                                        <input
+                                            type="file"
+                                            id="front_image"
+                                            @change="previewFrontImage"
+                                            accept="image/*"
+                                            class="hidden"
+                                        />
+                                        <label
+                                            for="front_image"
+                                            class="cursor-pointer flex items-center space-x-2 px-4 py-2 bg-[#782527] text-white rounded-lg hover:bg-[#6c1d1d] transition duration-300 shadow-md hover:shadow-lg"
+                                        >
+                                            <Upload class="w-5 h-5" />
+                                            <span>Update Front Image</span>
+                                        </label>
+                                    </div>
+                                    <p v-if="errors.front_image" class="mt-1 text-sm text-red-500">
+                                        {{ errors.front_image[0] }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Other Images Input (Gallery) -->
+                            <div>
+                                <label for="other_images" class="block text-sm font-medium text-gray-300 mb-2">
+                                    Other Images
+                                </label>
+                                <div class="flex flex-col space-y-4">
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                        <div
+                                            v-for="(image, index) in otherImagesPreview"
+                                            :key="index"
+                                            class="relative w-full h-32 bg-gray-900 border border-gray-700 rounded-lg overflow-hidden transition duration-300 hover:shadow-xl"
+                                        >
+                                            <img
+                                                :src="image"
+                                                :alt="'Other Image ' + (index + 1)"
+                                                class="w-full h-full object-cover"
+                                            />
+                                            <button
+                                                type="button"
+                                                @click="removeOtherImage(index)"
+                                                class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                        <div
+                                            class="flex items-center justify-center w-full h-32 bg-gray-900 border border-dashed border-gray-700 rounded-lg"
+                                            :class="{ 'border-red-500': errors.other_images }"
+                                        >
+                                            <input
+                                                type="file"
+                                                id="other_images"
+                                                @change="previewOtherImages"
+                                                accept="image/*"
+                                                multiple
+                                                class="hidden"
+                                            />
+                                            <label
+                                                for="other_images"
+                                                class="cursor-pointer flex items-center space-x-2 text-gray-400"
+                                            >
+                                                <Upload class="w-6 h-6" />
+                                                <span>Add Images</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <p v-if="errors.other_images" class="mt-1 text-sm text-red-500">
+                                        {{ errors.other_images[0] }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Submit Button Overlay -->
+                    <div class="mt-6 flex justify-center">
+                        <button
+                            :disabled="isLoading"
+                            type="submit"
+                            class="w-full max-w-md p-3 bg-[#782527] text-white rounded-lg shadow-md hover:bg-[#6c1d1d] focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                        >
+                            Update Product
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </AppLayout>
+</template>
+
+<style>
+.ql-container {
+    font-size: 16px;
+}
+
+.ql-toolbar.ql-snow {
+    border: none !important;
+    padding: 8px;
+    background-color: #782527;
+    color: white;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.ql-toolbar.ql-snow + .ql-container.ql-snow {
+    border-top: 0;
+    border: none !important;
+    background-color: #111827;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.ql-editor {
+    scrollbar-width: thin;
+    scrollbar-color: #191919 #3e3c3c;
+}
+
+.ql-snow .ql-picker {
+    color: #ffffff !important;
+}
+
+.ql-snow .ql-stroke {
+    stroke: #ffffff !important;
+}
+
+.ql-snow .ql-picker.ql-expanded .ql-picker-options {
+    display: block;
+    margin-top: -1px;
+    top: 100%;
+    z-index: 1;
+    background-color: #1b1d1e;
+    border: none;
+    border-radius: 12px;
+}
+</style>
+
+<style scoped>
+form {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
