@@ -23,7 +23,18 @@ class ProductDetailsParser
         }
 
         $raw = [];
+        // Format 1 (scraped listings): <li><strong>Key:</strong> value</li>
         if (preg_match_all('/<strong>([^<:]{1,40}):?<\/strong>:?\s*([^<]{0,120})/u', $html, $m, PREG_SET_ORDER)) {
+            foreach ($m as $pair) {
+                $key = mb_strtolower(trim($pair[1]));
+                if (! isset($raw[$key])) {
+                    $raw[$key] = self::clean($pair[2]);
+                }
+            }
+        }
+        // Format 2 (site's own products): <p>Key&nbsp;:&nbsp;Value</p>
+        $decoded = str_replace("\u{00A0}", ' ', html_entity_decode($html));
+        if (preg_match_all('/<p>\s*([^<:]{1,40}?)\s*:\s*([^<]{0,120}?)\s*<\/p>/u', $decoded, $m, PREG_SET_ORDER)) {
             foreach ($m as $pair) {
                 $key = mb_strtolower(trim($pair[1]));
                 if (! isset($raw[$key])) {
@@ -38,9 +49,11 @@ class ProductDetailsParser
         // Second value = column length; real data overflows (e.g. condition
         // "Used (accident Not Repaired)"), so clamp to schema.
         $out['model'] = self::clamp($raw['model'] ?? null, 100);
-        $out['model_code'] = self::clamp($raw['model code'] ?? null, 60);
+        $out['model_code'] = self::clamp($raw['model code'] ?? $raw['chassis no'] ?? null, 60);
         $out['year'] = self::year($raw);
-        $out['engine_cc'] = self::engineCc($raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? null);
+        $out['engine_cc'] = self::engineCc(
+            $raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? $raw['displacement'] ?? null
+        );
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
         $out['fuel'] = self::fuel($raw['fuel'] ?? null);
         $out['transmission'] = self::transmission($raw['transmission'] ?? null);
@@ -48,7 +61,7 @@ class ProductDetailsParser
         $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? null), 40);
         $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? null);
-        $out['drive_type'] = self::driveType($raw['drive type'] ?? null);
+        $out['drive_type'] = self::driveType($raw['drive type'] ?? $raw['drive system'] ?? null);
 
         return $out;
     }
@@ -78,7 +91,7 @@ class ProductDetailsParser
 
     private static function year(array $raw): ?int
     {
-        foreach (['registration year / month', 'year of manufacture', 'first registration'] as $key) {
+        foreach (['registration year / month', 'year of manufacture', 'first registration', 'year'] as $key) {
             $value = $raw[$key] ?? null;
             if ($value !== null && preg_match('/\b(\d{4})\b/', $value, $m)) {
                 $year = (int) $m[1];
@@ -166,8 +179,8 @@ class ProductDetailsParser
         return match (true) {
             str_contains($v, 'cvt') => 'CVT',
             str_contains($v, 'semi') => 'Semi-Automatic',
-            str_contains($v, 'auto') => 'Automatic',
-            str_contains($v, 'manual'), str_contains($v, 'forward'),
+            str_contains($v, 'auto'), $v === 'at' => 'Automatic',
+            str_contains($v, 'manual'), str_contains($v, 'forward'), $v === 'mt',
             preg_match('/\bhw1\d{4}/', $v) === 1, str_contains($v, 'jsd') => 'Manual',
             default => null,
         };

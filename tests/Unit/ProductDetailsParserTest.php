@@ -142,6 +142,29 @@ class ProductDetailsParserTest extends TestCase
         $this->assertLessThanOrEqual(40, mb_strlen($out['condition']));
     }
 
+    public function test_parses_suprememotors_paragraph_format(): void
+    {
+        // The site's own products use <p>Key&nbsp;:&nbsp;Value</p> — no <strong>.
+        $html = '<p>TOYOTA&nbsp;MARK&nbsp;X&nbsp;250G</p><p>Year&nbsp;:&nbsp;2010</p>'
+            .'<p>Color&nbsp;:&nbsp;GREY</p><p>Mileage&nbsp;:&nbsp;60,388&nbsp;km</p>'
+            .'<p>Steering&nbsp;:&nbsp;Right</p><p>Transmission&nbsp;:&nbsp;AT</p>'
+            .'<p>Fuel&nbsp;:&nbsp;GASOLINE</p><p>Drive&nbsp;System&nbsp;:&nbsp;2WD</p>'
+            .'<p>Doors&nbsp;:&nbsp;4D</p><p>Displacement&nbsp;:&nbsp;&nbsp;2500cc</p>'
+            .'<p>Chassis&nbsp;No&nbsp;:&nbsp;GRX130</p><p></p>';
+
+        $out = ProductDetailsParser::parse($html);
+
+        $this->assertSame(2010, $out['year']);
+        $this->assertSame('Grey', $out['color']);
+        $this->assertSame(60388, $out['mileage_km']);
+        $this->assertSame('Right', $out['steering']);
+        $this->assertSame('Automatic', $out['transmission']);
+        $this->assertSame('Petrol', $out['fuel']);
+        $this->assertSame('2WD', $out['drive_type']);
+        $this->assertSame(2500, $out['engine_cc']);
+        $this->assertSame('GRX130', $out['model_code']);
+    }
+
     public function test_empty_or_unrelated_html_returns_all_nulls(): void
     {
         $out = ProductDetailsParser::parse('<p>plain text no attributes</p>');
