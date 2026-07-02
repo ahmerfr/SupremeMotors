@@ -42,13 +42,13 @@ class ProductDetailsParser
         $out['year'] = self::year($raw);
         $out['engine_cc'] = self::engineCc($raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? null);
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
-        $out['fuel'] = self::clamp(self::title($raw['fuel'] ?? null), 30);
-        $out['transmission'] = self::clamp(self::title($raw['transmission'] ?? null), 30);
+        $out['fuel'] = self::fuel($raw['fuel'] ?? null);
+        $out['transmission'] = self::transmission($raw['transmission'] ?? null);
         $out['condition'] = self::clamp(self::title($raw['condition'] ?? null), 40);
         $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? null), 40);
-        $out['steering'] = self::clamp(self::title($raw['steering'] ?? null), 10);
+        $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? null);
-        $out['drive_type'] = self::clamp(self::title($raw['drive type'] ?? null), 30);
+        $out['drive_type'] = self::driveType($raw['drive type'] ?? null);
 
         return $out;
     }
@@ -126,6 +126,85 @@ class ProductDetailsParser
 
         // Scraped junk goes past INT range; no real vehicle exceeds 2M km.
         return $n > 2_000_000 ? null : $n;
+    }
+
+    /**
+     * Scraped fuel values are messy ("Gasoline/petrol", "Electro", "Gas") —
+     * canonicalize to a fixed filterable set; unmappable -> NULL (the raw
+     * value is still in product_details).
+     */
+    private static function fuel(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+
+        return match (true) {
+            str_contains($v, 'hybrid'),
+            str_contains($v, 'diesel') && str_contains($v, 'electro') => 'Hybrid',
+            str_contains($v, 'diesel') => 'Diesel',
+            str_contains($v, 'gasoline'), str_contains($v, 'petrol'), $v === 'gas' => 'Petrol',
+            str_contains($v, 'electro'), str_contains($v, 'electric'), $v === 'ev' => 'Electric',
+            str_contains($v, 'lpg') => 'LPG',
+            str_contains($v, 'cng'), str_contains($v, 'natural gas') => 'CNG',
+            default => null,
+        };
+    }
+
+    /**
+     * Truck listings put gearbox model codes here ("Hw19710, 10 Forwards…");
+     * those are manual boxes. Canonical set or NULL.
+     */
+    private static function transmission(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+
+        return match (true) {
+            str_contains($v, 'cvt') => 'CVT',
+            str_contains($v, 'semi') => 'Semi-Automatic',
+            str_contains($v, 'auto') => 'Automatic',
+            str_contains($v, 'manual'), str_contains($v, 'forward'),
+            preg_match('/\bhw1\d{4}/', $v) === 1, str_contains($v, 'jsd') => 'Manual',
+            default => null,
+        };
+    }
+
+    private static function steering(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+        $left = str_contains($v, 'left');
+        $right = str_contains($v, 'right');
+
+        return match (true) {
+            $left && $right => null,
+            $right => 'Right',
+            $left => 'Left',
+            default => null,
+        };
+    }
+
+    private static function driveType(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+
+        return match (true) {
+            str_contains($v, '4wheel'), str_contains($v, '4wd'),
+            str_contains($v, '4x4'), str_contains($v, '4 wheel') => '4WD',
+            str_contains($v, 'awd'), str_contains($v, 'all') => 'AWD',
+            str_contains($v, '2wheel'), str_contains($v, '2wd'),
+            str_contains($v, '4x2'), str_contains($v, '2 wheel') => '2WD',
+            default => self::clamp(self::title($value), 30), // axle configs like "6*4" stay
+        };
     }
 
     private static function seats(?string $value): ?int

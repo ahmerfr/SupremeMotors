@@ -46,7 +46,7 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('Deep Blue', $out['color']);
         $this->assertSame('Right', $out['steering']);
         $this->assertSame(5, $out['seats']);
-        $this->assertSame('4Wheel Drive', $out['drive_type']);
+        $this->assertSame('4WD', $out['drive_type']);
     }
 
     public function test_junk_values_become_null(): void
@@ -99,6 +99,29 @@ class ProductDetailsParserTest extends TestCase
     {
         $out = ProductDetailsParser::parse($this->html(['Engine capacity (Displacement)' => '2.0L']));
         $this->assertSame(2000, $out['engine_cc']);
+    }
+
+    public function test_canonicalizes_messy_scraped_values(): void
+    {
+        $out = ProductDetailsParser::parse($this->html([
+            'Fuel' => 'Gasoline/petrol',
+            'Transmission' => 'Hw19710, 10 Forward And 2 Reve',
+            'Steering' => 'Zf Power Steering',
+            'Drive type' => '6*4',
+        ]));
+        $this->assertSame('Petrol', $out['fuel']);
+        $this->assertSame('Manual', $out['transmission']);
+        $this->assertNull($out['steering']);
+        $this->assertSame('6*4', $out['drive_type']);
+
+        $out = ProductDetailsParser::parse($this->html([
+            'Fuel' => 'Diesel/electro',
+            'Transmission' => 'CVT',
+            'Steering' => 'Left/right',
+        ]));
+        $this->assertSame('Hybrid', $out['fuel']);
+        $this->assertSame('CVT', $out['transmission']);
+        $this->assertNull($out['steering']);
     }
 
     public function test_absurd_numeric_values_rejected(): void
