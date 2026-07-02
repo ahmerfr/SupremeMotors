@@ -16,6 +16,7 @@ const props = defineProps({
 const breadcrumbs = [{ title: 'Dashboard', href: '/admin/dashboard' }];
 
 const page = usePage();
+const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
 const firstName = computed(() => (page.props.auth?.user?.name || 'there').split(' ')[0]);
 const hour = new Date().getHours();
 const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -57,6 +58,7 @@ const panel = 'rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgb
                 </div>
                 <div class="flex items-center gap-2">
                     <Link
+                        v-if="isAdmin"
                         href="/admin/query-form"
                         class="flex h-10 items-center rounded-lg border border-zinc-200 px-4 text-sm font-medium text-zinc-700 transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-zinc-100 active:scale-[0.98] dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
                     >
@@ -96,7 +98,7 @@ const panel = 'rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgb
 
             <!-- Feeds -->
             <div class="admin-reveal mt-4 grid gap-4 xl:grid-cols-2" style="animation-delay: 180ms">
-                <section :class="panel">
+                <section v-if="isAdmin" :class="panel">
                     <div class="flex items-center justify-between px-6 pb-1 pt-5">
                         <h2 class="text-[17px] font-semibold text-zinc-900 dark:text-white">Recent queries</h2>
                         <Link href="/admin/query-form" class="text-sm font-medium text-zinc-400 transition-colors duration-300 hover:text-[#8e2527] dark:text-zinc-500 dark:hover:text-[#d96a6c]">View all</Link>

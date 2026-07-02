@@ -7,33 +7,41 @@ const page = usePage();
 const current = computed(() => page.url);
 const user = computed(() => page.props.auth?.user ?? {});
 
-const groups = [
+const role = computed(() => user.value.role);
+
+const allGroups = [
     {
         label: null,
-        items: [{ title: 'Dashboard', href: '/admin/dashboard', icon: Gauge }],
+        items: [{ title: 'Dashboard', href: '/admin/dashboard', icon: Gauge, roles: ['admin', 'editor'] }],
     },
     {
         label: 'Catalog',
         items: [
-            { title: 'Products', href: '/admin/products', icon: Car },
-            { title: 'Categories & makes', href: '/admin/categories', icon: Folder },
+            { title: 'Products', href: '/admin/products', icon: Car, roles: ['admin', 'editor'] },
+            { title: 'Categories & makes', href: '/admin/categories', icon: Folder, roles: ['admin', 'editor'] },
         ],
     },
     {
         label: 'Inbox',
         items: [
-            { title: 'Queries', href: '/admin/query-form', icon: MessageSquareText },
-            { title: 'Newsletter', href: '/admin/newsletter', icon: Mail },
+            { title: 'Queries', href: '/admin/query-form', icon: MessageSquareText, roles: ['admin'] },
+            { title: 'Newsletter', href: '/admin/newsletter', icon: Mail, roles: ['admin'] },
         ],
     },
     {
         label: 'Content',
         items: [
-            { title: 'Blogs', href: '/admin/blogs', icon: Newspaper },
-            { title: 'Users', href: '/admin/users', icon: Users },
+            { title: 'Blogs', href: '/admin/blogs', icon: Newspaper, roles: ['admin', 'editor'] },
+            { title: 'Users', href: '/admin/users', icon: Users, roles: ['admin'] },
         ],
     },
 ];
+
+const groups = computed(() =>
+    allGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role.value)) }))
+        .filter((g) => g.items.length)
+);
 
 const isActive = (href) => current.value === href || current.value.startsWith(href + '/');
 

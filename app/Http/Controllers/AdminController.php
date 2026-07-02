@@ -31,10 +31,13 @@ class AdminController extends Controller
             'published_blogs' => Blogs::where('publish_status', 'published')->count(),
         ];
 
-        $recent_queries = QueryForm::latest('created_at')
-            ->select('id', 'company', 'contact_name', 'email', 'created_at')
-            ->limit(5)
-            ->get();
+        // Customer contact details stay admin-only; editors get an empty feed.
+        $recent_queries = auth()->user()->role === 'admin'
+            ? QueryForm::latest('created_at')
+                ->select('id', 'company', 'contact_name', 'email', 'created_at')
+                ->limit(5)
+                ->get()
+            : collect();
 
         $recent_products = Products::where('website', 'suprememotors')
             ->latest('created_at')
@@ -76,18 +79,35 @@ class AdminController extends Controller
     public function users_listing()
     {
         $keywords = request()->keywords;
-        $users = User::query()
-            ->where(function ($query) {
-                $query->where('role', 'user');
-            })->orderBy('created_at', 'desc');
+        $role = request()->role;
+        $users = User::query()->orderBy('created_at', 'desc');
+        if (in_array($role, ['admin', 'editor', 'user'], true)) {
+            $users->where('role', $role);
+        }
         if ($keywords) {
             $users->where(function ($query) use ($keywords) {
                 $query->where('name', 'like', '%' . $keywords . '%')
                     ->orWhere('email', 'like', '%' . $keywords . '%');
             });
         }
-        $users = $users->paginate(15);
+        $users = $users->paginate(15)->withQueryString();
         return $users;
+    }
+
+    public function users_update_role(Request $request, User $user)
+    {
+        $request->validate([
+            'role' => 'required|in:admin,editor,user',
+        ]);
+
+        if ($user->id === $request->user()->id) {
+            return response()->json(['message' => 'You cannot change your own role.'], 422);
+        }
+
+        $user->role = $request->input('role');
+        $user->save();
+
+        return response()->json(['message' => 'Role updated.', 'user' => $user->only('id', 'name', 'role')]);
     }
     public function categories_index()
     {

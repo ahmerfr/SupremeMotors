@@ -49,28 +49,28 @@ Route::prefix('blogs')->name('blogs.')->group(function () {
 });
 
 
-Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,editor'])->prefix('admin')->name('admin.')->group(function () {
     // Dashboard route
     Route::get('dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
-    // Users route group
-    Route::prefix('users')->name('users.')->group(function () {
-        Route::get('/', [AdminController::class, 'users_index'])->name('index');
-        Route::get('/listing', [AdminController::class, 'users_listing'])->name('listing');
-    });
+    // Admin-only: customer data and role management
+    Route::middleware('role:admin')->group(function () {
+        Route::prefix('users')->name('users.')->group(function () {
+            Route::get('/', [AdminController::class, 'users_index'])->name('index');
+            Route::get('/listing', [AdminController::class, 'users_listing'])->name('listing');
+            Route::patch('/{user}/role', [AdminController::class, 'users_update_role'])->name('role');
+        });
 
+        Route::prefix('newsletter')->name('newsletter.')->group(function () {
+            Route::get('/', [AdminController::class, 'newsletter_index'])->name('index');
+            Route::get('/listing', [AdminController::class, 'newsletter_listing'])->name('listing');
+        });
 
-    // Newsletter
-    Route::prefix('newsletter')->name('newsletter.')->group(function () {
-        Route::get('/', [AdminController::class, 'newsletter_index'])->name('index');
-        Route::get('/listing', [AdminController::class, 'newsletter_listing'])->name('listing');
-    });
-
-    // Query Form
-    Route::prefix('query-form')->name('query-form.')->group(function () {
-        Route::get('/', [AdminController::class, 'query_form_index'])->name('index');
-        Route::get('/listing', [AdminController::class, 'query_form_listing'])->name('listing');
-        Route::get('/view/{id}', [AdminController::class, 'query_form_view'])->name('view');
+        Route::prefix('query-form')->name('query-form.')->group(function () {
+            Route::get('/', [AdminController::class, 'query_form_index'])->name('index');
+            Route::get('/listing', [AdminController::class, 'query_form_listing'])->name('listing');
+            Route::get('/view/{id}', [AdminController::class, 'query_form_view'])->name('view');
+        });
     });
 
     Route::prefix('categories')->name('categories.')->group(function () {
