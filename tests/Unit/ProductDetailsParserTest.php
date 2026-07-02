@@ -128,7 +128,7 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('Petrol', $out['fuel']);
         $this->assertSame('Manual', $out['transmission']);
         $this->assertNull($out['steering']);
-        $this->assertSame('6*4', $out['drive_type']);
+        $this->assertSame('6x4', $out['drive_type']);
 
         $out = ProductDetailsParser::parse($this->html([
             'Fuel' => 'Diesel/electro',
@@ -138,6 +138,36 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('Hybrid', $out['fuel']);
         $this->assertSame('CVT', $out['transmission']);
         $this->assertNull($out['steering']);
+    }
+
+    public function test_drive_type_axle_configs_and_leaked_steering(): void
+    {
+        // "6X4", "6×4", "6*4" are the same config — one canonical spelling.
+        foreach (['6X4', '6×4', '6*4'] as $variant) {
+            $out = ProductDetailsParser::parse($this->html(['Drive type' => $variant]));
+            $this->assertSame('6x4', $out['drive_type'], "variant: {$variant}");
+        }
+
+        $out = ProductDetailsParser::parse($this->html(['Drive type' => 'Front-wheel drive']));
+        $this->assertSame('FWD', $out['drive_type']);
+
+        $out = ProductDetailsParser::parse($this->html(['Drive type' => 'Rear-wheel drive']));
+        $this->assertSame('RWD', $out['drive_type']);
+
+        // Steering-side text does not belong in drive_type.
+        $out = ProductDetailsParser::parse($this->html(['Drive type' => 'Right Or Left Hand Drive, LHD']));
+        $this->assertNull($out['drive_type']);
+    }
+
+    public function test_ambiguous_condition_values_become_null(): void
+    {
+        foreach (['New/used', 'Both New And Used', "According To Customer′s Choice New Or Used"] as $junk) {
+            $out = ProductDetailsParser::parse($this->html(['Condition' => $junk]));
+            $this->assertNull($out['condition'], "value: {$junk}");
+        }
+
+        $out = ProductDetailsParser::parse($this->html(['Condition' => 'Used (no accident)']));
+        $this->assertSame('Used (no Accident)', $out['condition']);
     }
 
     public function test_absurd_numeric_values_rejected(): void

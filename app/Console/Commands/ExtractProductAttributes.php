@@ -40,9 +40,8 @@ class ExtractProductAttributes extends Command
                             $filled[$f]++;
                         }
                     }
-                    if (array_filter($attrs, fn ($v) => $v !== null) === []) {
-                        continue;
-                    }
+                    // Always include the row — skipping all-null parses would
+                    // leave stale values from earlier runs in place.
                     // title: strict mode validates NOT NULL columns on the
                     // INSERT clause even though every id hits the UPDATE path.
                     $updates[] = array_merge(['id' => $row->id, 'title' => $row->title], $attrs);

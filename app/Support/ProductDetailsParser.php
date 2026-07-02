@@ -59,7 +59,7 @@ class ProductDetailsParser
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
         $out['fuel'] = self::fuel($raw['fuel'] ?? $raw['fuel type'] ?? null);
         $out['transmission'] = self::transmission($raw['transmission'] ?? null);
-        $out['condition'] = self::clamp(self::title($raw['condition'] ?? null), 40);
+        $out['condition'] = self::condition($raw['condition'] ?? null);
         $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null), 40);
         $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? $raw['seats'] ?? null);
@@ -189,6 +189,20 @@ class ProductDetailsParser
         };
     }
 
+    /** "New/used", "Both New And Used", "According to customer's choice" say nothing — NULL. */
+    private static function condition(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+        if (str_contains($v, '/') || str_contains($v, 'both') || str_contains($v, 'according') || str_contains($v, 'choice')) {
+            return null;
+        }
+
+        return self::clamp(self::title($value), 40);
+    }
+
     private static function steering(?string $value): ?string
     {
         if ($value === null) {
@@ -213,13 +227,23 @@ class ProductDetailsParser
         }
         $v = mb_strtolower($value);
 
+        // Steering-side text leaks into this key on some sources.
+        if (str_contains($v, 'hand drive') || str_contains($v, 'lhd') || str_contains($v, 'rhd')) {
+            return null;
+        }
+        // Axle configs: "6X4" / "6×4" / "6*4" -> "6x4".
+        if (preg_match('/^(\d)\s*[x×*]\s*(\d)$/u', trim($v), $m)) {
+            return $m[1] === '4' && $m[2] === '4' ? '4WD'
+                : ($m[1] === '4' && $m[2] === '2' ? '2WD' : "{$m[1]}x{$m[2]}");
+        }
+
         return match (true) {
-            str_contains($v, '4wheel'), str_contains($v, '4wd'),
-            str_contains($v, '4x4'), str_contains($v, '4 wheel') => '4WD',
+            str_contains($v, '4wheel'), str_contains($v, '4wd'), str_contains($v, '4 wheel') => '4WD',
             str_contains($v, 'awd'), str_contains($v, 'all') => 'AWD',
-            str_contains($v, '2wheel'), str_contains($v, '2wd'),
-            str_contains($v, '4x2'), str_contains($v, '2 wheel') => '2WD',
-            default => self::clamp(self::title($value), 30), // axle configs like "6*4" stay
+            str_contains($v, 'front') => 'FWD',
+            str_contains($v, 'rear') => 'RWD',
+            str_contains($v, '2wheel'), str_contains($v, '2wd'), str_contains($v, '2 wheel') => '2WD',
+            default => self::clamp(self::title($value), 30),
         };
     }
 

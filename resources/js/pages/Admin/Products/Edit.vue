@@ -54,7 +54,7 @@ const attributeFields = [
     { key: 'transmission', label: 'Transmission', type: 'select', options: ['Automatic', 'Manual', 'CVT', 'Semi-Automatic'] },
     { key: 'condition', label: 'Condition', type: 'select', options: ['Used', 'New'] },
     { key: 'steering', label: 'Steering', type: 'select', options: ['Right', 'Left'] },
-    { key: 'drive_type', label: 'Drive Type', type: 'select', options: ['2WD', '4WD', 'AWD', '4Wheel Drive'] },
+    { key: 'drive_type', label: 'Drive Type', type: 'select', options: ['2WD', '4WD', 'AWD', 'FWD', 'RWD', '6x4', '8x4'] },
     { key: 'color', label: 'Color', type: 'text' },
 ];
 
