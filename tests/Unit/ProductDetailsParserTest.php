@@ -49,6 +49,22 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('4WD', $out['drive_type']);
     }
 
+    public function test_parses_doors_from_both_formats(): void
+    {
+        $out = ProductDetailsParser::parse($this->html(['Door' => '5']));
+        $this->assertSame(5, $out['doors']);
+
+        // Own-site format: "Doors : 4D"; junk rejected.
+        $out = ProductDetailsParser::parse('<p>Doors&nbsp;:&nbsp;4D</p>');
+        $this->assertSame(4, $out['doors']);
+
+        $out = ProductDetailsParser::parse($this->html(['Door' => '6mm']));
+        $this->assertNull($out['doors']);
+
+        $out = ProductDetailsParser::parse($this->html(['Door' => '0']));
+        $this->assertNull($out['doors']);
+    }
+
     public function test_junk_values_become_null(): void
     {
         $out = ProductDetailsParser::parse($this->html([

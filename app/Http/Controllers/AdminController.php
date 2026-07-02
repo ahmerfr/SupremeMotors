@@ -172,10 +172,11 @@ class AdminController extends Controller
             'mileage_km' => 'nullable|integer|min:0',
             'fuel' => 'nullable|string|max:30',
             'transmission' => 'nullable|string|max:30',
-            'condition' => 'nullable|string|max:20',
+            'condition' => 'nullable|string|max:40',
             'color' => 'nullable|string|max:40',
             'steering' => 'nullable|string|max:10',
             'seats' => 'nullable|integer|between:1,99',
+            'doors' => 'nullable|integer|between:1,9',
             'drive_type' => 'nullable|string|max:30',
         ]);
 
@@ -189,7 +190,7 @@ class AdminController extends Controller
             }
             $attributeFields = [
                 'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
-                'transmission', 'condition', 'color', 'steering', 'seats', 'drive_type',
+                'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
             ];
             $product = Products::create(array_merge([
                 'title' => $validatedData['title'],
@@ -246,10 +247,11 @@ class AdminController extends Controller
             'mileage_km' => 'nullable|integer|min:0',
             'fuel' => 'nullable|string|max:30',
             'transmission' => 'nullable|string|max:30',
-            'condition' => 'nullable|string|max:20',
+            'condition' => 'nullable|string|max:40',
             'color' => 'nullable|string|max:40',
             'steering' => 'nullable|string|max:10',
             'seats' => 'nullable|integer|between:1,99',
+            'doors' => 'nullable|integer|between:1,9',
             'drive_type' => 'nullable|string|max:30',
         ]);
 
@@ -265,7 +267,7 @@ class AdminController extends Controller
 
             foreach ([
                 'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
-                'transmission', 'condition', 'color', 'steering', 'seats', 'drive_type',
+                'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
             ] as $field) {
                 $product->{$field} = $validatedData[$field] ?? null;
             }

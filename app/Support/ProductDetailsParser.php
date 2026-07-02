@@ -8,7 +8,7 @@ class ProductDetailsParser
 
     private const FIELDS = [
         'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
-        'transmission', 'condition', 'color', 'steering', 'seats', 'drive_type',
+        'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
     ];
 
     /**
@@ -63,6 +63,7 @@ class ProductDetailsParser
         $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null), 40);
         $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? $raw['seats'] ?? null);
+        $out['doors'] = self::doors($raw['door'] ?? $raw['doors'] ?? null);
         $out['drive_type'] = self::driveType($raw['drive type'] ?? $raw['drive system'] ?? null);
 
         return $out;
@@ -220,6 +221,17 @@ class ProductDetailsParser
             str_contains($v, '4x2'), str_contains($v, '2 wheel') => '2WD',
             default => self::clamp(self::title($value), 30), // axle configs like "6*4" stay
         };
+    }
+
+    /** "5", "4D" -> int; "0", "6mm", junk -> null. */
+    private static function doors(?string $value): ?int
+    {
+        if ($value === null || ! preg_match('/^(\d)\s*d?$/i', trim($value), $m)) {
+            return null;
+        }
+        $n = (int) $m[1];
+
+        return $n >= 1 ? $n : null;
     }
 
     private static function seats(?string $value): ?int

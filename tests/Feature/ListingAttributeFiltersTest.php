@@ -68,6 +68,19 @@ class ListingAttributeFiltersTest extends TestCase
         $this->assertCount(2, $response->json('data'));
     }
 
+    public function test_filters_by_doors(): void
+    {
+        $this->makeProduct(['title' => 'Hatch', 'doors' => 5]);
+        $this->makeProduct(['title' => 'Coupe', 'doors' => 2]);
+
+        $response = $this->getJson('/inventory/listing?doors=5');
+
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertCount(1, $data);
+        $this->assertSame('Hatch', $data[0]['title']);
+    }
+
     public function test_no_attribute_params_returns_everything(): void
     {
         $this->makeProduct(['title' => 'A']);

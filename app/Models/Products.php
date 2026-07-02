@@ -27,6 +27,7 @@ class Products extends Model
         'color',
         'steering',
         'seats',
+        'doors',
         'drive_type',
         'category_id',
         'make_id',

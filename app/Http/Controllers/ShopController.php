@@ -173,6 +173,10 @@ class ShopController extends Controller
         if (! empty($data['seats'])) {
             $query->where('seats', (int) $data['seats']);
         }
+
+        if (! empty($data['doors'])) {
+            $query->where('doors', (int) $data['doors']);
+        }
     }
 
     public function product_detail($id)
