@@ -232,6 +232,54 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('Diesel', $out['fuel']);
     }
 
+    public function test_alias_keys_for_transmission_and_drive_type(): void
+    {
+        $out = ProductDetailsParser::parse($this->html(['Transmission Type' => 'Manual']));
+        $this->assertSame('Manual', $out['transmission']);
+
+        $out = ProductDetailsParser::parse($this->html(['Axle Configuration' => '8x4']));
+        $this->assertSame('8x4', $out['drive_type']);
+
+        $out = ProductDetailsParser::parse($this->html(['Drive Wheel' => '6×4']));
+        $this->assertSame('6x4', $out['drive_type']);
+    }
+
+    public function test_truck_and_machinery_fields(): void
+    {
+        $out = ProductDetailsParser::parse($this->html([
+            'Number of axles' => '3',
+            'Load capacity' => '3,000 kg',
+            'Power' => '110 kW (150 HP)',
+            'Emission standard' => 'Euro 3',
+            'Running hours' => '3,000 m/h',
+        ]));
+        $this->assertSame(3, $out['axles']);
+        $this->assertSame(3000, $out['load_capacity_kg']);
+        $this->assertSame(150, $out['power_hp']);
+        $this->assertSame('Euro 3', $out['emission_standard']);
+        $this->assertSame(3000, $out['running_hours']);
+    }
+
+    public function test_power_load_and_emission_variants(): void
+    {
+        // kW only -> converted; tons -> kg; roman euro; hp ranges take first.
+        $out = ProductDetailsParser::parse($this->html([
+            'Power' => '110 kW',
+            'Payload' => '40~120 Tons',
+            'Euro' => 'Euro II',
+        ]));
+        $this->assertSame(148, $out['power_hp']);
+        $this->assertSame(40000, $out['load_capacity_kg']);
+        $this->assertSame('Euro 2', $out['emission_standard']);
+
+        $out = ProductDetailsParser::parse($this->html([
+            'Horsepower' => '351-450hp',
+            'Emission' => 'euro 2/3/4/5',
+        ]));
+        $this->assertSame(351, $out['power_hp']);
+        $this->assertNull($out['emission_standard']);
+    }
+
     public function test_empty_or_unrelated_html_returns_all_nulls(): void
     {
         $out = ProductDetailsParser::parse('<p>plain text no attributes</p>');

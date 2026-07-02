@@ -9,6 +9,7 @@ class ProductDetailsParser
     private const FIELDS = [
         'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
         'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
+        'axles', 'load_capacity_kg', 'power_hp', 'emission_standard', 'running_hours',
     ];
 
     /**
@@ -58,13 +59,27 @@ class ProductDetailsParser
         );
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
         $out['fuel'] = self::fuel($raw['fuel'] ?? $raw['fuel type'] ?? null);
-        $out['transmission'] = self::transmission($raw['transmission'] ?? null);
+        $out['transmission'] = self::transmission($raw['transmission'] ?? $raw['transmission type'] ?? null);
         $out['condition'] = self::condition($raw['condition'] ?? null);
         $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null), 40);
         $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? $raw['seats'] ?? null);
         $out['doors'] = self::doors($raw['door'] ?? $raw['doors'] ?? null);
-        $out['drive_type'] = self::driveType($raw['drive type'] ?? $raw['drive system'] ?? null);
+        $out['drive_type'] = self::driveType(
+            $raw['drive type'] ?? $raw['drive system'] ?? $raw['axle configuration']
+                ?? $raw['drive wheel'] ?? $raw['drive mode'] ?? null
+        );
+        $out['axles'] = self::smallInt($raw['number of axles'] ?? null, 1, 9);
+        $out['load_capacity_kg'] = self::loadCapacityKg(
+            $raw['load capacity'] ?? $raw['payload'] ?? $raw['loading capacity'] ?? null
+        );
+        $out['power_hp'] = self::powerHp(
+            $raw['power'] ?? $raw['horsepower'] ?? $raw['maximum horsepower'] ?? $raw['horse power'] ?? null
+        );
+        $out['emission_standard'] = self::emissionStandard(
+            $raw['emission standard'] ?? $raw['euro'] ?? $raw['emission'] ?? null
+        );
+        $out['running_hours'] = self::boundedDigits($raw['running hours'] ?? null, 1, 200_000);
 
         return $out;
     }
@@ -245,6 +260,80 @@ class ProductDetailsParser
             str_contains($v, '2wheel'), str_contains($v, '2wd'), str_contains($v, '2 wheel') => '2WD',
             default => self::clamp(self::title($value), 30),
         };
+    }
+
+    private static function smallInt(?string $value, int $min, int $max): ?int
+    {
+        if ($value === null || ! preg_match('/\d+/', $value, $m)) {
+            return null;
+        }
+        $n = (int) $m[0];
+
+        return ($n >= $min && $n <= $max) ? $n : null;
+    }
+
+    private static function boundedDigits(?string $value, int $min, int $max): ?int
+    {
+        if ($value === null || ! preg_match('/[\d,.]+/', $value, $m)) {
+            return null;
+        }
+        $n = (int) preg_replace('/[^0-9]/', '', $m[0]);
+
+        return ($n >= $min && $n <= $max) ? $n : null;
+    }
+
+    /** "3,000 kg", "40~120 Tons", "120KGS" -> kg; first number wins, tons x1000. */
+    private static function loadCapacityKg(?string $value): ?int
+    {
+        if ($value === null || ! preg_match('/([\d,.]+)/', $value, $m)) {
+            return null;
+        }
+        $n = (float) str_replace(',', '', $m[1]);
+        if (preg_match('/ton/i', $value)) {
+            $n *= 1000;
+        }
+        $n = (int) round($n);
+
+        return ($n >= 1 && $n <= 500_000) ? $n : null;
+    }
+
+    /** "110 kW (150 HP)" -> 150; "110 kW" -> 148; "351-450hp" -> 351. */
+    private static function powerHp(?string $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        $clean = str_replace(',', '', $value);
+        if (preg_match('/([\d.]+)\s*[-~]\s*[\d.]+\s*hp/i', $clean, $m)) {
+            $n = (int) round((float) $m[1]); // "351-450hp" -> range start
+        } elseif (preg_match('/([\d.]+)\s*hp/i', $clean, $m)) {
+            $n = (int) round((float) $m[1]);
+        } elseif (preg_match('/([\d.]+)\s*kw/i', $clean, $m)) {
+            $n = (int) round(((float) $m[1]) * 1.34102);
+        } elseif (preg_match('/([\d.]+)/', $clean, $m)) {
+            $n = (int) round((float) $m[1]);
+        } else {
+            return null;
+        }
+
+        return ($n >= 10 && $n <= 5_000) ? $n : null;
+    }
+
+    /** "Euro 3" / "Euro II" -> "Euro N"; multi-value junk ("euro 2/3/4/5") -> null. */
+    private static function emissionStandard(?string $value): ?string
+    {
+        if ($value === null || str_contains($value, '/')) {
+            return null;
+        }
+        $roman = ['i' => 1, 'ii' => 2, 'iii' => 3, 'iv' => 4, 'v' => 5, 'vi' => 6];
+        if (preg_match('/euro\s*([1-6]|i{1,3}v?|vi?)\b/i', $value, $m)) {
+            $token = mb_strtolower($m[1]);
+            $n = ctype_digit($token) ? (int) $token : ($roman[$token] ?? null);
+
+            return $n === null ? null : "Euro {$n}";
+        }
+
+        return null;
     }
 
     /** "5", "4D" -> int; "0", "6mm", junk -> null. */

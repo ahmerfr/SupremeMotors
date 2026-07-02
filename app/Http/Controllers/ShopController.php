@@ -162,8 +162,11 @@ class ShopController extends Controller
         $range('year', $data['year_from'] ?? null, $data['year_to'] ?? null);
         $range('mileage_km', $data['mileage_min'] ?? null, $data['mileage_max'] ?? null);
         $range('engine_cc', $data['engine_min'] ?? null, $data['engine_max'] ?? null);
+        $range('power_hp', $data['power_min'] ?? null, $data['power_max'] ?? null);
+        $range('load_capacity_kg', $data['load_min'] ?? null, $data['load_max'] ?? null);
+        $range('running_hours', $data['hours_min'] ?? null, $data['hours_max'] ?? null);
 
-        foreach (['fuel', 'transmission', 'condition', 'steering', 'drive_type'] as $column) {
+        foreach (['fuel', 'transmission', 'condition', 'steering', 'drive_type', 'emission_standard'] as $column) {
             $value = $data[$column] ?? null;
             if ($value !== null && $value !== '') {
                 $query->whereIn($column, array_map('trim', explode(',', $value)));
@@ -176,6 +179,10 @@ class ShopController extends Controller
 
         if (! empty($data['doors'])) {
             $query->where('doors', (int) $data['doors']);
+        }
+
+        if (! empty($data['axles'])) {
+            $query->where('axles', (int) $data['axles']);
         }
     }
 

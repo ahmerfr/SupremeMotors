@@ -21,6 +21,7 @@ class ExtractProductAttributes extends Command
         $fields = [
             'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
             'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
+            'axles', 'load_capacity_kg', 'power_hp', 'emission_standard', 'running_hours',
         ];
         $filled = array_fill_keys($fields, 0);
         $processed = 0;

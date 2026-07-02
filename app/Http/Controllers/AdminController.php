@@ -177,6 +177,11 @@ class AdminController extends Controller
             'steering' => 'nullable|string|max:10',
             'seats' => 'nullable|integer|between:1,99',
             'doors' => 'nullable|integer|between:1,9',
+            'axles' => 'nullable|integer|between:1,9',
+            'load_capacity_kg' => 'nullable|integer|min:0',
+            'power_hp' => 'nullable|integer|between:10,5000',
+            'emission_standard' => 'nullable|string|max:10',
+            'running_hours' => 'nullable|integer|min:0',
             'drive_type' => 'nullable|string|max:30',
         ]);
 
@@ -191,6 +196,7 @@ class AdminController extends Controller
             $attributeFields = [
                 'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
                 'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
+                'axles', 'load_capacity_kg', 'power_hp', 'emission_standard', 'running_hours',
             ];
             $product = Products::create(array_merge([
                 'title' => $validatedData['title'],
@@ -252,6 +258,11 @@ class AdminController extends Controller
             'steering' => 'nullable|string|max:10',
             'seats' => 'nullable|integer|between:1,99',
             'doors' => 'nullable|integer|between:1,9',
+            'axles' => 'nullable|integer|between:1,9',
+            'load_capacity_kg' => 'nullable|integer|min:0',
+            'power_hp' => 'nullable|integer|between:10,5000',
+            'emission_standard' => 'nullable|string|max:10',
+            'running_hours' => 'nullable|integer|min:0',
             'drive_type' => 'nullable|string|max:30',
         ]);
 
@@ -268,6 +279,7 @@ class AdminController extends Controller
             foreach ([
                 'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
                 'transmission', 'condition', 'color', 'steering', 'seats', 'doors', 'drive_type',
+                'axles', 'load_capacity_kg', 'power_hp', 'emission_standard', 'running_hours',
             ] as $field) {
                 $product->{$field} = $validatedData[$field] ?? null;
             }
