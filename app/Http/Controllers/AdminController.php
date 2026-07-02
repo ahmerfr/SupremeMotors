@@ -19,7 +19,51 @@ use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
+    public function dashboard()
+    {
+        $stats = [
+            'own_products' => Products::where('website', 'suprememotors')->count(),
+            'total_products' => Products::count(),
+            'users' => User::where('role', 'user')->count(),
+            'newsletter' => Newsletter::count(),
+            'queries' => QueryForm::count(),
+            'contacts' => ContactForm::count(),
+            'published_blogs' => Blogs::where('publish_status', 'published')->count(),
+        ];
 
+        $recent_queries = QueryForm::latest('created_at')
+            ->select('id', 'company', 'contact_name', 'email', 'created_at')
+            ->limit(5)
+            ->get();
+
+        $recent_products = Products::where('website', 'suprememotors')
+            ->latest('created_at')
+            ->select('id', 'stock_code', 'title', 'price', 'front_image', 'created_at')
+            ->limit(5)
+            ->get();
+
+        $by_country = Products::whereNotNull('country')
+            ->groupBy('country')
+            ->selectRaw('country, COUNT(*) as count')
+            ->orderByDesc('count')
+            ->get();
+
+        $top_makes = Products::query()
+            ->join('categories', 'categories.id', '=', 'products.make_id')
+            ->groupBy('categories.id', 'categories.cat_title')
+            ->selectRaw('categories.cat_title, COUNT(*) as count')
+            ->orderByDesc('count')
+            ->limit(5)
+            ->get();
+
+        return Inertia::render('Dashboard', [
+            'stats' => $stats,
+            'recent_queries' => $recent_queries,
+            'recent_products' => $recent_products,
+            'by_country' => $by_country,
+            'top_makes' => $top_makes,
+        ]);
+    }
 
     public function users_index()
     {

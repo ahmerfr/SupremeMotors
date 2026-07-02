@@ -51,9 +51,7 @@ Route::prefix('blogs')->name('blogs.')->group(function () {
 
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     // Dashboard route
-    Route::get('dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
 
     // Users route group
     Route::prefix('users')->name('users.')->group(function () {
