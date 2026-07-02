@@ -69,7 +69,9 @@ class Products extends Model
     public function scopeSearch(Builder $query, string $term): Builder
     {
         $term = trim($term);
-        $boolean = collect(preg_split('/\s+/', $term))
+        // Split on hyphens too: FULLTEXT indexes "Mercedes-Benz" as two
+        // tokens, so "+mercedesbenz*" would match nothing.
+        $boolean = collect(preg_split('/[\s\-]+/', $term))
             ->map(fn ($word) => preg_replace('/[+\-<>()~*"@]+/', '', $word))
             ->filter(fn ($word) => mb_strlen($word) >= 3)
             ->map(fn ($word) => '+'.$word.'*')
