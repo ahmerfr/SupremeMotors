@@ -142,10 +142,10 @@ const props = defineProps({
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div 
                 v-for="category in categories" 
-                :key="category._id"
+                :key="category.id"
                 class="bg-white rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 hover:rotate-1"
               >
-                <Link :href="route('inventory.index', { category: category._id })" class="block h-full flex flex-col">
+                <Link :href="route('inventory.index', { category: category.id })" class="block h-full flex flex-col">
                   <div class="p-6 flex flex-col flex-grow">
                     <div class="flex items-center mb-4">
                       <div
@@ -196,10 +196,10 @@ const props = defineProps({
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div 
                   v-for="make in makes" 
-                  :key="make._id"
+                  :key="make.id"
                   class="bg-white rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 hover:rotate-1"
                 >
-                  <Link :href="route('inventory.index', { make: make._id })" class="block h-full flex flex-col">
+                  <Link :href="route('inventory.index', { make: make.id })" class="block h-full flex flex-col">
                     <div class="p-6 flex flex-col flex-grow">
                       <div class="flex items-center mb-4">
                         <div
@@ -262,7 +262,7 @@ const props = defineProps({
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div v-for="product in featured_products_china" :key="product._id"
+              <div v-for="product in featured_products_china" :key="product.id"
                 class="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 product-card">
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">
@@ -331,7 +331,7 @@ const props = defineProps({
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div v-for="product in featured_products_japan" :key="product._id"
+              <div v-for="product in featured_products_japan" :key="product.id"
                 class="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 product-card">
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">
@@ -404,7 +404,7 @@ const props = defineProps({
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div v-for="product in featured_products_thailand" :key="product._id"
+              <div v-for="product in featured_products_thailand" :key="product.id"
                 class="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 product-card">
                 <div class="h-64 bg-gray-200 relative overflow-hidden product-image-container">
                   <div class="absolute top-4 left-4 z-10 flex gap-2">

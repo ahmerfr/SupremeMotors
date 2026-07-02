@@ -117,7 +117,7 @@ function toggleFilters() {
                     class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 py-2"
                   >
                     <option value="">All Makes</option>
-                    <option v-for="make in makes" :key="make._id" :value="make._id">{{ make.cat_title }} ({{ make.products_count }})</option>
+                    <option v-for="make in makes" :key="make.id" :value="make.id">{{ make.cat_title }} ({{ make.products_count }})</option>
                   </select>
                 </div>
           
@@ -252,9 +252,9 @@ function toggleFilters() {
                       <div
                         v-for="category in categories"
                         :key="category.cat_title"
-                        @click="selectedCategory = category._id; applyFilters()"
+                        @click="selectedCategory = category.id; applyFilters()"
                         class="flex items-center cursor-pointer p-2 rounded-lg transition hover:bg-gray-100"
-                        :class="{ 'bg-blue-50 border border-blue-500': selectedCategory === category._id }"
+                        :class="{ 'bg-blue-50 border border-blue-500': selectedCategory === category.id }"
                       >
                         <img loading="lazy" :src="'/storage/' + category.image" alt="Category" class="w-8 h-8 object-cover rounded" />
                         <span class="ml-3 text-sm text-gray-700">{{ category.cat_title }}</span>
@@ -272,9 +272,9 @@ function toggleFilters() {
                       <div
                         v-for="make in makes"
                         :key="make.cat_title"
-                        @click="selectedMake = make._id; applyFilters()"
+                        @click="selectedMake = make.id; applyFilters()"
                         class="flex items-center cursor-pointer p-2 rounded-lg transition hover:bg-gray-100"
-                        :class="{ 'bg-blue-50 border border-blue-500': selectedMake === make._id }"
+                        :class="{ 'bg-blue-50 border border-blue-500': selectedMake === make.id }"
                       >
                         <img loading="lazy" :src="'/storage/'+make.image" alt="Make" class="w-8 h-8 object-cover rounded" style="object-fit:contain" />
                         <span class="ml-3 text-sm text-gray-700">{{ make.cat_title }}</span>
@@ -425,7 +425,7 @@ function toggleFilters() {
 
                 <!-- Grid View -->
                 <div v-else-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div v-for="product in products.data" :key="product._id"
+                  <div v-for="product in products.data" :key="product.id"
                     class="group bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
                     <!-- Product Image with Overlay -->
                     <div class="relative h-52 w-full bg-gray-200 overflow-hidden">
@@ -492,7 +492,7 @@ function toggleFilters() {
 
                 <!-- List View -->
                 <div v-else class="space-y-4">
-                  <div v-for="product in products.data" :key="product._id"
+                  <div v-for="product in products.data" :key="product.id"
                     class="group bg-white rounded-lg shadow-md overflow-hidden flex flex-col md:flex-row transition-all duration-300 hover:shadow-xl border border-transparent hover:border-blue-100">
                     <!-- Product Image -->
                     <div class="relative h-56 md:h-auto md:w-1/3 bg-gray-200 overflow-hidden">
