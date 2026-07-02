@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
-class QueryForm extends Model {
+class QueryForm extends Model
+{
     use HasFactory;
 
-    protected $collection = 'queryform_entry'; 
+    protected $table = 'queryform_entry';
 }

@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use MongoDB\Laravel\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
-class Newsletter extends Model {
+class Newsletter extends Model
+{
     use HasFactory;
 
-    protected $collection = 'newsletter_entry'; 
+    protected $table = 'newsletter_entry';
 }
