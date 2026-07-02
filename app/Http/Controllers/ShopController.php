@@ -18,87 +18,25 @@ class ShopController extends Controller
     public function home()
     {
         $data = Cache::remember('shop_home_data', 60, function () {
-            $categories = Categories::raw(function ($collection) {
-                return $collection->aggregate([
-                    ['$match' => ['type' => 'category']],
-                    [
-                        '$addFields' => [
-                            'id_as_string' => ['$toString' => '$_id']
-                        ]
-                    ],
-                    [
-                        '$lookup' => [
-                            'from' => 'products',
-                            'let' => [
-                                'categoryId' => '$_id',
-                                'categoryIdString' => '$id_as_string'
-                            ],
-                            'pipeline' => [
-                                [
-                                    '$match' => [
-                                        '$expr' => [
-                                            '$or' => [
-                                                ['$eq' => ['$category_id', '$$categoryId']],
-                                                ['$eq' => ['$category_id', '$$categoryIdString']]
-                                            ]
-                                        ]
-                                    ]
-                                ],
-                                [
-                                    '$project' => ['_id' => 1]
-                                ],
-                                ['$limit' => 1]
-                            ],
-                            'as' => 'products'
-                        ]
-                    ],
-                    [
-                        '$match' => ['products' => ['$ne' => []]]
-                    ],
-                    [
-                        '$lookup' => [
-                            'from' => 'products',
-                            'let' => [
-                                'categoryId' => '$_id',
-                                'categoryIdString' => '$id_as_string'
-                            ],
-                            'pipeline' => [
-                                [
-                                    '$match' => [
-                                        '$expr' => [
-                                            '$or' => [
-                                                ['$eq' => ['$category_id', '$$categoryId']],
-                                                ['$eq' => ['$category_id', '$$categoryIdString']]
-                                            ]
-                                        ]
-                                    ]
-                                ],
-                                ['$count' => 'count']
-                            ],
-                            'as' => 'products_count'
-                        ]
-                    ],
-                    [
-                        '$project' => [
-                            '_id' => 1,
-                            'cat_title' => 1,
-                            'image' => 1,
-                            'products_count' => ['$ifNull' => [['$arrayElemAt' => ['$products_count.count', 0]], 0]],
-                            'created_at' => 1
-                        ]
-                    ],
-                    ['$sort' => ['created_at' => -1]]
-                ]);
-            });
+            // Inner join drops categories with zero products (parity with the
+            // old Mongo pipeline's `products != []` stage).
+            $categories = Categories::query()
+                ->join('products', 'products.category_id', '=', 'categories.id')
+                ->where('categories.type', 'category')
+                ->groupBy('categories.id', 'categories.cat_title', 'categories.image', 'categories.created_at')
+                ->orderByDesc('categories.created_at')
+                ->selectRaw('categories.id, categories.cat_title, categories.image, COUNT(products.id) as products_count')
+                ->get()
+                ->toArray();
 
             $makes = Categories::where('type', 'make')
                 ->orderBy('created_at', 'desc')
-                ->select('_id', 'cat_title', 'image')
+                ->select('id', 'cat_title', 'image')
                 ->get()
                 ->toArray();
 
             return [
-                'categories' => collect($categories)->toArray(),
+                'categories' => $categories,
                 'makes' => $makes,
             ];
         });
@@ -111,10 +49,6 @@ class ShopController extends Controller
             'makes' => $data['makes'],
         ]);
     }
-
-
-
-
 
     public function listing()
     {
@@ -134,10 +68,7 @@ class ShopController extends Controller
 
             // Apply search filter
             if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('title', 'regex', "/$search/i")
-                        ->orWhere('product_details', 'regex', "/$search/i");
-                });
+                $query->search($search);
             }
 
             // Apply make filter
@@ -169,41 +100,28 @@ class ShopController extends Controller
                 $yearPatterns = [];
 
                 if ($yearFrom && $yearTo) {
-                    $minYear = (int)$yearFrom;
-                    $maxYear = (int)$yearTo;
-
-                    if ($minYear > $maxYear) {
-                        $temp = $minYear;
-                        $minYear = $maxYear;
-                        $maxYear = $temp;
-                    }
-
-                    for ($year = $minYear; $year <= $maxYear; $year++) {
-                        $yearPatterns[] = $year;
-                    }
+                    $minYear = min((int)$yearFrom, (int)$yearTo);
+                    $maxYear = max((int)$yearFrom, (int)$yearTo);
+                    $yearPatterns = range($minYear, $maxYear);
                 } elseif ($yearFrom) {
-                    $minYear = (int)$yearFrom;
-                    $yearPatterns = range($minYear, $minYear + 4);
+                    $yearPatterns = range((int)$yearFrom, (int)$yearFrom + 4);
                 } elseif ($yearTo) {
-                    $maxYear = (int)$yearTo;
-                    $yearPatterns = range($maxYear - 4, $maxYear);
+                    $yearPatterns = range((int)$yearTo - 4, (int)$yearTo);
                 }
 
                 if (!empty($yearPatterns)) {
                     $yearRegex = implode('|', $yearPatterns);
-                    // Match just the year numbers in product_details, not the full HTML structure
-                    $query->where('product_details', 'regex', "/\b($yearRegex)\b/");
+                    // Match just the year numbers in product_details
+                    $query->whereRaw('product_details REGEXP ?', ["\\\\b({$yearRegex})\\\\b"]);
                 }
             }
 
-
-            // For mileage, we'll do basic filtering in the database and refinement in PHP
-            // We're just checking if the mileage section exists in the document
+            // Mileage: check the mileage section exists in the document
             $mileageMin = $filter_data['mileage_min'] ?? null;
             $mileageMax = $filter_data['mileage_max'] ?? null;
 
             if ($mileageMin || $mileageMax) {
-                $query->where('product_details', 'regex', "/<strong>Mileage:<\/strong>/i");
+                $query->where('product_details', 'like', '%<strong>Mileage:</strong>%');
             }
         } else {
             // Original approach for non-search type requests
@@ -214,12 +132,7 @@ class ShopController extends Controller
             $bodyStyle = $request->input('body_style');
             $search = $request->input('search');
 
-            $query = $query->when($search, function ($q) use ($search) {
-                $q->where(function ($query) use ($search) {
-                    $query->where('title', 'regex', "/$search/i")
-                        ->orWhere('product_details', 'regex', "/$search/i");
-                });
-            })
+            $query = $query->when($search, fn ($q) => $q->search($search))
                 ->when(!empty($categoryFilters), fn($q) => $q->whereIn('category_id', $categoryFilters))
                 ->when(!empty($makeFilters), fn($q) => $q->whereIn('make_id', $makeFilters))
                 ->when($bodyStyle, fn($q) => $q->where('body_style', $bodyStyle))
@@ -257,39 +170,20 @@ class ShopController extends Controller
 
     public function product_detail($id)
     {
-        $product_detail = Products::where('_id', $id)->with('category')->first();
+        $product_detail = Products::with('category')
+            ->when(
+                ctype_digit((string) $id),
+                fn ($q) => $q->where('id', $id),
+                fn ($q) => $q->where('mongo_id', $id) // legacy Mongo URLs
+            )
+            ->first();
 
         if (!$product_detail) {
             abort(404);
         }
 
-        $category_id = $product_detail->category_id;
         // Default to China for similar products
-        $country = 'China';
-
-        $similar_products = Products::raw(function ($collection) use ($id, $category_id, $country) {
-            return $collection->aggregate([
-                [
-                    '$match' => [
-                        'category_id' => $category_id,
-                        'country' => $country,
-                    ]
-                ],
-                ['$sample' => ['size' => 4]]
-            ]);
-        });
-
-        $randomIds = collect($similar_products)->pluck('_id')->toArray();
-
-        $similar_products = Products::whereIn('_id', $randomIds)
-            ->with('category')
-            ->get()
-            ->map(function ($product) {
-                $product->_id = (string) $product->_id;
-                return $product;
-            });
-
-        $product_detail->_id = (string) $product_detail->_id;
+        $similar_products = $this->randomSimilarProducts($product_detail->category_id, 'China', $product_detail->id);
 
         return Inertia::render('ProductDetail', [
             "product_detail" => $product_detail,
@@ -302,39 +196,37 @@ class ShopController extends Controller
         $country = $request->input('country', 'China');
         $product_id = $request->input('product_id');
 
-        $product = Products::where('_id', $product_id)->first();
+        $product = Products::find($product_id);
 
         if (!$product) {
             return response()->json(['similar_products' => []]);
         }
 
-        $category_id = $product->category_id;
-
-        $similar_products = Products::raw(function ($collection) use ($product_id, $category_id, $country) {
-            return $collection->aggregate([
-                [
-                    '$match' => [
-                        'category_id' => $category_id,
-                        'country' => $country,
-                    ]
-                ],
-                ['$sample' => ['size' => 4]]
-            ]);
-        });
-
-        $randomIds = collect($similar_products)->pluck('_id')->toArray();
-
-        $similar_products = Products::whereIn('_id', $randomIds)
-            ->with('category')
-            ->get()
-            ->map(function ($product) {
-                $product->_id = (string) $product->_id;
-                return $product;
-            });
-
         return response()->json([
-            'similar_products' => $similar_products,
+            'similar_products' => $this->randomSimilarProducts($product->category_id, $country, $product->id),
         ]);
+    }
+
+    /**
+     * Random N products in the same category+country. Two-step: pick ids via
+     * the (category_id, country) covering index, then hydrate — avoids
+     * ORDER BY RAND() over full rows.
+     */
+    private function randomSimilarProducts(?int $categoryId, string $country, int $excludeId, int $limit = 4)
+    {
+        if ($categoryId === null) {
+            return collect();
+        }
+
+        $randomIds = Products::query()
+            ->where('category_id', $categoryId)
+            ->where('country', $country)
+            ->where('id', '!=', $excludeId)
+            ->inRandomOrder()
+            ->limit($limit)
+            ->pluck('id');
+
+        return Products::whereIn('id', $randomIds)->with('category')->get();
     }
 
     public function search_products(Request $request)
@@ -345,58 +237,24 @@ class ShopController extends Controller
             return response()->json([]);
         }
 
-        $products = Products::raw(function ($collection) use ($query) {
-            return $collection->aggregate([
-                [
-                    '$match' => [
-                        '$or' => [
-                            ['title' => ['$regex' => $query, '$options' => 'i']],
-                            ['make_title' => ['$regex' => $query, '$options' => 'i']],
-                            ['country' => ['$regex' => $query, '$options' => 'i']],
-                        ]
-                    ]
-                ],
-                ['$limit' => 10],
-                [
-                    '$lookup' => [
-                        'from' => 'categories',
-                        'localField' => 'category_id',
-                        'foreignField' => '_id',
-                        'as' => 'category'
-                    ]
-                ],
-                [
-                    '$lookup' => [
-                        'from' => 'categories',
-                        'localField' => 'make_id',
-                        'foreignField' => '_id',
-                        'as' => 'make'
-                    ]
-                ],
-                [
-                    '$project' => [
-                        'id' => ['$toString' => '$_id'],
-                        '_id' => 1,
-                        'title' => 1,
-                        'front_image' => 1,
-                        'make' => ['$arrayElemAt' => ['$make', 0]],
-                        'country' => 1,
-                        'price' => 1
-                    ]
-                ]
-            ]);
-        });
+        $products = Products::query()
+            ->with('make:id,cat_title')
+            ->where(function ($q) use ($query) {
+                $q->where('title', 'like', "%{$query}%")
+                    ->orWhere('country', 'like', "%{$query}%");
+            })
+            ->select('id', 'title', 'front_image', 'make_id', 'country', 'price')
+            ->limit(10)
+            ->get();
 
-        $results = collect($products)->map(function ($product) {
-            return [
-                'id' => $product['id'] ?? (string) $product['_id'],
-                'title' => $product['title'] ?? '',
-                'front_image' => $product['front_image'] ?? '',
-                'make' => $product['make'] ? ['cat_title' => $product['make']['cat_title'] ?? ''] : null,
-                'country' => $product['country'] ?? '',
-                'price' => $product['price'] ?? 0
-            ];
-        })->values();
+        $results = $products->map(fn ($product) => [
+            'id' => $product->id,
+            'title' => $product->title ?? '',
+            'front_image' => $product->front_image ?? '',
+            'make' => $product->make ? ['cat_title' => $product->make->cat_title] : null,
+            'country' => $product->country ?? '',
+            'price' => $product->price ?? 0,
+        ])->values();
 
         return response()->json($results);
     }
