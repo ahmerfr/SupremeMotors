@@ -246,6 +246,10 @@ class ProductDetailsParser
         if (str_contains($v, 'hand drive') || str_contains($v, 'lhd') || str_contains($v, 'rhd')) {
             return null;
         }
+        // Multi-config lists ("8×4 6X4 4X2 …") say nothing specific.
+        if (preg_match_all('/\d\s*[x×*]\s*\d/u', $v) >= 2) {
+            return null;
+        }
         // Axle configs: "6X4" / "6×4" / "6*4" -> "6x4".
         if (preg_match('/^(\d)\s*[x×*]\s*(\d)$/u', trim($v), $m)) {
             return $m[1] === '4' && $m[2] === '4' ? '4WD'
@@ -255,8 +259,8 @@ class ProductDetailsParser
         return match (true) {
             str_contains($v, '4wheel'), str_contains($v, '4wd'), str_contains($v, '4 wheel') => '4WD',
             str_contains($v, 'awd'), str_contains($v, 'all') => 'AWD',
-            str_contains($v, 'front') => 'FWD',
-            str_contains($v, 'rear') => 'RWD',
+            str_contains($v, 'front'), $v === 'fwd' => 'FWD',
+            str_contains($v, 'rear'), $v === 'rwd' => 'RWD',
             str_contains($v, '2wheel'), str_contains($v, '2wd'), str_contains($v, '2 wheel') => '2WD',
             default => self::clamp(self::title($value), 30),
         };

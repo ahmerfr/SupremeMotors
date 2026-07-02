@@ -157,6 +157,12 @@ class ProductDetailsParserTest extends TestCase
         // Steering-side text does not belong in drive_type.
         $out = ProductDetailsParser::parse($this->html(['Drive type' => 'Right Or Left Hand Drive, LHD']));
         $this->assertNull($out['drive_type']);
+
+        // Bare FWD/RWD stay uppercase; multi-config lists are ambiguous.
+        $out = ProductDetailsParser::parse($this->html(['Drive type' => 'FWD']));
+        $this->assertSame('FWD', $out['drive_type']);
+        $out = ProductDetailsParser::parse($this->html(['Drive type' => '8×4 6X4 4X2 6X6  8X8']));
+        $this->assertNull($out['drive_type']);
     }
 
     public function test_ambiguous_condition_values_become_null(): void
