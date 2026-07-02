@@ -19,55 +19,35 @@ class DashboardController extends Controller
 {
     public function home()
     {
-        $productCounts = Products::raw(function ($collection) {
-            return $collection->aggregate([
-                [
-                    '$group' => [
-                        '_id' => '$make_id',
-                        'count' => ['$sum' => 1]
-                    ]
-                ]
-            ]);
-        })->pluck('count', '_id');
+        $productCounts = Products::query()
+            ->whereNotNull('make_id')
+            ->groupBy('make_id')
+            ->selectRaw('make_id, COUNT(*) as count')
+            ->pluck('count', 'make_id');
 
         $makes = Categories::where('type', 'make')
-            ->select('_id', 'cat_title', 'image')
+            ->select('id', 'cat_title', 'image')
             ->get()
-            ->map(function ($make) use ($productCounts) {
-                $id = (string) $make->_id;
-                return [
-                    'category_id'   => $id,
-                    'cat_title'     => $make->cat_title,
-                    'image'         => $make->image,
-                    'product_count' => $productCounts[$id] ?? 0
-                ];
-            });
-
-        $bodyStyle = Products::raw(function ($collection) {
-            return $collection->aggregate([
-                [
-                    '$group' => [
-                        '_id' => '$body_style',
-                        'count' => ['$sum' => 1]
-                    ]
-                ],
-                [
-                    '$project' => [
-                        '_id' => 0,
-                        'body_style' => '$_id',
-                        'count' => 1
-                    ]
-                ]
+            ->map(fn ($make) => [
+                'category_id'   => (string) $make->id,
+                'cat_title'     => $make->cat_title,
+                'image'         => $make->image,
+                'product_count' => $productCounts[$make->id] ?? 0,
             ]);
-        });
+
+        $bodyStyle = Products::query()
+            ->whereNotNull('body_style')
+            ->groupBy('body_style')
+            ->selectRaw('body_style, COUNT(*) as count')
+            ->get();
 
         $products = Products::where("body_style", "Sedan")
-            ->select("title", "front_image", "_id", "product_details", "body_style")
+            ->select("title", "front_image", "id", "product_details", "body_style")
             ->limit(8)
             ->get();
 
         $country_products = Products::where("country", "China")
-            ->select("title", "front_image", "_id", "product_details", "body_style")
+            ->select("title", "front_image", "id", "product_details", "body_style")
             ->limit(8)
             ->get();
 
@@ -86,7 +66,7 @@ class DashboardController extends Controller
     public function filter_bodystyle()
     {
         $body_styles = request()->body_style;
-        $products = Products::where("body_style", $body_styles)->select("title", "front_image", "_id", "product_details", "body_style")->limit(8)->get();
+        $products = Products::where("body_style", $body_styles)->select("title", "front_image", "id", "product_details", "body_style")->limit(8)->get();
         return response()->json([
             'success' => true,
             'body_styles_products' => $products,
@@ -96,7 +76,7 @@ class DashboardController extends Controller
     public function filter_countryproducts()
     {
         $country = request()->country;
-        $products = Products::where("country", $country)->select("title", "front_image", "_id", "product_details", "country")->limit(8)->get();
+        $products = Products::where("country", $country)->select("title", "front_image", "id", "product_details", "country")->limit(8)->get();
         return response()->json([
             'success' => true,
             'country_products' => $products,
@@ -236,69 +216,40 @@ class DashboardController extends Controller
     }
     public function product_category($category_id)
     {
-        // Fetch category and product counts in parallel using lazy collections
-        $category = Categories::where("_id", $category_id)
-            ->select('_id', 'cat_title', 'image', 'type') // Only select needed fields
-            ->first();
+        $category = Categories::select('id', 'cat_title', 'image', 'type')
+            ->findOrFail($category_id);
 
-        // Optimize aggregation with indexing hint if available
-        $productCounts = Products::raw(function ($collection) use ($category_id) {
-            return $collection->aggregate([
-                [
-                    '$match' => [
-                        'category_id' => $category_id
-                    ]
-                ],
-                [
-                    '$group' => [
-                        '_id' => '$make_id',
-                        'count' => ['$sum' => 1]
-                    ]
-                ]
-            ], ['allowDiskUse' => true]);
-        })->pluck('count', '_id');
+        // Per-make counts within this category — covered by products_category_make_idx.
+        $productCounts = Products::query()
+            ->where('category_id', $category->id)
+            ->whereNotNull('make_id')
+            ->groupBy('make_id')
+            ->selectRaw('make_id, COUNT(*) as count')
+            ->pluck('count', 'make_id');
 
-        $totalProductsCount = array_sum($productCounts->toArray());
-
-        // Fetch makes with product counts in a single query
-        $makeIds = array_keys($productCounts->toArray());
+        $totalProductsCount = Products::where('category_id', $category->id)->count();
 
         $makes = Categories::where('type', 'make')
-            ->whereIn('_id', $makeIds) // More efficient than whereHas
-            ->select('_id', 'cat_title', 'image')
+            ->whereIn('id', $productCounts->keys())
+            ->select('id', 'cat_title', 'image')
             ->get()
-            ->map(function ($make) use ($productCounts) {
-                $id = (string) $make->_id;
-                return [
-                    'category_id'   => $id,
-                    'cat_title'     => $make->cat_title,
-                    'image'         => $make->image,
-                    'product_count' => $productCounts[$id] ?? 0
-                ];
-            });
-
-        // Use aggregation for body styles (faster than groupBy + get all records)
-        $bodyStyle = Products::raw(function ($collection) use ($category_id) {
-            return $collection->aggregate([
-                [
-                    '$match' => [
-                        'category_id' => $category_id,
-                        'body_style' => ['$exists' => true, '$ne' => null]
-                    ]
-                ],
-                [
-                    '$group' => [
-                        '_id' => '$body_style',
-                        'body_style' => ['$first' => '$body_style']
-                    ]
-                ]
+            ->map(fn ($make) => [
+                'category_id'   => (string) $make->id,
+                'cat_title'     => $make->cat_title,
+                'image'         => $make->image,
+                'product_count' => $productCounts[$make->id] ?? 0,
             ]);
-        });
 
-        // Optimize country products query
+        $bodyStyle = Products::query()
+            ->where('category_id', $category->id)
+            ->whereNotNull('body_style')
+            ->groupBy('body_style')
+            ->selectRaw('body_style')
+            ->get();
+
         $country_products = Products::where("country", "China")
-            ->where("category_id", $category_id)
-            ->select("title", "front_image", "_id", "product_details", "body_style")
+            ->where("category_id", $category->id)
+            ->select("title", "front_image", "id", "product_details", "body_style")
             ->limit(8)
             ->get();
 
@@ -315,7 +266,7 @@ class DashboardController extends Controller
         $category_id = request()->category_id;
         $country = request()->country;
         $products = Products::where("country", $country)->where("category_id", $category_id)
-            ->select("title", "front_image", "_id", "product_details", "country")->limit(8)->get();
+            ->select("title", "front_image", "id", "product_details", "country")->limit(8)->get();
         return response()->json([
             'success' => true,
             'country_products' => $products,
