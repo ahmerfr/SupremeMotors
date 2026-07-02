@@ -165,6 +165,18 @@ class AdminController extends Controller
             'front_image' => 'required|image|mimes:jpg,jpeg,png,gif|max:2048',
             'other_images.*' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
             'product_details' => 'required|string',
+            'model' => 'nullable|string|max:100',
+            'model_code' => 'nullable|string|max:60',
+            'year' => 'nullable|integer|between:1950,2027',
+            'engine_cc' => 'nullable|integer|min:0',
+            'mileage_km' => 'nullable|integer|min:0',
+            'fuel' => 'nullable|string|max:30',
+            'transmission' => 'nullable|string|max:30',
+            'condition' => 'nullable|string|max:20',
+            'color' => 'nullable|string|max:40',
+            'steering' => 'nullable|string|max:10',
+            'seats' => 'nullable|integer|between:1,99',
+            'drive_type' => 'nullable|string|max:30',
         ]);
 
         try {
@@ -175,7 +187,11 @@ class AdminController extends Controller
                     $otherImagePaths[] = $image->store('product_images', 'public');
                 }
             }
-            $product = Products::create([
+            $attributeFields = [
+                'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
+                'transmission', 'condition', 'color', 'steering', 'seats', 'drive_type',
+            ];
+            $product = Products::create(array_merge([
                 'title' => $validatedData['title'],
                 'category_id' => $validatedData['category_id'],
                 'make_id' => $validatedData['make_id'],
@@ -185,7 +201,10 @@ class AdminController extends Controller
                 'front_image' => $frontImagePath,
                 'other_images' => $otherImagePaths,
                 'product_details' => $validatedData['product_details'],
-            ]);
+            ], collect($validatedData)->only($attributeFields)->all()));
+
+            $product->stock_code = 'SM'.$product->id;
+            $product->save();
             return response()->json([
                 'message' => 'Product created successfully.',
                 'product' => $product,
@@ -220,6 +239,18 @@ class AdminController extends Controller
             'other_images.*' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
             'product_details' => 'required|string',
             'removed_images' => 'nullable|string',
+            'model' => 'nullable|string|max:100',
+            'model_code' => 'nullable|string|max:60',
+            'year' => 'nullable|integer|between:1950,2027',
+            'engine_cc' => 'nullable|integer|min:0',
+            'mileage_km' => 'nullable|integer|min:0',
+            'fuel' => 'nullable|string|max:30',
+            'transmission' => 'nullable|string|max:30',
+            'condition' => 'nullable|string|max:20',
+            'color' => 'nullable|string|max:40',
+            'steering' => 'nullable|string|max:10',
+            'seats' => 'nullable|integer|between:1,99',
+            'drive_type' => 'nullable|string|max:30',
         ]);
 
         try {
@@ -231,6 +262,16 @@ class AdminController extends Controller
             $product->price = $validatedData['price'];
             $product->country = $validatedData['country'];
             $product->product_details = $validatedData['product_details'];
+
+            foreach ([
+                'model', 'model_code', 'year', 'engine_cc', 'mileage_km', 'fuel',
+                'transmission', 'condition', 'color', 'steering', 'seats', 'drive_type',
+            ] as $field) {
+                $product->{$field} = $validatedData[$field] ?? null;
+            }
+            if (! $product->stock_code) {
+                $product->stock_code = 'SM'.$product->id;
+            }
 
             if ($request->hasFile('front_image')) {
                 if ($product->front_image && Storage::disk('public')->exists($product->front_image)) {

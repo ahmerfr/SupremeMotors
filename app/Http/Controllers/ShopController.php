@@ -93,36 +93,7 @@ class ShopController extends Controller
                 $query->where('price', '<=', (int)$priceMax);
             }
 
-            $yearFrom = $filter_data['year_from'] ?? null;
-            $yearTo = $filter_data['year_to'] ?? null;
-
-            if ($yearFrom || $yearTo) {
-                $yearPatterns = [];
-
-                if ($yearFrom && $yearTo) {
-                    $minYear = min((int)$yearFrom, (int)$yearTo);
-                    $maxYear = max((int)$yearFrom, (int)$yearTo);
-                    $yearPatterns = range($minYear, $maxYear);
-                } elseif ($yearFrom) {
-                    $yearPatterns = range((int)$yearFrom, (int)$yearFrom + 4);
-                } elseif ($yearTo) {
-                    $yearPatterns = range((int)$yearTo - 4, (int)$yearTo);
-                }
-
-                if (!empty($yearPatterns)) {
-                    $yearRegex = implode('|', $yearPatterns);
-                    // Match just the year numbers in product_details
-                    $query->whereRaw('product_details REGEXP ?', ["\\b({$yearRegex})\\b"]);
-                }
-            }
-
-            // Mileage: check the mileage section exists in the document
-            $mileageMin = $filter_data['mileage_min'] ?? null;
-            $mileageMax = $filter_data['mileage_max'] ?? null;
-
-            if ($mileageMin || $mileageMax) {
-                $query->where('product_details', 'like', '%<strong>Mileage:</strong>%');
-            }
+            $this->applyAttributeFilters($query, $filter_data);
         } else {
             // Original approach for non-search type requests
             $categoryFilters = $request->filled('category') ? explode(',', $request->input('category')) : [];
@@ -162,10 +133,46 @@ class ShopController extends Controller
                             break;
                     }
                 });
+
+            $this->applyAttributeFilters($query, $request->all());
         }
         $results = $query->orderByDesc('created_at')->paginate(30);
 
         return $results;
+    }
+
+    /**
+     * Structured-attribute filters, available to both listing branches.
+     * Ranges: year_from/year_to, mileage_min/mileage_max, engine_min/engine_max.
+     * Lists (comma-separated): fuel, transmission, condition, steering, drive_type.
+     * Exact: seats.
+     */
+    private function applyAttributeFilters($query, array $data): void
+    {
+        $range = function (string $column, ?string $min, ?string $max) use ($query) {
+            if ($min !== null && $min !== '' && $max !== null && $max !== '') {
+                $query->whereBetween($column, [min((int) $min, (int) $max), max((int) $min, (int) $max)]);
+            } elseif ($min !== null && $min !== '') {
+                $query->where($column, '>=', (int) $min);
+            } elseif ($max !== null && $max !== '') {
+                $query->where($column, '<=', (int) $max);
+            }
+        };
+
+        $range('year', $data['year_from'] ?? null, $data['year_to'] ?? null);
+        $range('mileage_km', $data['mileage_min'] ?? null, $data['mileage_max'] ?? null);
+        $range('engine_cc', $data['engine_min'] ?? null, $data['engine_max'] ?? null);
+
+        foreach (['fuel', 'transmission', 'condition', 'steering', 'drive_type'] as $column) {
+            $value = $data[$column] ?? null;
+            if ($value !== null && $value !== '') {
+                $query->whereIn($column, array_map('trim', explode(',', $value)));
+            }
+        }
+
+        if (! empty($data['seats'])) {
+            $query->where('seats', (int) $data['seats']);
+        }
     }
 
     public function product_detail($id)

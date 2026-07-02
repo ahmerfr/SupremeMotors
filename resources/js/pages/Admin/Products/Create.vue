@@ -18,10 +18,37 @@ const product = ref({
     make_id: '',
     price: '',
     country: '',
+    model: '',
+    model_code: '',
+    year: '',
+    engine_cc: '',
+    mileage_km: '',
+    fuel: '',
+    transmission: '',
+    condition: '',
+    color: '',
+    steering: '',
+    seats: '',
+    drive_type: '',
     front_image: null,
     other_images: [],
     product_details: '',
 });
+
+const attributeFields = [
+    { key: 'model', label: 'Model', type: 'text' },
+    { key: 'model_code', label: 'Model Code', type: 'text' },
+    { key: 'year', label: 'Year', type: 'number' },
+    { key: 'engine_cc', label: 'Engine (cc)', type: 'number' },
+    { key: 'mileage_km', label: 'Mileage (km)', type: 'number' },
+    { key: 'seats', label: 'Seats', type: 'number' },
+    { key: 'fuel', label: 'Fuel', type: 'select', options: ['Petrol', 'Diesel', 'Hybrid', 'Electric', 'LPG', 'CNG'] },
+    { key: 'transmission', label: 'Transmission', type: 'select', options: ['Automatic', 'Manual', 'CVT', 'Semi-Automatic'] },
+    { key: 'condition', label: 'Condition', type: 'select', options: ['Used', 'New'] },
+    { key: 'steering', label: 'Steering', type: 'select', options: ['Right', 'Left', 'Center'] },
+    { key: 'drive_type', label: 'Drive Type', type: 'select', options: ['2WD', '4WD', 'AWD', '4Wheel Drive'] },
+    { key: 'color', label: 'Color', type: 'text' },
+];
 
 const description_editor = ref(null);
 const frontImagePreview = ref(null);
@@ -92,6 +119,11 @@ const submitForm = async () => {
     formData.append('make_id', product.value.make_id);
     formData.append('price', product.value.price);
     formData.append('country', product.value.country);
+    attributeFields.forEach(({ key }) => {
+        if (product.value[key] !== '' && product.value[key] !== null) {
+            formData.append(key, product.value[key]);
+        }
+    });
     formData.append('front_image', product.value.front_image);
     product.value.other_images.forEach((image, index) => {
         formData.append(`other_images[${index}]`, image);
@@ -249,6 +281,39 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                 <p v-if="errors.country" class="mt-1 text-sm text-red-500">
                                     {{ errors.country[0] }}
                                 </p>
+                            </div>
+
+                            <!-- Vehicle Attributes -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Vehicle Attributes</label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div v-for="field in attributeFields" :key="field.key">
+                                        <label :for="field.key" class="block text-xs font-medium text-gray-400">
+                                            {{ field.label }}
+                                        </label>
+                                        <select
+                                            v-if="field.type === 'select'"
+                                            :id="field.key"
+                                            v-model="product[field.key]"
+                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            :class="{ 'border-red-500': errors[field.key] }"
+                                        >
+                                            <option value="">—</option>
+                                            <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+                                        </select>
+                                        <input
+                                            v-else
+                                            :type="field.type"
+                                            :id="field.key"
+                                            v-model="product[field.key]"
+                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            :class="{ 'border-red-500': errors[field.key] }"
+                                        />
+                                        <p v-if="errors[field.key]" class="mt-1 text-xs text-red-500">
+                                            {{ errors[field.key][0] }}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

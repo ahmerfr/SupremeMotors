@@ -22,12 +22,39 @@ const product = ref({
     title: props.product.title || '',
     category_id: props.product.category_id || '',
     make_id: props.product.make_id || '',
-    price: props.product.price ? props.product.price.replace(/[^0-9.-]+/g, '') : '',
+    price: props.product.price != null ? String(props.product.price).replace(/[^0-9.-]+/g, '') : '',
     country: props.product.country || '',
+    model: props.product.model || '',
+    model_code: props.product.model_code || '',
+    year: props.product.year ?? '',
+    engine_cc: props.product.engine_cc ?? '',
+    mileage_km: props.product.mileage_km ?? '',
+    fuel: props.product.fuel || '',
+    transmission: props.product.transmission || '',
+    condition: props.product.condition || '',
+    color: props.product.color || '',
+    steering: props.product.steering || '',
+    seats: props.product.seats ?? '',
+    drive_type: props.product.drive_type || '',
     front_image: null,
     other_images: [],
     product_details: props.product.product_details || '',
 });
+
+const attributeFields = [
+    { key: 'model', label: 'Model', type: 'text' },
+    { key: 'model_code', label: 'Model Code', type: 'text' },
+    { key: 'year', label: 'Year', type: 'number' },
+    { key: 'engine_cc', label: 'Engine (cc)', type: 'number' },
+    { key: 'mileage_km', label: 'Mileage (km)', type: 'number' },
+    { key: 'seats', label: 'Seats', type: 'number' },
+    { key: 'fuel', label: 'Fuel', type: 'select', options: ['Petrol', 'Diesel', 'Hybrid', 'Electric', 'LPG', 'CNG'] },
+    { key: 'transmission', label: 'Transmission', type: 'select', options: ['Automatic', 'Manual', 'CVT', 'Semi-Automatic'] },
+    { key: 'condition', label: 'Condition', type: 'select', options: ['Used', 'New'] },
+    { key: 'steering', label: 'Steering', type: 'select', options: ['Right', 'Left', 'Center'] },
+    { key: 'drive_type', label: 'Drive Type', type: 'select', options: ['2WD', '4WD', 'AWD', '4Wheel Drive'] },
+    { key: 'color', label: 'Color', type: 'text' },
+];
 
 // Initialize image previews with full URLs
 const frontImagePreview = ref(props.product.front_image ? `${STORAGE_BASE_URL}${props.product.front_image}` : null);
@@ -113,6 +140,11 @@ const submitForm = async () => {
     formData.append('make_id', product.value.make_id);
     formData.append('price', product.value.price);
     formData.append('country', product.value.country);
+    attributeFields.forEach(({ key }) => {
+        if (product.value[key] !== '' && product.value[key] !== null) {
+            formData.append(key, product.value[key]);
+        }
+    });
     if (product.value.front_image) {
         formData.append('front_image', product.value.front_image);
     }
@@ -272,6 +304,45 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                 <p v-if="errors.country" class="mt-1 text-sm text-red-500">
                                     {{ errors.country[0] }}
                                 </p>
+                            </div>
+
+                            <!-- Vehicle Attributes -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-medium text-gray-300">Vehicle Attributes</label>
+                                    <span v-if="props.product.stock_code" class="text-xs text-gray-400">
+                                        Stock ID: <span class="font-mono text-gray-200">{{ props.product.stock_code }}</span>
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div v-for="field in attributeFields" :key="field.key">
+                                        <label :for="field.key" class="block text-xs font-medium text-gray-400">
+                                            {{ field.label }}
+                                        </label>
+                                        <select
+                                            v-if="field.type === 'select'"
+                                            :id="field.key"
+                                            v-model="product[field.key]"
+                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            :class="{ 'border-red-500': errors[field.key] }"
+                                        >
+                                            <option value="">—</option>
+                                            <option v-if="product[field.key] && !field.options.includes(product[field.key])" :value="product[field.key]">{{ product[field.key] }}</option>
+                                            <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+                                        </select>
+                                        <input
+                                            v-else
+                                            :type="field.type"
+                                            :id="field.key"
+                                            v-model="product[field.key]"
+                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            :class="{ 'border-red-500': errors[field.key] }"
+                                        />
+                                        <p v-if="errors[field.key]" class="mt-1 text-xs text-red-500">
+                                            {{ errors[field.key][0] }}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
