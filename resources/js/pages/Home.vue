@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
 import HeroV2 from '@/components/Front/HeroV2.vue';
 import HowItWorks from '@/components/Front/HowItWorks.vue';
+import BrandsExplorer from '@/components/Front/BrandsExplorer.vue';
 import WhyUs from '@/components/Front/WhyUs.vue';
 import StayInLoop from '@/components/Front/StayInLoop.vue';
 const props = defineProps({
@@ -86,59 +87,7 @@ const props = defineProps({
           </div>
         </section>
         <!-- Makes cards section -->
-        <section class="py-16 bg-gradient-to-b from-gray-100 to-white">
-          <div class="max-w-7xl mx-auto px-6">
-            <h2 class="text-4xl font-bold text-[#1e4066] mb-4 text-center">Browse By Makes</h2>
-            <p class="text-gray-600 text-lg text-center mb-12 max-w-3xl mx-auto">Find parts and equipment for your
-              specific vehicle make and model</p>
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div 
-                  v-for="make in makes" 
-                  :key="make.id"
-                  class="bg-white rounded-xl shadow-md overflow-hidden group transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 hover:rotate-1"
-                >
-                  <Link :href="route('inventory.index', { make: make.id })" class="block h-full flex flex-col">
-                    <div class="p-6 flex flex-col flex-grow">
-                      <div class="flex items-center mb-4">
-                        <div
-                          class="h-20 w-20 rounded-full flex items-center justify-center bg-gradient-to-br from-[#1e4066]/10 to-[#1e4066]/20 text-[#1e4066] group-hover:from-[#8e2527]/90 group-hover:to-[#8e2527] group-hover:text-white transition-colors duration-300"
-                        >
-                          <img 
-                            :src="'/storage/' + make.image" 
-                            loading="lazy"
-                            alt="Make logo" 
-                            class="h-14 w-14 transition-all duration-300 group-hover:scale-110" 
-                            style="object-fit: contain;"
-                          >
-                        </div>
-                        <h3
-                          class="text-xl font-semibold text-gray-800 ml-3 group-hover:text-[#8e2527] transition-colors duration-300"
-                        >
-                          {{ make.cat_title }}
-                        </h3>
-                      </div>
-          
-                      <p class="text-gray-500 mb-4 flex items-center">
-                        <span class="bg-gray-100 px-2 py-1 rounded-md mr-2 text-sm font-medium">{{ make.products_count.toLocaleString() }}</span>
-                        stock available
-                      </p>
-          
-                      <div class="mt-auto flex justify-between items-center">
-                        <span
-                          class="inline-flex items-center px-4 py-2 text-sm font-medium text-[#1e4066] border border-[#1e4066] rounded-full group-hover:bg-[#8e2527] group-hover:border-[#8e2527] group-hover:text-white transition-all duration-300"
-                        >
-                          View Stock
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-2 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              </div>
-          </div>
-        </section>
+        <BrandsExplorer :makes="makes" />
 
 
         <section class="py-16 bg-white">

@@ -37,17 +37,16 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
 </script>
 
 <template>
-    <section class="sm-body" style="position: relative; background: radial-gradient(120% 130% at 85% 0%, #0e2447 0%, #0b1e3b 45%, #081730 100%); overflow: hidden">
+    <section class="sm-body" style="position: relative; background: #081730; overflow: hidden">
+        <!-- Niche background image with navy gradient scrim -->
+        <img src="/assets/images/hero-truck.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 72% center" />
+        <div style="position: absolute; inset: 0; background: linear-gradient(95deg, rgba(8, 23, 48, 0.96) 0%, rgba(11, 30, 59, 0.88) 38%, rgba(11, 30, 59, 0.62) 68%, rgba(8, 23, 48, 0.72) 100%)"></div>
+        <div style="position: absolute; inset: 0; background: radial-gradient(120% 130% at 85% 0%, rgba(14, 36, 71, 0.35) 0%, rgba(11, 30, 59, 0.25) 45%, rgba(8, 23, 48, 0.55) 100%)"></div>
         <div style="position: absolute; top: -120px; right: -80px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 70%)"></div>
         <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent)"></div>
 
-        <div class="sm-herogrid" style="max-width: 1280px; margin: 0 auto; padding: 70px 24px 88px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center">
+        <div class="sm-herogrid" style="position: relative; max-width: 1280px; margin: 0 auto; padding: 70px 24px 88px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center">
             <div>
-                <div style="display: inline-flex; align-items: center; gap: 9px; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.14); padding: 8px 15px; border-radius: 100px; backdrop-filter: blur(8px)">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #e01f26; box-shadow: rgba(224, 31, 38, 0.22) 0 0 0 4px"></span>
-                    <span style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em; color: #cdd8e8">Trusted Vehicle Marketplace</span>
-                </div>
-
                 <h1 class="sm-h1" style="font-family: Archivo; font-weight: 800; font-size: 60px; line-height: 1.04; letter-spacing: -0.025em; color: #fff; margin: 26px 0 0">
                     Your
                     <span style="position: relative; white-space: nowrap">Journey<span style="position: absolute; left: 0; right: 0; bottom: 6px; height: 11px; background: rgba(224, 31, 38, 0.5); z-index: -1; border-radius: 3px"></span></span><br />Begins With Us
