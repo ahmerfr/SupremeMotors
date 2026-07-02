@@ -111,6 +111,14 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame(16090, $out['mileage_km']);
     }
 
+    public function test_km_value_containing_word_mileage_is_not_converted(): void
+    {
+        // "101,000 km (Low Mileage)" must stay km — the word "Mileage" in the
+        // value is not a miles unit.
+        $out = ProductDetailsParser::parse('<p>Mileage:&nbsp;101,000&nbsp;km&nbsp;(Low&nbsp;Mileage)</p>');
+        $this->assertSame(101000, $out['mileage_km']);
+    }
+
     public function test_engine_litre_form(): void
     {
         $out = ProductDetailsParser::parse($this->html(['Engine capacity (Displacement)' => '2.0L']));

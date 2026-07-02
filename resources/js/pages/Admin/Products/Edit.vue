@@ -197,9 +197,35 @@ const makesList = props.categories.filter(item => item.type === 'make');
     <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="min-h-screen flex justify-center p-4">
             <div class="w-full max-w-6xl">
-                <h2 class="text-3xl font-black text-center text-zinc-900 dark:text-white mb-8 tracking-tight">
-                    Edit Product
-                </h2>
+                <div class="mb-8">
+                    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <h2 class="text-[32px] font-semibold tracking-tight text-zinc-900 dark:text-white">
+                            {{ props.product.title }}
+                        </h2>
+                        <span class="font-gauge text-[15px] text-zinc-400 dark:text-zinc-500">{{ props.product.stock_code }}</span>
+                    </div>
+                    <!-- Spec summary from extracted attributes -->
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <span
+                            v-for="chip in [
+                                props.product.year,
+                                props.product.fuel,
+                                props.product.transmission,
+                                props.product.mileage_km ? `${Number(props.product.mileage_km).toLocaleString()} km` : null,
+                                props.product.engine_cc ? `${Number(props.product.engine_cc).toLocaleString()} cc` : null,
+                                props.product.drive_type,
+                                props.product.steering ? `${props.product.steering}-hand drive` : null,
+                                props.product.color,
+                                props.product.condition,
+                            ].filter(Boolean)"
+                            :key="chip"
+                            class="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[13px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-300"
+                        >{{ chip }}</span>
+                        <span class="rounded-lg bg-[#8e2527] px-2.5 py-1 font-gauge text-[13px] font-medium text-white">
+                            ${{ Number(props.product.price).toLocaleString() }}
+                        </span>
+                    </div>
+                </div>
 
                 <div
                     v-if="showSuccess"
@@ -477,51 +503,6 @@ const makesList = props.categories.filter(item => item.type === 'make');
     </AdminLayout>
 </template>
 
-<style>
-.ql-container {
-    font-size: 16px;
-}
-
-.ql-toolbar.ql-snow {
-    border: none !important;
-    padding: 8px;
-    background-color: #782527;
-    color: white;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-}
-
-.ql-toolbar.ql-snow + .ql-container.ql-snow {
-    border-top: 0;
-    border: none !important;
-    background-color: #111827;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-}
-
-.ql-editor {
-    scrollbar-width: thin;
-    scrollbar-color: #191919 #3e3c3c;
-}
-
-.ql-snow .ql-picker {
-    color: #ffffff !important;
-}
-
-.ql-snow .ql-stroke {
-    stroke: #ffffff !important;
-}
-
-.ql-snow .ql-picker.ql-expanded .ql-picker-options {
-    display: block;
-    margin-top: -1px;
-    top: 100%;
-    z-index: 1;
-    background-color: #1b1d1e;
-    border: none;
-    border-radius: 12px;
-}
-</style>
 
 <style scoped>
 form {

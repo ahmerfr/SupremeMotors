@@ -151,7 +151,10 @@ class ProductDetailsParser
             return null;
         }
         $n = (int) $digits;
-        if (str_contains(mb_strtolower($value), 'mile')) {
+        // Convert only when miles is the unit — "km" anywhere wins, and words
+        // like "(Low Mileage)" in the value are not a unit.
+        $v = mb_strtolower($value);
+        if (! str_contains($v, 'km') && preg_match('/\b(mi|mile|miles)\b/', $v)) {
             $n = (int) round($n * 1.609);
         }
 

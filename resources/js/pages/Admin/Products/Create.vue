@@ -450,51 +450,6 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
 
 
-<style>
-.ql-container {
-    font-size: 16px;
-}
-
-.ql-toolbar.ql-snow {
-    border: none !important;
-    padding: 8px;
-    background-color: #782527;
-    color: white;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-}
-
-.ql-toolbar.ql-snow + .ql-container.ql-snow {
-    border-top: 0;
-    border: none !important;
-    background-color: #111827;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-}
-
-.ql-editor {
-    scrollbar-width: thin;
-    scrollbar-color: #191919 #3e3c3c;
-}
-
-.ql-snow .ql-picker {
-    color: #ffffff !important;
-}
-
-.ql-snow .ql-stroke {
-    stroke: #ffffff !important;
-}
-
-.ql-snow .ql-picker.ql-expanded .ql-picker-options {
-    display: block;
-    margin-top: -1px;
-    top: 100%;
-    z-index: 1;
-    background-color: #1b1d1e;
-    border: none;
-    border-radius: 12px;
-}
-</style>
 
 <style scoped>
 form {
