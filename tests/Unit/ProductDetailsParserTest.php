@@ -227,7 +227,7 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('MR0KA3CD301251371', $out['model_code']);
         $this->assertSame('Right', $out['steering']);
         $this->assertSame(2800, $out['engine_cc']);
-        $this->assertSame('Gray', $out['color']);
+        $this->assertSame('Grey', $out['color']);
         $this->assertSame('Diesel', $out['fuel']);
         $this->assertSame(5, $out['seats']);
 
@@ -284,6 +284,34 @@ class ProductDetailsParserTest extends TestCase
         ]));
         $this->assertSame(351, $out['power_hp']);
         $this->assertNull($out['emission_standard']);
+    }
+
+    public function test_model_no_and_models_aliases(): void
+    {
+        $out = ProductDetailsParser::parse($this->html(['Model No.' => 'RL-KL']));
+        $this->assertSame('RL-KL', $out['model']);
+
+        $out = ProductDetailsParser::parse($this->html(['Models' => 'M0226 best electric City bike']));
+        $this->assertSame('M0226 best electric City bike', $out['model']);
+
+        // Real model key wins over aliases.
+        $out = ProductDetailsParser::parse($this->html(['Model' => 'FD50', 'Model No.' => 'X1']));
+        $this->assertSame('FD50', $out['model']);
+    }
+
+    public function test_color_synonyms_and_junk(): void
+    {
+        // Gray/Grey are the same color — one spelling.
+        $out = ProductDetailsParser::parse($this->html(['Exterior Color' => 'gray']));
+        $this->assertSame('Grey', $out['color']);
+        $out = ProductDetailsParser::parse($this->html(['Exterior Color' => 'Dark Gray']));
+        $this->assertSame('Dark Grey', $out['color']);
+
+        // "Optional"/"Customized"/multi-color lists say nothing.
+        foreach (['Other', 'Optional', 'Customized', 'Customer Requirement', 'For Option', 'Red, White, Blue, Yellow', 'White/red, Support Customlize'] as $junkColor) {
+            $out = ProductDetailsParser::parse($this->html(['Exterior Color' => $junkColor]));
+            $this->assertNull($out['color'], "value: {$junkColor}");
+        }
     }
 
     public function test_empty_or_unrelated_html_returns_all_nulls(): void

@@ -27,7 +27,7 @@ class ProductDetailsParser
         // Format 1 (scraped listings): <li><strong>Key:</strong> value</li>
         if (preg_match_all('/<strong>([^<:]{1,40}):?<\/strong>:?\s*([^<]{0,120})/u', $html, $m, PREG_SET_ORDER)) {
             foreach ($m as $pair) {
-                $key = mb_strtolower(trim($pair[1]));
+                $key = rtrim(mb_strtolower(trim($pair[1])), '.');
                 if (! isset($raw[$key])) {
                     $raw[$key] = self::clean($pair[2]);
                 }
@@ -50,7 +50,7 @@ class ProductDetailsParser
 
         // Second value = column length; real data overflows (e.g. condition
         // "Used (accident Not Repaired)"), so clamp to schema.
-        $out['model'] = self::clamp($raw['model'] ?? null, 100);
+        $out['model'] = self::clamp($raw['model'] ?? $raw['model no'] ?? $raw['models'] ?? null, 100);
         $out['model_code'] = self::clamp($raw['model code'] ?? $raw['chassis no'] ?? null, 60);
         $out['year'] = self::year($raw);
         $out['engine_cc'] = self::engineCc(
@@ -61,7 +61,7 @@ class ProductDetailsParser
         $out['fuel'] = self::fuel($raw['fuel'] ?? $raw['fuel type'] ?? null);
         $out['transmission'] = self::transmission($raw['transmission'] ?? $raw['transmission type'] ?? null);
         $out['condition'] = self::condition($raw['condition'] ?? null);
-        $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null), 40);
+        $out['color'] = self::color($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null);
         $out['steering'] = self::steering($raw['steering'] ?? null);
         $out['seats'] = self::seats($raw['number of seats'] ?? $raw['seats'] ?? null);
         $out['doors'] = self::doors($raw['door'] ?? $raw['doors'] ?? null);
@@ -216,6 +216,25 @@ class ProductDetailsParser
         }
 
         return self::clamp(self::title($value), 40);
+    }
+
+    /**
+     * "Optional"/"Customized"/multi-color lists carry no color; Gray -> Grey
+     * so the same color has one spelling.
+     */
+    private static function color(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $v = mb_strtolower($value);
+        if (str_contains($v, ',') || str_contains($v, '/')
+            || preg_match('/custom|option|other|requirement|request/', $v)) {
+            return null;
+        }
+        $t = self::title($value);
+
+        return self::clamp(str_replace('Gray', 'Grey', $t), 40);
     }
 
     private static function steering(?string $value): ?string
