@@ -1,6 +1,6 @@
 <script setup>
 import PageHeader from '@/components/admin/PageHeader.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, Image as ImageIcon, Loader2 } from 'lucide-vue-next';
@@ -55,7 +55,7 @@ const inputClass =
 
 <template>
     <Head title="Categories - Create" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-2xl p-6">
             <PageHeader title="New Category / Make" subtitle="Add a vehicle category or manufacturer" />
 
@@ -105,5 +105,5 @@ const inputClass =
                 </button>
             </form>
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>

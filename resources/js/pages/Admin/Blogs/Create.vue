@@ -1,6 +1,6 @@
 <script setup>
 import PageHeader from '@/components/admin/PageHeader.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { Image as ImageIcon, Loader2 } from 'lucide-vue-next';
 import Quill from 'quill';
@@ -65,7 +65,7 @@ const inputClass =
 
 <template>
     <Head title="Blogs - Create" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-4xl p-6">
             <PageHeader title="New Blog Post" subtitle="Write and publish content" />
 
@@ -145,5 +145,5 @@ const inputClass =
                 </button>
             </form>
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>

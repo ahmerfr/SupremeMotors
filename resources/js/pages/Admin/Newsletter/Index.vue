@@ -2,7 +2,7 @@
 import AdminPagination from '@/components/admin/AdminPagination.vue';
 import EmptyState from '@/components/admin/EmptyState.vue';
 import PageHeader from '@/components/admin/PageHeader.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { Mail, Search } from 'lucide-vue-next';
 import { ref } from 'vue';
@@ -21,7 +21,7 @@ const search = () => {
 
 <template>
     <Head title="Newsletter" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col p-6">
             <PageHeader title="Newsletter Subscribers" :subtitle="`${newsletter.total} subscribers`">
                 <template #actions>
@@ -68,5 +68,5 @@ const search = () => {
 
             <AdminPagination :links="newsletter.links" />
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>

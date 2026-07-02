@@ -2,7 +2,7 @@
 import AdminPagination from '@/components/admin/AdminPagination.vue';
 import EmptyState from '@/components/admin/EmptyState.vue';
 import PageHeader from '@/components/admin/PageHeader.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Folder, Pencil, Plus, Search } from 'lucide-vue-next';
 import { ref } from 'vue';
@@ -21,7 +21,7 @@ const search = () => {
 
 <template>
     <Head title="Categories" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col p-6">
             <PageHeader title="Categories & Makes" :subtitle="`${categories.total} entries`">
                 <template #actions>
@@ -78,5 +78,5 @@ const search = () => {
 
             <AdminPagination :links="categories.links" />
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>

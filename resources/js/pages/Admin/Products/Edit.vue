@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Image, Upload, CheckCircle } from 'lucide-vue-next';
@@ -194,7 +194,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
 <template>
     <Head title="Products - Edit" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="min-h-screen flex justify-center p-4">
             <div class="w-full max-w-6xl">
                 <h2 class="text-3xl font-black text-center text-zinc-900 dark:text-white mb-8 tracking-tight">
@@ -474,7 +474,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                 </form>
             </div>
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>
 
 <style>

@@ -1,6 +1,6 @@
 <script setup>
 import PageHeader from '@/components/admin/PageHeader.vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Building2, Calendar, Mail, Phone, Percent, User } from 'lucide-vue-next';
 
@@ -26,7 +26,7 @@ const fields = [
 
 <template>
     <Head :title="`Query #${query.id}`" />
-    <AppLayout :breadcrumbs="breadcrumbs">
+    <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-3xl p-6">
             <PageHeader :title="query.company || query.contact_name" :subtitle="`Received ${new Date(query.created_at).toLocaleString('en-GB')}`">
                 <template #actions>
@@ -63,5 +63,5 @@ const fields = [
                 <Mail class="h-4 w-4" /> Reply by Email
             </a>
         </div>
-    </AppLayout>
+    </AdminLayout>
 </template>

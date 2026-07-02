@@ -13,6 +13,9 @@ export default {
         extend: {
             fontFamily: {
                 sans: ['Instrument Sans', ...defaultTheme.fontFamily.sans],
+                display: ['Saira', ...defaultTheme.fontFamily.sans],
+                body: ['Archivo', ...defaultTheme.fontFamily.sans],
+                gauge: ['Chivo Mono', ...defaultTheme.fontFamily.mono],
             },
             borderRadius: {
                 lg: 'var(--radius)',
