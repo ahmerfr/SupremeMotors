@@ -101,6 +101,24 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame(2000, $out['engine_cc']);
     }
 
+    public function test_absurd_numeric_values_rejected(): void
+    {
+        $out = ProductDetailsParser::parse($this->html([
+            'Mileage' => '12,850,000,000 km',
+            'Engine capacity (Displacement)' => '999,999,999cc',
+        ]));
+        $this->assertNull($out['mileage_km']);
+        $this->assertNull($out['engine_cc']);
+    }
+
+    public function test_values_clamped_to_column_widths(): void
+    {
+        $out = ProductDetailsParser::parse($this->html([
+            'Condition' => 'Used (accident not repaired) plus extra words beyond forty chars',
+        ]));
+        $this->assertLessThanOrEqual(40, mb_strlen($out['condition']));
+    }
+
     public function test_empty_or_unrelated_html_returns_all_nulls(): void
     {
         $out = ProductDetailsParser::parse('<p>plain text no attributes</p>');

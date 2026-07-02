@@ -102,8 +102,12 @@ class ProductDetailsParser
             return (int) round(((float) $m[1]) * 1000);
         }
         $digits = preg_replace('/[^0-9]/', '', $value);
+        if ($digits === '') {
+            return null;
+        }
+        $n = (int) $digits;
 
-        return $digits === '' ? null : (int) $digits;
+        return ($n >= 50 && $n <= 30_000) ? $n : null;
     }
 
     private static function mileageKm(?string $value): ?int
@@ -120,7 +124,8 @@ class ProductDetailsParser
             $n = (int) round($n * 1.609);
         }
 
-        return $n;
+        // Scraped junk goes past INT range; no real vehicle exceeds 2M km.
+        return $n > 2_000_000 ? null : $n;
     }
 
     private static function seats(?string $value): ?int

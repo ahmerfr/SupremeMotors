@@ -26,7 +26,7 @@ class ExtractProductAttributes extends Command
         $processed = 0;
 
         DB::table('products')
-            ->select('id', 'product_details')
+            ->select('id', 'title', 'product_details')
             ->orderBy('id')
             ->chunkById((int) $this->option('chunk'), function ($rows) use ($fields, &$filled, &$processed) {
                 // One multi-row upsert per chunk: every id already exists, so
@@ -43,7 +43,9 @@ class ExtractProductAttributes extends Command
                     if (array_filter($attrs, fn ($v) => $v !== null) === []) {
                         continue;
                     }
-                    $updates[] = array_merge(['id' => $row->id], $attrs);
+                    // title: strict mode validates NOT NULL columns on the
+                    // INSERT clause even though every id hits the UPDATE path.
+                    $updates[] = array_merge(['id' => $row->id, 'title' => $row->title], $attrs);
                 }
                 if ($updates !== []) {
                     DB::table('products')->upsert($updates, ['id'], $fields);
