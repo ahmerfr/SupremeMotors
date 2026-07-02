@@ -78,6 +78,48 @@ class RoleManagementTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_admin_can_create_a_user_with_role(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $response = $this->actingAs($admin)->postJson('/admin/users', [
+            'name' => 'New Editor',
+            'email' => 'editor@suprememotors.ltd',
+            'password' => 'StrongPass12',
+            'role' => 'editor',
+        ]);
+
+        $response->assertCreated();
+        $created = User::where('email', 'editor@suprememotors.ltd')->first();
+        $this->assertNotNull($created);
+        $this->assertSame('editor', $created->role);
+        $this->assertNotNull($created->email_verified_at);
+    }
+
+    public function test_editor_cannot_create_users(): void
+    {
+        $editor = $this->editor();
+
+        $this->actingAs($editor)->post('/admin/users', [
+            'name' => 'X', 'email' => 'x@y.com', 'password' => 'StrongPass12', 'role' => 'user',
+        ])->assertRedirect('/');
+        $this->assertNull(User::where('email', 'x@y.com')->first());
+    }
+
+    public function test_duplicate_email_and_weak_password_rejected(): void
+    {
+        $admin = User::factory()->admin()->create();
+        User::factory()->create(['email' => 'taken@x.com']);
+
+        $this->actingAs($admin)->postJson('/admin/users', [
+            'name' => 'A', 'email' => 'taken@x.com', 'password' => 'StrongPass12', 'role' => 'user',
+        ])->assertStatus(422);
+
+        $this->actingAs($admin)->postJson('/admin/users', [
+            'name' => 'A', 'email' => 'new@x.com', 'password' => 'short', 'role' => 'user',
+        ])->assertStatus(422);
+    }
+
     public function test_editor_dashboard_has_no_query_emails(): void
     {
         $q = new \App\Models\QueryForm;

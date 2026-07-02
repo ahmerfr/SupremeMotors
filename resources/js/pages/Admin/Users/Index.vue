@@ -5,7 +5,7 @@ import PageHeader from '@/components/admin/PageHeader.vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search, Users } from 'lucide-vue-next';
+import { Loader2, Plus, Search, Users, X } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 
 const props = defineProps({
@@ -67,6 +67,30 @@ const initials = (name) =>
         .slice(0, 2)
         .join('')
         .toUpperCase();
+
+// Add-user modal
+const showAdd = ref(false);
+const addForm = reactive({ name: '', email: '', password: '', role: 'editor' });
+const addErrors = ref({});
+const addSaving = ref(false);
+
+const submitAdd = async () => {
+    addSaving.value = true;
+    addErrors.value = {};
+    try {
+        await axios.post('/admin/users', addForm);
+        showAdd.value = false;
+        Object.assign(addForm, { name: '', email: '', password: '', role: 'editor' });
+        router.reload({ only: ['users'] });
+    } catch (e) {
+        addErrors.value = e.response?.data?.errors || { email: [e.response?.data?.message || 'Failed to create user.'] };
+    } finally {
+        addSaving.value = false;
+    }
+};
+
+const fieldClass =
+    'mt-1 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-white/10 dark:bg-[#121212] dark:text-white';
 </script>
 
 <template>
@@ -85,8 +109,63 @@ const initials = (name) =>
                             @keyup.enter="reload"
                         />
                     </div>
+                    <button
+                        type="button"
+                        class="flex h-10 items-center gap-1.5 rounded-lg bg-[#8e2527] px-4 text-sm font-medium text-white transition-all duration-300 hover:bg-[#7a1f21] active:scale-[0.98]"
+                        @click="showAdd = true"
+                    >
+                        <Plus class="h-4 w-4" :stroke-width="1.75" /> Add user
+                    </button>
                 </template>
             </PageHeader>
+
+            <!-- Add user modal -->
+            <Teleport to="body">
+                <div v-if="showAdd" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" @click.self="showAdd = false">
+                    <div class="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-[#161616]">
+                        <div class="mb-5 flex items-center justify-between">
+                            <h2 class="text-[20px] font-semibold text-zinc-900 dark:text-white">Add user</h2>
+                            <button type="button" class="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06]" @click="showAdd = false">
+                                <X class="h-4 w-4" :stroke-width="1.75" />
+                            </button>
+                        </div>
+                        <form class="space-y-4" @submit.prevent="submitAdd">
+                            <div>
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Name</label>
+                                <input v-model="addForm.name" type="text" :class="[fieldClass, addErrors.name && 'border-red-500']" />
+                                <p v-if="addErrors.name" class="mt-1 text-[13px] text-red-500">{{ addErrors.name[0] }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Email</label>
+                                <input v-model="addForm.email" type="email" :class="[fieldClass, addErrors.email && 'border-red-500']" />
+                                <p v-if="addErrors.email" class="mt-1 text-[13px] text-red-500">{{ addErrors.email[0] }}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Password</label>
+                                <input v-model="addForm.password" type="password" autocomplete="new-password" :class="[fieldClass, addErrors.password && 'border-red-500']" />
+                                <p v-if="addErrors.password" class="mt-1 text-[13px] text-red-500">{{ addErrors.password[0] }}</p>
+                                <p v-else class="mt-1 text-[13px] text-zinc-400">Minimum 8 characters. Share it with them securely.</p>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Role</label>
+                                <select v-model="addForm.role" :class="fieldClass">
+                                    <option value="editor">Editor</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="user">Customer</option>
+                                </select>
+                            </div>
+                            <button
+                                type="submit"
+                                :disabled="addSaving"
+                                class="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#8e2527] text-sm font-medium text-white transition-all duration-300 hover:bg-[#7a1f21] active:scale-[0.98] disabled:opacity-60"
+                            >
+                                <Loader2 v-if="addSaving" class="h-4 w-4 animate-spin" />
+                                Create account
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </Teleport>
 
             <!-- Role tabs -->
             <div class="mb-5 flex w-max items-center gap-1 rounded-xl border border-zinc-200 bg-white p-1 dark:border-white/[0.07] dark:bg-[#161616]">

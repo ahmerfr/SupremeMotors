@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'role:admin,editor'])->prefix('admin')->n
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/', [AdminController::class, 'users_index'])->name('index');
             Route::get('/listing', [AdminController::class, 'users_listing'])->name('listing');
+            Route::post('/', [AdminController::class, 'users_store'])->name('store');
             Route::patch('/{user}/role', [AdminController::class, 'users_update_role'])->name('role');
         });
 

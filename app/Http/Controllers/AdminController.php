@@ -94,6 +94,26 @@ class AdminController extends Controller
         return $users;
     }
 
+    public function users_store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:8',
+            'role' => 'required|in:admin,editor,user',
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => bcrypt($validated['password']),
+            'role' => $validated['role'],
+            'email_verified_at' => now(), // admin-created accounts are trusted
+        ]);
+
+        return response()->json(['message' => 'User created.', 'user' => $user->only('id', 'name', 'email', 'role')], 201);
+    }
+
     public function users_update_role(Request $request, User $user)
     {
         $request->validate([
