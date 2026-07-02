@@ -48,34 +48,38 @@ const initials = computed(() =>
 </script>
 
 <template>
-    <aside class="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-zinc-200 bg-white lg:flex dark:border-white/[0.07] dark:bg-[#121212]">
+    <aside class="fixed inset-y-0 left-0 z-40 hidden w-[284px] flex-col border-r border-zinc-200 bg-white lg:flex dark:border-white/[0.07] dark:bg-[#141414]">
         <!-- Brand -->
-        <Link href="/admin/dashboard" class="flex items-center gap-3 px-5 pb-5 pt-6">
-            <img src="/assets/images/site-logo.png" alt="Supreme Motors" class="h-9 w-auto object-contain" />
-            <span class="text-sm font-semibold text-zinc-400 dark:text-zinc-500">Admin</span>
+        <Link href="/admin/dashboard" class="flex items-center gap-3.5 border-b border-zinc-100 px-6 pb-6 pt-7 dark:border-white/[0.06]">
+            <img src="/assets/images/site-logo.png" alt="Supreme Motors" class="h-12 w-auto object-contain" />
+            <div class="leading-tight">
+                <div class="text-[16px] font-semibold tracking-tight text-zinc-900 dark:text-white">Supreme Motors</div>
+                <div class="text-[13px] text-zinc-400 dark:text-zinc-500">Admin panel</div>
+            </div>
         </Link>
 
         <!-- Nav -->
-        <nav class="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-1">
+        <nav class="flex-1 space-y-7 overflow-y-auto px-4 pb-5 pt-6">
             <div v-for="(group, gi) in groups" :key="gi">
-                <div v-if="group.label" class="mb-1.5 px-3 text-xs font-medium text-zinc-400 dark:text-zinc-500">
+                <div v-if="group.label" class="mb-2 px-3.5 text-[12px] font-semibold text-zinc-400 dark:text-zinc-500">
                     {{ group.label }}
                 </div>
-                <div class="space-y-0.5">
+                <div class="space-y-1">
                     <Link
                         v-for="item in group.items"
                         :key="item.href"
                         :href="item.href"
-                        class="relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                        class="group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
                         :class="isActive(item.href)
-                            ? 'bg-zinc-100 text-zinc-900 dark:bg-white/[0.07] dark:text-white'
-                            : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-white'"
+                            ? 'bg-zinc-900 font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] dark:bg-white dark:text-zinc-900'
+                            : 'font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.05] dark:hover:text-white'"
                     >
-                        <span
-                            v-if="isActive(item.href)"
-                            class="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#8e2527]"
-                        ></span>
-                        <component :is="item.icon" class="h-4 w-4 shrink-0" :stroke-width="1.5" />
+                        <component
+                            :is="item.icon"
+                            class="h-[19px] w-[19px] shrink-0 transition-colors duration-300"
+                            :class="isActive(item.href) ? 'text-[#d96a6c] dark:text-[#8e2527]' : 'text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300'"
+                            :stroke-width="1.75"
+                        />
                         {{ item.title }}
                     </Link>
                 </div>
@@ -83,17 +87,17 @@ const initials = computed(() =>
         </nav>
 
         <!-- User -->
-        <div class="border-t border-zinc-100 p-3 dark:border-white/[0.05]">
-            <div class="flex items-center gap-3 rounded-lg px-2 py-2">
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-semibold text-zinc-600 dark:bg-white/[0.08] dark:text-zinc-300">
+        <div class="border-t border-zinc-100 p-4 dark:border-white/[0.06]">
+            <div class="flex items-center gap-3 rounded-xl px-2 py-1.5">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[13px] font-semibold text-white dark:bg-white dark:text-zinc-900">
                     {{ initials }}
                 </div>
                 <div class="min-w-0 flex-1 leading-tight">
-                    <div class="truncate text-sm font-semibold text-zinc-900 dark:text-white">{{ user.name }}</div>
-                    <div class="truncate text-xs text-zinc-400 dark:text-zinc-500">{{ user.email }}</div>
+                    <div class="truncate text-[15px] font-semibold text-zinc-900 dark:text-white">{{ user.name }}</div>
+                    <div class="truncate text-[13px] text-zinc-400 dark:text-zinc-500">{{ user.email }}</div>
                 </div>
-                <Link href="/logout" method="post" as="button" class="rounded-md p-1.5 text-zinc-400 transition-colors duration-300 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200" title="Log out">
-                    <LogOut class="h-4 w-4" :stroke-width="1.5" />
+                <Link href="/logout" method="post" as="button" class="rounded-lg p-2 text-zinc-400 transition-colors duration-300 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200" title="Log out">
+                    <LogOut class="h-[18px] w-[18px]" :stroke-width="1.75" />
                 </Link>
             </div>
         </div>

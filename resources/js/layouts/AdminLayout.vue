@@ -35,7 +35,7 @@ const mobileNav = [
             </Link>
         </nav>
 
-        <div class="relative flex min-h-screen flex-col pb-16 lg:pb-0 lg:pl-[248px]">
+        <div class="relative flex min-h-screen flex-col pb-16 lg:pb-0 lg:pl-[284px]">
             <AdminTopbar :breadcrumbs="breadcrumbs" />
             <main class="flex flex-1 flex-col">
                 <slot />
