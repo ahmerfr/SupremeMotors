@@ -51,9 +51,10 @@ class DashboardController extends Controller
             $featured = fn (string $country) => Products::with(['category', 'make'])
                 ->where('country', $country)
                 ->whereNotNull('front_image')
-                ->select('id', 'title', 'front_image', 'price', 'website', 'country', 'category_id', 'make_id', 'product_details')
+                ->select('id', 'title', 'front_image', 'price', 'website', 'country', 'category_id', 'make_id',
+                    'fuel', 'transmission', 'mileage_km', 'year', 'product_details')
                 ->latest('created_at')
-                ->limit(6)
+                ->limit(8)
                 ->get();
 
             return [

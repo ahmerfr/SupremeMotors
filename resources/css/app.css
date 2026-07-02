@@ -221,3 +221,10 @@ html {
     .sm-footgrid { grid-template-columns: 1fr !important; }
     .sm-newsgrid, .sm-howwrap { padding: 32px 22px !important; }
 }
+
+@media (max-width: 1080px) {
+    .sm-reccards { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 560px) {
+    .sm-reccards { grid-template-columns: 1fr !important; }
+}
