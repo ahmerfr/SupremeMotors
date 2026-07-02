@@ -23,7 +23,13 @@ const props = defineProps({
 
   <div class="flex flex-col min-h-screen">
     <FrontLayout>
-      <HeroV2 :makes="makes" />
+      <HeroV2
+        :makes="makes"
+        :buyer-images="[...(featured_products_china || []), ...(featured_products_japan || [])]
+          .filter(p => p.front_image)
+          .slice(0, 4)
+          .map(p => p.front_image.includes('product_images') ? '/storage/' + p.front_image : p.front_image)"
+      />
         <section class="py-16 bg-gradient-to-b from-gray-100 to-white">
           <div class="max-w-7xl mx-auto px-6">
             <h2 class="text-4xl font-bold text-[#1e4066] mb-4 text-center">Explore Our Categories</h2>

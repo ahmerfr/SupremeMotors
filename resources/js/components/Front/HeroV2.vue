@@ -4,6 +4,7 @@ import { ref } from 'vue';
 
 const props = defineProps({
     makes: { type: Array, default: () => [] },
+    buyerImages: { type: Array, default: () => [] },
 });
 
 const search = ref('');
@@ -48,12 +49,12 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                 </div>
 
                 <h1 class="sm-h1" style="font-family: Archivo; font-weight: 800; font-size: 60px; line-height: 1.04; letter-spacing: -0.025em; color: #fff; margin: 26px 0 0">
-                    Find Your Next<br />Vehicle With
-                    <span style="position: relative; white-space: nowrap">Confidence<span style="position: absolute; left: 0; right: 0; bottom: 6px; height: 11px; background: rgba(224, 31, 38, 0.5); z-index: -1; border-radius: 3px"></span></span>
+                    Your
+                    <span style="position: relative; white-space: nowrap">Journey<span style="position: absolute; left: 0; right: 0; bottom: 6px; height: 11px; background: rgba(224, 31, 38, 0.5); z-index: -1; border-radius: 3px"></span></span><br />Begins With Us
                 </h1>
 
                 <p style="font-size: 18px; line-height: 1.6; color: #a9b7cc; margin: 24px 0 0; max-width: 490px">
-                    Explore quality vehicles, compare options, and connect with Supreme Motors Ltd for a smoother, more confident buying experience.
+                    From family cars to heavy trucks and construction machinery. Sourced across Japan and China, inspected with care, and delivered wherever the road takes you.
                 </p>
 
                 <div style="display: flex; gap: 14px; margin-top: 34px; flex-wrap: wrap">
@@ -69,10 +70,16 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
 
                 <div style="display: flex; align-items: center; gap: 22px; margin-top: 38px; flex-wrap: wrap">
                     <div style="display: flex; align-items: center">
-                        <div v-for="c in ['#c9d3e2', '#dfe5ee', '#b8c4d7', '#eef1f6']" :key="c" :style="{ width: '38px', height: '38px', borderRadius: '50%', border: '2px solid #0b1e3b', marginLeft: '-10px', background: c }"></div>
+                        <img
+                            v-for="(img, i) in props.buyerImages.slice(0, 4)"
+                            :key="i"
+                            :src="img"
+                            alt=""
+                            :style="{ width: '38px', height: '38px', borderRadius: '50%', border: '2px solid #0b1e3b', marginLeft: i === 0 ? '0' : '-10px', objectFit: 'cover', background: '#c9d3e2' }"
+                        />
                     </div>
                     <div style="line-height: 1.3">
-                        <div style="color: #fff; font-weight: 800; font-size: 15px">★★★★★ <span style="color: #a9b7cc; font-weight: 600">Rated by buyers</span></div>
+                        <div style="font-weight: 800; font-size: 15px"><span style="color: #ffc24b; letter-spacing: 1px">★★★★★</span> <span style="color: #a9b7cc; font-weight: 600">Rated by buyers</span></div>
                         <div style="color: #8496b0; font-size: 13px; font-weight: 600">Quality vehicles, handled with care</div>
                     </div>
                 </div>
