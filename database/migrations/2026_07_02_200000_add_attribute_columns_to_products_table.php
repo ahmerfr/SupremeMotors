@@ -35,7 +35,7 @@ return new class extends Migration
                     ADD COLUMN mileage_km   INT UNSIGNED      NULL AFTER engine_cc,
                     ADD COLUMN fuel         VARCHAR(30)       NULL AFTER mileage_km,
                     ADD COLUMN transmission VARCHAR(30)       NULL AFTER fuel,
-                    ADD COLUMN `condition`  VARCHAR(20)       NULL AFTER transmission,
+                    ADD COLUMN `condition`  VARCHAR(40)       NULL AFTER transmission,
                     ADD COLUMN color        VARCHAR(40)       NULL AFTER `condition`,
                     ADD COLUMN steering     VARCHAR(10)       NULL AFTER color,
                     ADD COLUMN seats        TINYINT UNSIGNED  NULL AFTER steering,
@@ -65,7 +65,7 @@ return new class extends Migration
             $table->integer('mileage_km')->unsigned()->nullable();
             $table->string('fuel', 30)->nullable();
             $table->string('transmission', 30)->nullable();
-            $table->string('condition', 20)->nullable();
+            $table->string('condition', 40)->nullable();
             $table->string('color', 40)->nullable();
             $table->string('steering', 10)->nullable();
             $table->tinyInteger('seats')->unsigned()->nullable();

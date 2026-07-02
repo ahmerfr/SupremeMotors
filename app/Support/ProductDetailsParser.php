@@ -35,20 +35,27 @@ class ProductDetailsParser
             return $out;
         }
 
-        $out['model'] = $raw['model'] ?? null;
-        $out['model_code'] = $raw['model code'] ?? null;
+        // Second value = column length; real data overflows (e.g. condition
+        // "Used (accident Not Repaired)"), so clamp to schema.
+        $out['model'] = self::clamp($raw['model'] ?? null, 100);
+        $out['model_code'] = self::clamp($raw['model code'] ?? null, 60);
         $out['year'] = self::year($raw);
         $out['engine_cc'] = self::engineCc($raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? null);
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
-        $out['fuel'] = self::title($raw['fuel'] ?? null);
-        $out['transmission'] = self::title($raw['transmission'] ?? null);
-        $out['condition'] = self::title($raw['condition'] ?? null);
-        $out['color'] = self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? null);
-        $out['steering'] = self::title($raw['steering'] ?? null);
+        $out['fuel'] = self::clamp(self::title($raw['fuel'] ?? null), 30);
+        $out['transmission'] = self::clamp(self::title($raw['transmission'] ?? null), 30);
+        $out['condition'] = self::clamp(self::title($raw['condition'] ?? null), 40);
+        $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? null), 40);
+        $out['steering'] = self::clamp(self::title($raw['steering'] ?? null), 10);
         $out['seats'] = self::seats($raw['number of seats'] ?? null);
-        $out['drive_type'] = self::title($raw['drive type'] ?? null);
+        $out['drive_type'] = self::clamp(self::title($raw['drive type'] ?? null), 30);
 
         return $out;
+    }
+
+    private static function clamp(?string $value, int $max): ?string
+    {
+        return $value === null ? null : mb_substr($value, 0, $max);
     }
 
     private static function clean(string $value): ?string

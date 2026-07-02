@@ -29,20 +29,25 @@ class ExtractProductAttributes extends Command
             ->select('id', 'product_details')
             ->orderBy('id')
             ->chunkById((int) $this->option('chunk'), function ($rows) use ($fields, &$filled, &$processed) {
-                DB::transaction(function () use ($rows, $fields, &$filled) {
-                    foreach ($rows as $row) {
-                        $attrs = ProductDetailsParser::parse($row->product_details);
-                        foreach ($fields as $f) {
-                            if ($attrs[$f] !== null) {
-                                $filled[$f]++;
-                            }
+                // One multi-row upsert per chunk: every id already exists, so
+                // this is pure batched UPDATE — per-row UPDATEs run ~17 rows/s
+                // against this table's 9 secondary indexes.
+                $updates = [];
+                foreach ($rows as $row) {
+                    $attrs = ProductDetailsParser::parse($row->product_details);
+                    foreach ($fields as $f) {
+                        if ($attrs[$f] !== null) {
+                            $filled[$f]++;
                         }
-                        if (array_filter($attrs, fn ($v) => $v !== null) === []) {
-                            continue;
-                        }
-                        DB::table('products')->where('id', $row->id)->update($attrs);
                     }
-                });
+                    if (array_filter($attrs, fn ($v) => $v !== null) === []) {
+                        continue;
+                    }
+                    $updates[] = array_merge(['id' => $row->id], $attrs);
+                }
+                if ($updates !== []) {
+                    DB::table('products')->upsert($updates, ['id'], $fields);
+                }
                 $processed += count($rows);
                 if ($processed % 20000 === 0) {
                     $this->info("processed {$processed}...");
