@@ -6,12 +6,14 @@ import HeroV2 from '@/components/Front/HeroV2.vue';
 import HowItWorks from '@/components/Front/HowItWorks.vue';
 import BrandsExplorer from '@/components/Front/BrandsExplorer.vue';
 import RecommendedForYou from '@/components/Front/RecommendedForYou.vue';
+import ShopByBodyType from '@/components/Front/ShopByBodyType.vue';
 import WhyUs from '@/components/Front/WhyUs.vue';
 import StayInLoop from '@/components/Front/StayInLoop.vue';
 const props = defineProps({
   categories: Object,
   auth: Object,
   makes: Object,
+  body_types: Object,
   featured_products_china: Object,
   featured_products_japan: Object,
   // featured_products_thailand : Object,
@@ -91,6 +93,7 @@ const props = defineProps({
         <BrandsExplorer :makes="makes" />
 
 
+        <ShopByBodyType :body-types="body_types || []" />
         <RecommendedForYou :china="featured_products_china" :japan="featured_products_japan" />
 
         <!-- CTA Section -->

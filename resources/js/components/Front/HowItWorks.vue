@@ -8,7 +8,7 @@ const steps = [
 
 <template>
     <section id="how" class="sm-body" style="padding: 110px 24px 0">
-        <div class="sm-howwrap" style="max-width: 1180px; margin: 0 auto; background: radial-gradient(120% 140% at 100% 0%, #12284a, #0b1e3b 60%, #081730); border-radius: 32px; padding: 64px 56px; position: relative; overflow: hidden">
+        <div class="sm-howwrap" style="max-width: 1280px; margin: 0 auto; background: radial-gradient(120% 140% at 100% 0%, #12284a, #0b1e3b 60%, #081730); border-radius: 32px; padding: 64px 56px; position: relative; overflow: hidden">
             <div style="position: absolute; top: -100px; left: -60px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.14), transparent 70%)"></div>
             <div style="text-align: center; position: relative">
                 <div style="display: inline-flex; align-items: center; gap: 8px; color: #ff6b70; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; justify-content: center">

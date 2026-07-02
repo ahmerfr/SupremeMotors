@@ -57,9 +57,16 @@ class DashboardController extends Controller
                 ->limit(8)
                 ->get();
 
+            $body_types = Products::whereNotNull('body_style')
+                ->groupBy('body_style')
+                ->selectRaw('body_style, COUNT(*) as count')
+                ->orderByDesc('count')
+                ->get();
+
             return [
                 'categories' => $categories,
                 'makes' => $makes,
+                'body_types' => $body_types,
                 'featured_products_china' => $featured('China'),
                 'featured_products_japan' => $featured('Japan'),
                 'featured_products_thailand' => $featured('Thailand'),

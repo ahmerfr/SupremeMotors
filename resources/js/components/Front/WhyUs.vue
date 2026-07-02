@@ -11,7 +11,7 @@ const benefits = [
 
 <template>
     <section class="sm-body" style="padding: 104px 24px 0">
-        <div style="max-width: 1180px; margin: 0 auto">
+        <div style="max-width: 1280px; margin: 0 auto">
             <div class="sm-whygrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px 40px; align-items: center">
                 <div>
                     <div style="display: inline-flex; align-items: center; gap: 8px; color: #e01f26; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">

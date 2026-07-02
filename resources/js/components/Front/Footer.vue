@@ -54,7 +54,7 @@ const socials = [
 
 <template>
     <footer class="sm-body" style="margin-top: 104px; background: linear-gradient(#0b1e3b, #081730)">
-        <div class="sm-footgrid" style="max-width: 1180px; margin: 0 auto; padding: 64px 24px 48px; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr; gap: 40px">
+        <div class="sm-footgrid" style="max-width: 1280px; margin: 0 auto; padding: 64px 24px 48px; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr; gap: 40px">
             <div>
                 <Link href="/" style="display: inline-flex; align-items: center">
                     <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 56px; width: auto; object-fit: contain" />
@@ -91,7 +91,7 @@ const socials = [
         </div>
 
         <div style="border-top: 1px solid rgba(255, 255, 255, 0.09)">
-            <div style="max-width: 1180px; margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+            <div style="max-width: 1280px; margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
                 <div style="font-size: 13px; font-weight: 600; color: #7d8ea8">© {{ new Date().getFullYear() }} Supreme Motors Ltd. All rights reserved.</div>
                 <div style="display: flex; gap: 24px">
                     <Link href="/terms-condition" class="scpf" style="font-size: 13px; font-weight: 600; color: #93a3bd">Terms &amp; Conditions</Link>

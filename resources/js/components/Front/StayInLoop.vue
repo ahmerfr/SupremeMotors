@@ -26,7 +26,7 @@ const subscribe = async () => {
 
 <template>
     <section class="sm-body" style="padding: 104px 24px 0">
-        <div style="max-width: 1180px; margin: 0 auto">
+        <div style="max-width: 1280px; margin: 0 auto">
             <div class="sm-newsgrid" style="background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); border-radius: 28px; padding: 56px; position: relative; overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center">
                 <div style="position: absolute; bottom: -120px; right: -60px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 70%)"></div>
                 <div style="position: relative">
