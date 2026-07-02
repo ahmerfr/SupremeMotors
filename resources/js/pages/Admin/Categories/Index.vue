@@ -1,120 +1,82 @@
 <script setup>
+import AdminPagination from '@/components/admin/AdminPagination.vue';
+import EmptyState from '@/components/admin/EmptyState.vue';
+import PageHeader from '@/components/admin/PageHeader.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import Pagination from '@/components/Pagination.vue';
-import axios from 'axios';
-// Import Lucide icons
-import { Edit, Trash } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { Folder, Pencil, Plus, Search } from 'lucide-vue-next';
+import { ref } from 'vue';
 
-const props = defineProps({
-    auth: Object,
+defineProps({
     categories: Object,
 });
+
+const breadcrumbs = [{ title: 'Categories / Makes', href: '/admin/categories' }];
+const keywords = ref(new URLSearchParams(window.location.search).get('keywords') || '');
+
+const search = () => {
+    router.get('/admin/categories', keywords.value ? { keywords: keywords.value } : {}, { preserveState: true });
+};
 </script>
 
 <template>
-    <Head title="Categories/Makes" />
+    <Head title="Categories" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex justify-between mb-4 gap-2">
-                <div style="width: 30%; margin-left: auto;">
-                    <input
-                        style="background-color: #241c1c"
-                        type="text"
-                        v-model="search"
-                        @input="onSearch"
-                        placeholder="Search by Title..."
-                        class="w-full rounded-lg border p-2"
-                    />
-                </div>
-                <button
-                    @click="createNewCategory"
-                    class="bg-[#782527] text-white rounded px-4 py-2"
+        <div class="flex h-full flex-1 flex-col p-6">
+            <PageHeader title="Categories & Makes" :subtitle="`${categories.total} entries`">
+                <template #actions>
+                    <div class="relative">
+                        <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                        <input
+                            v-model="keywords"
+                            type="text"
+                            placeholder="Search…"
+                            class="h-10 w-56 rounded-xl border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                            @keyup.enter="search"
+                        />
+                    </div>
+                    <Link
+                        href="/admin/categories/create"
+                        class="flex h-10 items-center gap-2 rounded-xl bg-[#8e2527] px-4 text-sm font-bold text-white transition-colors hover:bg-[#a32c2f]"
+                    >
+                        <Plus class="h-4 w-4" /> New Entry
+                    </Link>
+                </template>
+            </PageHeader>
+
+            <EmptyState v-if="!categories.data.length" message="No categories found." :icon="Folder" />
+
+            <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                <div
+                    v-for="c in categories.data"
+                    :key="c.id"
+                    class="group relative rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
                 >
-                    Create New
-                </button>
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">
+                            <img v-if="c.image" :src="`/storage/${c.image}`" alt="" class="h-10 w-10 object-contain" />
+                            <Folder v-else class="h-6 w-6 text-zinc-400" />
+                        </div>
+                        <div class="min-w-0">
+                            <div class="truncate font-bold text-zinc-900 dark:text-white">{{ c.cat_title }}</div>
+                            <span
+                                class="mt-1 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                                :class="c.type === 'make'
+                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                                    : 'bg-red-100 text-[#8e2527] dark:bg-red-950 dark:text-red-300'"
+                            >{{ c.type }}</span>
+                        </div>
+                    </div>
+                    <Link
+                        :href="`/admin/categories/edit/${c.id}`"
+                        class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 opacity-0 transition-all hover:bg-[#8e2527] hover:text-white group-hover:opacity-100"
+                    >
+                        <Pencil class="h-4 w-4" />
+                    </Link>
+                </div>
             </div>
-            <div class="overflow-x-auto rounded-lg shadow-md">
-                <table class="min-w-full table-auto">
-                    <thead>
-                        <tr>
-                            <th class="border-b px-4 py-2">Title</th>
-                            <th class="border-b px-4 py-2">Type</th> 
-                            <th class="border-b px-4 py-2">Created At</th>
-                            <th class="border-b px-4 py-2 text-left">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="category in categories.data" :key="category.id">
-                            <td class="flex items-center gap-2 border-b px-4 py-2">
-                                <img
-                                    v-if="category.image"
-                                    :src="'/storage/'+category.image"
-                                    alt="Category Image"
-                                    class="h-10 w-10 rounded-full object-cover bg-white"
-                                />
-                                {{ category.cat_title }}
-                            </td>
-                            <td class="border-b px-4 py-2">
-                                <span :class="badgeClass(category.type)" class="px-3 py-1 rounded-full text-xs font-semibold">
-                                    {{ category.type }}
-                                </span>
-                            </td>
-                            <td class="border-b px-4 py-2">{{ new Date(category.created_at).toLocaleDateString() }}</td>
-                            <td class="border-b px-4 py-2 text-left">
-                                <button @click="updateCategory(category.id)" class="text-yellow-500 hover:text-yellow-700">
-                                    <Edit class="w-5 h-5" />
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <Pagination :pageData="categories.links" :total="categories.total"/>
+
+            <AdminPagination :links="categories.links" />
         </div>
     </AppLayout>
 </template>
-
-<script>
-export default {
-    data() {
-        return {
-            search: '',
-            currentPage: this.$page.props.categories.current_page,
-            breadcrumbs: [{ title: 'Categories/Makes', href: '/admin/categories' }],
-        };
-    },
-    methods: {
-        async onSearch() {
-            try {
-                const response = await axios.get(route('admin.categories.listing'), {
-                    params: { keywords: this.search },
-                });
-                this.$page.props.categories = response.data;
-            } catch (error) {
-                console.error('Error fetching categories:', error);
-                alert('Error fetching category data. Please try again.');
-            }
-        },
-        createNewCategory() {
-            window.location.href = '/admin/categories/create';
-        },
-        updateCategory(categoryId) {
-            window.location.href = `/admin/categories/edit/${categoryId}`;
-        },
-        badgeClass(type) {
-            switch (type.toLowerCase()) {
-                case 'make':
-                    return 'bg-[#782527] text-white';
-                case 'category':
-                    return 'bg-[#711527] text-white';
-            }
-        }
-    },
-};
-</script>
-<style scoped>
-th{
-    text-align: justify;
-}
-</style>

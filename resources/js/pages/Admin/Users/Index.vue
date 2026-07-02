@@ -1,83 +1,99 @@
 <script setup>
+import AdminPagination from '@/components/admin/AdminPagination.vue';
+import EmptyState from '@/components/admin/EmptyState.vue';
+import PageHeader from '@/components/admin/PageHeader.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import Pagination from '@/components/Pagination.vue';
-import axios from 'axios';
+import { Head, router } from '@inertiajs/vue3';
+import { Search, Users } from 'lucide-vue-next';
+import { ref } from 'vue';
 
-const props = defineProps({
-    auth: Object,
+defineProps({
     users: Object,
 });
+
+const breadcrumbs = [{ title: 'Users', href: '/admin/users' }];
+const keywords = ref(new URLSearchParams(window.location.search).get('keywords') || '');
+
+const search = () => {
+    router.get('/admin/users', keywords.value ? { keywords: keywords.value } : {}, { preserveState: true });
+};
+
+const initials = (name) =>
+    (name || '?')
+        .split(' ')
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
 </script>
 
 <template>
     <Head title="Users" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="mb-4" style="width: 30%;margin-left: auto;">
-                <input
-                    style="background-color: #241c1c"
-                    type="text"
-                    v-model="search"
-                    @input="onSearch"
-                    placeholder="Search by name or email..."
-                    class="w-full rounded-lg border p-2"
-                />
-            </div>
-            <div class="overflow-x-auto rounded-lg shadow-md">
-                <table class="min-w-full table-auto">
-                    <thead>
+        <div class="flex h-full flex-1 flex-col p-6">
+            <PageHeader title="Users" :subtitle="`${users.total} registered customers`">
+                <template #actions>
+                    <div class="relative">
+                        <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                        <input
+                            v-model="keywords"
+                            type="text"
+                            placeholder="Search name or email…"
+                            class="h-10 w-64 rounded-xl border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                            @keyup.enter="search"
+                        />
+                    </div>
+                </template>
+            </PageHeader>
+
+            <EmptyState v-if="!users.data.length" message="No users found." :icon="Users" />
+
+            <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
-                            <th class="border-b px-4 py-2">Name</th>
-                            <th class="border-b px-4 py-2">Email</th>
-                            <th class="border-b px-4 py-2">Created At</th>
+                            <th class="px-5 py-3.5">User</th>
+                            <th class="px-5 py-3.5">Email</th>
+                            <th class="px-5 py-3.5">Verified</th>
+                            <th class="px-5 py-3.5 text-right">Joined</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr v-for="user in users.data" :key="user.id">
-                            <td class="flex items-center gap-2 border-b px-4 py-2">
-                                <img
-                                    v-if="user.profile_picture"
-                                    :src="user.profile_picture"
-                                    alt="Profile Picture"
-                                    class="h-10 w-10 rounded-full object-cover"
-                                />
-                                {{ user.name }}
+                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        <tr v-for="u in users.data" :key="u.id" class="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                            <td class="px-5 py-3">
+                                <div class="flex items-center gap-3">
+                                    <img
+                                        v-if="u.profile_picture"
+                                        :src="u.profile_picture"
+                                        alt=""
+                                        class="h-9 w-9 shrink-0 rounded-full object-cover"
+                                        referrerpolicy="no-referrer"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#8e2527] text-xs font-black text-white"
+                                    >{{ initials(u.name) }}</div>
+                                    <span class="font-semibold text-zinc-900 dark:text-white">{{ u.name }}</span>
+                                </div>
                             </td>
-                            <td class="border-b px-4 py-2">{{ user.email }}</td>
-                            <td class="border-b px-4 py-2">{{ new Date(user.created_at).toLocaleDateString() }}</td>
+                            <td class="px-5 py-3 text-zinc-600 dark:text-zinc-300">{{ u.email }}</td>
+                            <td class="px-5 py-3">
+                                <span
+                                    class="rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                                    :class="u.email_verified_at
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'"
+                                >{{ u.email_verified_at ? 'Verified' : 'Pending' }}</span>
+                            </td>
+                            <td class="px-5 py-3 text-right text-zinc-500 dark:text-zinc-400">
+                                {{ new Date(u.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <Pagination :pageData="users.links" :total="users.total"/>
-
+            <AdminPagination :links="users.links" />
         </div>
     </AppLayout>
 </template>
-
-<script>
-export default {
-    data() {
-        return {
-            search: '',
-            currentPage: this.$page.props.users.current_page, 
-            breadcrumbs: [{ title: 'Users', href: '/admin/users' }],
-        };
-    },
-    methods: {
-        async onSearch() {
-            try {
-                const response = await axios.get(route('admin.users.listing'), {
-                    params: { keywords: this.search },
-                });
-                this.$page.props.users = response.data;
-            } catch (error) {
-                console.error('Error fetching users:', error);
-                alert('Error fetching user data. Please try again.');
-            }
-        },
-    },
-};
-</script>

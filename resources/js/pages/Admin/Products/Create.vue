@@ -171,9 +171,9 @@ const makesList = props.categories.filter(item => item.type === 'make');
 <template>
     <Head title="Products - Create" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="min-h-screen bg-black flex justify-center p-3">
+        <div class="min-h-screen flex justify-center p-4">
             <div class="w-full max-w-6xl">
-                <h2 class="text-3xl font-extrabold text-center text-white mb-8 tracking-tight">
+                <h2 class="text-3xl font-black text-center text-zinc-900 dark:text-white mb-8 tracking-tight">
                     Create New Product
                 </h2>
 
@@ -190,14 +190,14 @@ const makesList = props.categories.filter(item => item.type === 'make');
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="space-y-6">
                             <div>
-                                <label for="title" class="block text-sm font-medium text-gray-300">
+                                <label for="title" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     Title
                                 </label>
                                 <input
                                     type="text"
                                     id="title"
                                     v-model="product.title"
-                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    class="mt-1 p-3 w-full rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                     :class="{ 'border-red-500': errors.title }"
                                 />
                                 <p v-if="errors.title" class="mt-1 text-sm text-red-500">
@@ -207,7 +207,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Product Details Input (Quill Editor) -->
                             <div>
-                                <label for="product_details" class="block text-sm font-medium text-gray-300 mb-2">
+                                <label for="product_details" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
                                     Product Details
                                 </label>
                                 <div id="description" style="height: 250px;"></div>
@@ -218,13 +218,13 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Category Dropdown -->
                             <div>
-                                <label for="category_id" class="block text-sm font-medium text-gray-300">
+                                <label for="category_id" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     Category
                                 </label>
                                 <select
                                     id="category_id"
                                     v-model="product.category_id"
-                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    class="mt-1 p-3 w-full rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                     :class="{ 'border-red-500': errors.category_id }"
                                 >
                                     <option value="" disabled>Select Category</option>
@@ -239,13 +239,13 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Make Dropdown -->
                             <div>
-                                <label for="make_id" class="block text-sm font-medium text-gray-300">
+                                <label for="make_id" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     Make
                                 </label>
                                 <select
                                     id="make_id"
                                     v-model="product.make_id"
-                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    class="mt-1 p-3 w-full rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                     :class="{ 'border-red-500': errors.make_id }"
                                 >
                                     <option value="" disabled>Select Make</option>
@@ -260,14 +260,14 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Price Input -->
                             <div>
-                                <label for="price" class="block text-sm font-medium text-gray-300">
+                                <label for="price" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     Price (USD)
                                 </label>
                                 <input
                                     type="number"
                                     id="price"
                                     v-model="product.price"
-                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    class="mt-1 p-3 w-full rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                     :class="{ 'border-red-500': errors.price }"
                                 />
                                 <p v-if="errors.price" class="mt-1 text-sm text-red-500">
@@ -277,13 +277,13 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Country Dropdown -->
                             <div>
-                                <label for="country" class="block text-sm font-medium text-gray-300">
+                                <label for="country" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300">
                                     Country
                                 </label>
                                 <select
                                     id="country"
                                     v-model="product.country"
-                                    class="mt-1 p-3 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                    class="mt-1 p-3 w-full rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                     :class="{ 'border-red-500': errors.country }"
                                 >
                                     <option value="" disabled>Select Country</option>
@@ -297,17 +297,17 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Vehicle Attributes -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">Vehicle Attributes</label>
+                                <label class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">Vehicle Attributes</label>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div v-for="field in attributeFields" :key="field.key">
-                                        <label :for="field.key" class="block text-xs font-medium text-gray-400">
+                                        <label :for="field.key" class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                                             {{ field.label }}
                                         </label>
                                         <select
                                             v-if="field.type === 'select'"
                                             :id="field.key"
                                             v-model="product[field.key]"
-                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            class="mt-1 p-2 w-full rounded-lg border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                             :class="{ 'border-red-500': errors[field.key] }"
                                         >
                                             <option value="">—</option>
@@ -318,7 +318,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                             :type="field.type"
                                             :id="field.key"
                                             v-model="product[field.key]"
-                                            class="mt-1 p-2 w-full bg-gray-900 text-white border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#782527] transition duration-300"
+                                            class="mt-1 p-2 w-full rounded-lg border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
                                             :class="{ 'border-red-500': errors[field.key] }"
                                         />
                                         <p v-if="errors[field.key]" class="mt-1 text-xs text-red-500">
@@ -333,13 +333,13 @@ const makesList = props.categories.filter(item => item.type === 'make');
                         <div class="space-y-6">
                             <!-- Front Image Input -->
                             <div>
-                                <label for="front_image" class="block text-sm font-medium text-gray-300 mb-2">
+                                <label for="front_image" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
                                     Front Image
                                 </label>
                                 <div class="flex flex-col space-y-4">
                                     <div class="flex justify-center">
                                         <div
-                                            class="relative w-full h-48 bg-gray-900 border border-gray-700 rounded-lg overflow-hidden transition duration-300 hover:shadow-xl"
+                                            class="relative w-full h-48 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 overflow-hidden transition duration-300 hover:shadow-xl"
                                             :class="{ 'border-dashed': !frontImagePreview, 'border-red-500': errors.front_image }"
                                         >
                                             <img
@@ -350,7 +350,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                             />
                                             <div
                                                 v-else
-                                                class="flex items-center justify-center h-full text-gray-400"
+                                                class="flex items-center justify-center h-full text-zinc-400 dark:text-zinc-500"
                                             >
                                                 <Image class="w-10 h-10 mr-2" />
                                                 <span>No image selected</span>
@@ -381,7 +381,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
 
                             <!-- Other Images Input (Gallery) -->
                             <div>
-                                <label for="other_images" class="block text-sm font-medium text-gray-300 mb-2">
+                                <label for="other_images" class="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
                                     Other Images
                                 </label>
                                 <div class="flex flex-col space-y-4">
@@ -389,7 +389,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                         <div
                                             v-for="(image, index) in otherImagesPreview"
                                             :key="index"
-                                            class="relative w-full h-32 bg-gray-900 border border-gray-700 rounded-lg overflow-hidden transition duration-300 hover:shadow-xl"
+                                            class="relative w-full h-32 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 overflow-hidden transition duration-300 hover:shadow-xl"
                                         >
                                             <img
                                                 :src="image"
@@ -405,7 +405,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                             </button>
                                         </div>
                                         <div
-                                            class="flex items-center justify-center w-full h-32 bg-gray-900 border border-dashed border-gray-700 rounded-lg"
+                                            class="flex items-center justify-center w-full h-32 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700"
                                             :class="{ 'border-red-500': errors.other_images }"
                                         >
                                             <input
@@ -418,7 +418,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                             />
                                             <label
                                                 for="other_images"
-                                                class="cursor-pointer flex items-center space-x-2 text-gray-400"
+                                                class="cursor-pointer flex items-center space-x-2 text-zinc-500 dark:text-zinc-400"
                                             >
                                                 <Upload class="w-6 h-6" />
                                                 <span>Add Images</span>
