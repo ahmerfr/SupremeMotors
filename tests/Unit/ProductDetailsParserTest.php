@@ -165,6 +165,27 @@ class ProductDetailsParserTest extends TestCase
         $this->assertSame('GRX130', $out['model_code']);
     }
 
+    public function test_parses_tab_separated_and_alias_keys(): void
+    {
+        // Another in-house variant: tab-separated pairs, keys with suffixes.
+        $html = "<p>Chassis&nbsp;No.\tMR0KA3CD301251371\t</p><p>Steering\tRight</p>"
+            ."<p>Engine&nbsp;Size\t2,800cc\t</p><p>Ext.&nbsp;Color\tGray</p>"
+            ."<p>Fuel\tDiesel</p><p>Seats\t5</p>";
+        $out = ProductDetailsParser::parse($html);
+        $this->assertSame('MR0KA3CD301251371', $out['model_code']);
+        $this->assertSame('Right', $out['steering']);
+        $this->assertSame(2800, $out['engine_cc']);
+        $this->assertSame('Gray', $out['color']);
+        $this->assertSame('Diesel', $out['fuel']);
+        $this->assertSame(5, $out['seats']);
+
+        // Colon variant with "Engine Size:" / "Fuel Type:" keys.
+        $html = '<p>Engine&nbsp;Size:&nbsp;4,200&nbsp;cc</p><p>Fuel&nbsp;Type:&nbsp;DIESEL</p><p>Engine:&nbsp;1,500cc</p>';
+        $out = ProductDetailsParser::parse($html);
+        $this->assertSame(4200, $out['engine_cc']);
+        $this->assertSame('Diesel', $out['fuel']);
+    }
+
     public function test_empty_or_unrelated_html_returns_all_nulls(): void
     {
         $out = ProductDetailsParser::parse('<p>plain text no attributes</p>');

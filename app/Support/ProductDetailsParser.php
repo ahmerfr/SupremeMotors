@@ -32,13 +32,14 @@ class ProductDetailsParser
                 }
             }
         }
-        // Format 2 (site's own products): <p>Key&nbsp;:&nbsp;Value</p>
+        // Format 2 (site's own products): <p>Key&nbsp;:&nbsp;Value</p> or
+        // tab-separated <p>Key\tValue</p>; keys may carry a trailing period.
         $decoded = str_replace("\u{00A0}", ' ', html_entity_decode($html));
-        if (preg_match_all('/<p>\s*([^<:]{1,40}?)\s*:\s*([^<]{0,120}?)\s*<\/p>/u', $decoded, $m, PREG_SET_ORDER)) {
+        if (preg_match_all('/<p>\s*([^<:\t]{1,40}?)\s*[:\t]\s*([^<]{0,120}?)\s*<\/p>/u', $decoded, $m, PREG_SET_ORDER)) {
             foreach ($m as $pair) {
-                $key = mb_strtolower(trim($pair[1]));
+                $key = rtrim(mb_strtolower(trim($pair[1])), '.');
                 if (! isset($raw[$key])) {
-                    $raw[$key] = self::clean($pair[2]);
+                    $raw[$key] = self::clean(rtrim($pair[2], "\t "));
                 }
             }
         }
@@ -52,15 +53,16 @@ class ProductDetailsParser
         $out['model_code'] = self::clamp($raw['model code'] ?? $raw['chassis no'] ?? null, 60);
         $out['year'] = self::year($raw);
         $out['engine_cc'] = self::engineCc(
-            $raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? $raw['displacement'] ?? null
+            $raw['engine capacity (displacement)'] ?? $raw['engine capacity'] ?? $raw['displacement']
+                ?? $raw['engine size'] ?? $raw['engine'] ?? null
         );
         $out['mileage_km'] = self::mileageKm($raw['mileage'] ?? null);
-        $out['fuel'] = self::fuel($raw['fuel'] ?? null);
+        $out['fuel'] = self::fuel($raw['fuel'] ?? $raw['fuel type'] ?? null);
         $out['transmission'] = self::transmission($raw['transmission'] ?? null);
         $out['condition'] = self::clamp(self::title($raw['condition'] ?? null), 40);
-        $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? null), 40);
+        $out['color'] = self::clamp(self::title($raw['exterior color'] ?? $raw['colour'] ?? $raw['color'] ?? $raw['ext. color'] ?? $raw['ext color'] ?? null), 40);
         $out['steering'] = self::steering($raw['steering'] ?? null);
-        $out['seats'] = self::seats($raw['number of seats'] ?? null);
+        $out['seats'] = self::seats($raw['number of seats'] ?? $raw['seats'] ?? null);
         $out['drive_type'] = self::driveType($raw['drive type'] ?? $raw['drive system'] ?? null);
 
         return $out;
