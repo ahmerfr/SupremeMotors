@@ -2,6 +2,10 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
+import HeroV2 from '@/components/Front/HeroV2.vue';
+import HowItWorks from '@/components/Front/HowItWorks.vue';
+import WhyUs from '@/components/Front/WhyUs.vue';
+import StayInLoop from '@/components/Front/StayInLoop.vue';
 const props = defineProps({
   categories: Object,
   auth: Object,
@@ -19,119 +23,7 @@ const props = defineProps({
 
   <div class="flex flex-col min-h-screen">
     <FrontLayout>
-      <div class="relative h-screen bg-gradient-to-b from-gray-900 to-black overflow-hidden">
-        <!-- Background with enhanced parallax effect -->
-        <div 
-          class="absolute inset-0 bg-cover bg-center transform transition-transform duration-700 ease-out hover:scale-105"
-          :style="{
-            backgroundImage: `url('https://images.unsplash.com/photo-1494976388531-d1058494cdd8?q=80&w=2070')`,
-            filter: 'brightness(0.6) contrast(1.1)'
-          }"
-          ref="parallaxBg">
-        </div>
-    
-        <!-- Brand color overlay with gradient -->
-        <div class="absolute inset-0 bg-gradient-to-tr from-[#8e2527]/40 via-black/60 to-[#8e2527]/30">
-          <!-- Enhanced geometric pattern with brand color -->
-          <div class="absolute inset-0 opacity-15" 
-               :style="{ backgroundImage: `url('${geometricPatternSvg}')` }">
-          </div>
-        </div>
-    
-        <!-- Animated particles overlay -->
-        <div class="absolute inset-0 opacity-30" ref="particlesContainer"></div>
-    
-        <!-- Content container with improved layout -->
-        <div class="absolute inset-0 flex items-center justify-center">
-          <div class="text-center text-white max-w-6xl px-6 z-10">
-            <!-- Logo element (optional) -->
-            <div 
-              class="mb-6 transform transition-all duration-1000"
-              :class="[logoVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0']">
-              <svg width="80" height="80" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="mx-auto">
-                <circle cx="50" cy="50" r="45" fill="none" stroke="#f7c548" stroke-width="2"/>
-                <path d="M25,65 L75,65 C80,65 85,60 85,55 L85,50 C85,45 80,40 75,40 L25,40 C20,40 15,45 15,50 L15,55 C15,60 20,65 25,65 Z" fill="#8e2527"/>
-                <rect x="20" y="65" width="60" height="5" rx="2" fill="#f7c548"/>
-                <rect x="35" y="30" width="30" height="10" rx="5" fill="#8e2527"/>
-                <circle cx="30" cy="55" r="7" fill="#333"/>
-                <circle cx="30" cy="55" r="3" fill="#f7c548"/>
-                <circle cx="70" cy="55" r="7" fill="#333"/>
-                <circle cx="70" cy="55" r="3" fill="#f7c548"/>
-              </svg>
-            </div>
-    
-            <!-- Enhanced main heading with 3D effect -->
-            <h1 class="text-5xl md:text-7xl font-bold mb-6 relative">
-              <span 
-                v-for="(word, index) in titleWords" 
-                :key="index"
-                class="inline-block transform transition-all duration-700"
-                :class="[
-                  titleVisible[index] ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0',
-                  word === 'AUTO' ? 'text-[#f7c548] mx-2' : '',
-                  'perspective-text hover:text-[#f7c548]'
-                ]">
-                {{ word }}
-              </span>
-            </h1>
-            
-            <!-- Dynamic tagline with enhanced animation -->
-            <p 
-              class="text-xl md:text-3xl mb-12 font-light relative overflow-hidden"
-              :class="{ 'fade-out': isTaglineFading }">
-              <span 
-                class="absolute inset-0 bg-gradient-to-r from-transparent via-[#8e2527]/20 to-transparent"
-                :class="{ 'tagline-shine-active': isTaglineShining }">
-              </span>
-              <span class="tagline-text">{{ currentTagline }}</span>
-            </p>
-    
-            <!-- Interactive vehicle carousel -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-12 max-w-3xl mx-auto">
-              <div 
-                v-for="(vehicle, index) in vehicles" 
-                :key="index"
-                class="transform transition-all duration-500 bg-white/10 backdrop-blur-sm p-3 rounded-lg hover:bg-[#8e2527]/30 hover:scale-105 cursor-pointer"
-                :class="[vehiclesVisible[index] ? 'opacity-100' : 'opacity-0']"
-                @click="selectVehicle(index)">
-                <div class="text-sm md:text-base font-semibold text-center">{{ vehicle.name }}</div>
-                <div class="h-14 flex items-center justify-center" v-html="vehicle.svg"></div>
-              </div>
-            </div>
-            
-            <!-- Enhanced CTA button with animated gradient border -->
-            <div class="flex flex-wrap justify-center gap-4">
-              <Link 
-                href="/inventory" 
-                class="px-8 py-4 bg-[#8e2527] text-white rounded-md text-lg font-semibold hover:bg-[#7a1e20] shadow-lg hover:shadow-xl transition duration-300 group relative outline-none button-glow">
-                <span class="relative z-10">Browse Inventory</span>
-                <span class="inline-block transition-transform duration-300 group-hover:translate-x-2 relative z-10">→</span>
-                <span class="absolute inset-0 rounded-md bg-gradient-to-r from-[#f7c548] via-[#8e2527] to-[#f7c548] animate-gradient-border opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-            </Link>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Enhanced bottom stats bar -->
-        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-black/80 via-[#8e2527]/40 to-black/80 backdrop-blur-sm py-4">
-          <div class="container mx-auto flex justify-center items-center divide-x divide-[#8e2527]/30">
-            <div 
-              v-for="(stat, index) in stats"
-              :key="index"
-              class="px-4 md:px-8 text-center transition-all duration-700"
-              :class="[statsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4']"
-              :style="{ transitionDelay: `${index * 300}ms` }">
-              <div class="text-[#f7c548] text-xl md:text-2xl font-bold" v-html="stat.value"></div>
-              <div class="text-white text-sm">{{ stat.label }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <main class="flex-grow">
-
-
-        <!-- Category cards section -->
+      <HeroV2 :makes="makes" />
         <section class="py-16 bg-gradient-to-b from-gray-100 to-white">
           <div class="max-w-7xl mx-auto px-6">
             <h2 class="text-4xl font-bold text-[#1e4066] mb-4 text-center">Explore Our Categories</h2>
@@ -455,28 +347,9 @@ const props = defineProps({
         </section> -->
 
         <!-- CTA Section -->
-        <section class="py-16 bg-gradient-to-r from-[#1e4066] to-[#2c5c8e] text-white">
-          <div class="max-w-7xl mx-auto px-6">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-              <div class="mb-8 lg:mb-0">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Ready to Upgrade Your Equipment?</h2>
-                <p class="text-white/80 text-lg max-w-2xl">Contact our expert team today for personalized advice and
-                  solutions for your construction needs.</p>
-              </div>
-              <div class="flex flex-col sm:flex-row gap-4">
-                <Link :href="route('inventory.index')"
-                  class="px-8 py-4 bg-white text-[#1e4066] rounded-md text-lg font-semibold hover:bg-gray-100 shadow-lg hover:shadow-xl transition duration-300 text-center">
-                View Catalog
-                </Link>
-                <Link :href="route('contact-us')"
-                  class="px-8 py-4 bg-[#8e2527] text-white rounded-md text-lg font-semibold hover:bg-[#7a1e20] shadow-lg hover:shadow-xl transition duration-300 text-center">
-                Contact Us
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
+        <HowItWorks />
+        <WhyUs />
+        <StayInLoop />
     </FrontLayout>
   </div>
 </template>

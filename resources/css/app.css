@@ -193,3 +193,31 @@ html {
     border-color: rgb(255 255 255 / 0.1);
 }
 .ql-editor { min-height: 220px; }
+
+/* Supreme Motors homepage design (claude.ai/design import) */
+.sm-body { font-family: 'Manrope', system-ui, sans-serif; }
+.scp2:hover { transform: translateY(-2px); }
+.scp3:hover { background: rgba(255, 255, 255, 0.14) !important; }
+.scp0:hover { background: #f4f6f9; color: #0b1e3b; }
+.scp5:hover { background: #e01f26 !important; color: #fff !important; border-color: #e01f26 !important; }
+.scpd:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(11, 30, 59, 0.08); }
+.scpe:hover { background: #e01f26 !important; border-color: #e01f26 !important; color: #fff !important; }
+.scpf:hover { color: #fff !important; }
+.scpg:hover { transform: translateY(-3px); }
+@media (max-width: 1080px) {
+    .sm-desknav, .sm-selllink { display: none !important; }
+    .sm-burger { display: flex !important; }
+}
+@media (max-width: 920px) {
+    .sm-herogrid { grid-template-columns: 1fr !important; gap: 40px !important; padding-bottom: 70px !important; }
+    .sm-h1 { font-size: 44px !important; }
+    .sm-whygrid, .sm-newsgrid { grid-template-columns: 1fr !important; }
+    .sm-footgrid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
+    .sm-howwrap { padding: 44px 28px !important; }
+    .sm-steps { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 560px) {
+    .sm-h1 { font-size: 36px !important; }
+    .sm-footgrid { grid-template-columns: 1fr !important; }
+    .sm-newsgrid, .sm-howwrap { padding: 32px 22px !important; }
+}
