@@ -112,7 +112,7 @@ class ShopController extends Controller
                 if (!empty($yearPatterns)) {
                     $yearRegex = implode('|', $yearPatterns);
                     // Match just the year numbers in product_details
-                    $query->whereRaw('product_details REGEXP ?', ["\\\\b({$yearRegex})\\\\b"]);
+                    $query->whereRaw('product_details REGEXP ?', ["\\b({$yearRegex})\\b"]);
                 }
             }
 
