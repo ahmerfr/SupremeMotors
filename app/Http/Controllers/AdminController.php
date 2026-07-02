@@ -158,8 +158,8 @@ class AdminController extends Controller
     {
         $validatedData = $request->validate([
             'title' => 'required|string|max:255',
-            'category_id' => 'required',
-            'make_id' => 'required',
+            'category_id' => 'required|exists:categories,id',
+            'make_id' => 'required|exists:categories,id',
             'price' => 'required|numeric|min:0',
             'country' => 'required|string|max:255',
             'front_image' => 'required|image|mimes:jpg,jpeg,png,gif|max:2048',
@@ -179,7 +179,7 @@ class AdminController extends Controller
                 'title' => $validatedData['title'],
                 'category_id' => $validatedData['category_id'],
                 'make_id' => $validatedData['make_id'],
-                'price' => $validatedData['price'] . ' USD',
+                'price' => $validatedData['price'],
                 'website' => 'suprememotors',
                 'country' => $validatedData['country'],
                 'front_image' => $frontImagePath,
@@ -212,8 +212,8 @@ class AdminController extends Controller
         $validatedData = $request->validate([
             'id' => 'required|exists:products,id',
             'title' => 'required|string|max:255',
-            'category_id' => 'required',
-            'make_id' => 'required',
+            'category_id' => 'required|exists:categories,id',
+            'make_id' => 'required|exists:categories,id',
             'price' => 'required|numeric|min:0',
             'country' => 'required|string|max:255',
             'front_image' => 'nullable|image|mimes:jpg,jpeg,png,gif|max:2048',
@@ -228,7 +228,7 @@ class AdminController extends Controller
             $product->title = $validatedData['title'];
             $product->category_id = $validatedData['category_id'];
             $product->make_id = $validatedData['make_id'];
-            $product->price = $validatedData['price'] . ' USD';
+            $product->price = $validatedData['price'];
             $product->country = $validatedData['country'];
             $product->product_details = $validatedData['product_details'];
 
@@ -324,7 +324,7 @@ class AdminController extends Controller
 
     public function query_form_view($id)
     {
-        $query_form = QueryForm::where("_id", $id)->first();
+        $query_form = QueryForm::findOrFail($id);
         return Inertia::render('Admin/QueryForm/View', [
             'query' => $query_form,
         ]);

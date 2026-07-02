@@ -9,9 +9,8 @@ abstract class Controller {
 
     public function __construct() {
         if(auth()->user()){
-            $url = \Request::getRequestUri();   
-            $this->user_id = auth()->user()->_id;
-            $this->user = User::where('_id', $this->user_id)->first();
+            $this->user_id = auth()->id();
+            $this->user = auth()->user();
         }
         
     }
