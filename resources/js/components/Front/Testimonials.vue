@@ -3,81 +3,81 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const testimonials = [
     {
-        name: 'Joseph Mwakalinga',
-        role: 'Logistics company owner',
-        place: 'Dar es Salaam, Tanzania',
+        name: 'Marcus Whitfield',
+        role: 'Fleet manager',
+        place: 'Birmingham, UK',
         quote:
-            'The inspection sheet listed a scratch on the rear gate that I could not even find in the photos. When a seller volunteers the bad news, you can trust everything else they tell you.',
-        purchased: 'Hino Dutro — Light Duty Truck',
+            'The inspection sheet listed a scratch on the rear door that I could not even find in the photos. When a seller volunteers the bad news, you can trust everything else they tell you.',
+        purchased: '3 × Toyota Hiace Van',
     },
     {
-        name: 'Ahmed Raza',
-        role: 'Site contractor',
-        place: 'Karachi, Pakistan',
+        name: 'Elaine Cheung',
+        role: 'Trading company director',
+        place: 'Hong Kong',
         quote:
-            'I sent a spec list on a Tuesday and had three excavator options with running hours and undercarriage photos by Friday. The machine cleared Karachi port with zero paperwork drama.',
-        purchased: 'Doosan DX300LC Excavator',
+            'We consolidate mixed containers every quarter and they are the only supplier who has never missed a loading date at Kwai Chung. Documentation arrives before the vessel does.',
+        purchased: 'Mixed machinery container',
     },
     {
-        name: 'Grace Wanjiru',
-        role: 'Vehicle dealer',
-        place: 'Nairobi, Kenya',
+        name: 'David Reyes',
+        role: 'Landscaping business owner',
+        place: 'Houston, Texas, USA',
         quote:
-            'Fourth batch of Hiaces from them this year. Same auction grade every single time — that consistency is why my own customers now ask for their stock by name.',
-        purchased: '4 × Toyota Hiace Van',
+            'I sent a spec list on a Tuesday and had three mini excavator options with running hours and undercarriage photos by Friday. It cleared Houston customs with zero paperwork drama.',
+        purchased: 'Kubota U27 Mini Excavator',
     },
     {
-        name: 'Omar Khalid',
-        role: 'Equipment trader',
-        place: 'Dubai, UAE',
+        name: 'Li Wei',
+        role: 'Construction firm buyer',
+        place: 'Shenzhen, China',
         quote:
-            'One container, machinery from two different countries, one delivery schedule. They even found me a backhoe that was never listed anywhere on the website.',
-        purchased: 'JCB 3CX + Forklift package',
+            'European cranes with real service history are hard to verify from here. They arranged a third-party inspection and sent the full report before asking for a deposit.',
+        purchased: 'Liebherr Mobile Crane',
     },
     {
-        name: 'Chanda Mwansa',
-        role: 'Mining subcontractor',
-        place: 'Kitwe, Zambia',
+        name: 'James Callahan',
+        role: 'Classic JDM importer',
+        place: 'Portland, Oregon, USA',
         quote:
-            'Both tippers arrived with full service records and new batteries already fitted. They were hauling ore the same week they cleared the border.',
-        purchased: '2 × HOWO 371 Dump Truck',
+            'They understand the US 25-year rule better than most stateside brokers. The Prado arrived with every document EPA and DOT wanted, first try.',
+        purchased: '1995 Land Cruiser Prado',
     },
     {
-        name: 'Nuwan Perera',
-        role: 'Taxi fleet operator',
-        place: 'Colombo, Sri Lanka',
+        name: 'Priya Shah',
+        role: 'Logistics coordinator',
+        place: 'London, UK',
         quote:
-            'Auction grade 4.5, exactly as promised, and they sent the hybrid battery health report before I paid the balance. My mechanic found nothing to argue with.',
-        purchased: 'Toyota Corolla Fielder Hybrid',
-    },
-    {
-        name: 'Sarah Nakato',
-        role: 'School administrator',
-        place: 'Kampala, Uganda',
-        quote:
-            'They walked our entire board through every invoice line on a video call before we committed. The bus arrived two days ahead of the estimate.',
-        purchased: 'Toyota Coaster — 29 Seater',
-    },
-    {
-        name: 'Tinashe Moyo',
-        role: 'Farm co-operative manager',
-        place: 'Harare, Zimbabwe',
-        quote:
-            'We compared six tractors over WhatsApp with cold-start videos for each one. No sales pressure at any point — just straight answers to farmer questions.',
-        purchased: 'Massey Ferguson 385 4WD',
-    },
-    {
-        name: 'Kwame Boateng',
-        role: 'Haulage operator',
-        place: 'Tema, Ghana',
-        quote:
-            'The customs valuation matched their invoice to the dollar. My clearing agent said he had never seen European truck paperwork arrive that clean.',
+            'The customs valuation matched their invoice to the pound. Our clearing agent at Felixstowe said he had never seen European truck paperwork arrive that clean.',
         purchased: 'DAF XF 480 Tractor Unit',
     },
     {
-        name: 'Farida Hassan',
+        name: 'Kenneth Lau',
+        role: 'Plant hire company owner',
+        place: 'Hong Kong',
+        quote:
+            'One container, machinery from two different countries, one delivery schedule. They even found me a backhoe that was never listed anywhere on the website.',
+        purchased: 'JCB 3CX + Genie Lift',
+    },
+    {
+        name: 'Sofia Ramirez',
+        role: 'Farm operations manager',
+        place: 'Fresno, California, USA',
+        quote:
+            'We compared six tractors over video calls with cold-start footage for each one. No sales pressure at any point — just straight answers to working questions.',
+        purchased: 'John Deere 6120M',
+    },
+    {
+        name: 'Zhang Min',
+        role: 'Mining services manager',
+        place: 'Kunming, China',
+        quote:
+            'Both tippers arrived with full service records and new batteries already fitted. They were hauling the same week they cleared the port.',
+        purchased: '2 × HOWO 371 Dump Truck',
+    },
+    {
+        name: 'Tommy Ho',
         role: 'First-time importer',
-        place: 'Zanzibar, Tanzania',
+        place: 'Hong Kong',
         quote:
             'My first imported car. I must have asked forty questions and they answered every one without ever making me feel like a small customer.',
         purchased: 'Honda Vezel Hybrid Z',
@@ -88,10 +88,15 @@ const active = ref(0);
 const current = computed(() => testimonials[active.value]);
 const initials = (name) => name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
+// Auto-rotation runs ONLY while the section is on screen in a focused tab —
+// off-screen rotation must never scroll anything near the reader.
+let inView = false;
 let timer = null;
 const restart = () => {
     clearInterval(timer);
-    timer = setInterval(() => step(1), 7000);
+    if (inView && !document.hidden) {
+        timer = setInterval(() => step(1), 7000);
+    }
 };
 const step = (dir) => {
     active.value = (active.value + dir + testimonials.length) % testimonials.length;
@@ -116,14 +121,16 @@ const scrollActiveIntoView = () => {
 };
 
 const sectionEl = ref(null);
-// Pause rotation in background tabs: rAF is throttled there, so churning
-// quotes invisibly just wastes cycles and can land mid-transition.
-const onVisibility = () => (document.hidden ? clearInterval(timer) : restart());
+const onVisibility = () => restart();
 onMounted(() => {
-    restart();
     document.addEventListener('visibilitychange', onVisibility);
     const io = new IntersectionObserver(
-        (entries) => entries.forEach((e) => e.target.classList.toggle('is-in', e.isIntersecting)),
+        (entries) =>
+            entries.forEach((e) => {
+                e.target.classList.toggle('is-in', e.isIntersecting);
+                inView = e.isIntersecting;
+                restart();
+            }),
         { threshold: 0.15 },
     );
     if (sectionEl.value) io.observe(sectionEl.value);
