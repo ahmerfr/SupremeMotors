@@ -33,13 +33,16 @@ class MirrorProductImagesTest extends TestCase
         ]);
     }
 
-    public function test_mirrors_alive_image_and_swaps_link(): void
+    public function test_mirrors_front_and_gallery_dropping_dead_images(): void
     {
         $this->fakeBunnyConfig();
-        $product = $this->makeProduct();
+        $product = $this->makeProduct([
+            'other_images' => ['https://img.example.com/g-alive.jpg', 'https://img.example.com/gone.jpg'],
+        ]);
 
         Http::fake([
             'storage.bunnycdn.com/testzone/__connectivity_check.txt' => Http::response('', 201),
+            'img.example.com/gone.jpg' => Http::response('gone', 404),
             'img.example.com/*' => Http::response('JPEGBYTES', 200, ['Content-Type' => 'image/jpeg']),
             'storage.bunnycdn.com/testzone/products/*' => Http::response('', 201),
         ]);
@@ -49,6 +52,12 @@ class MirrorProductImagesTest extends TestCase
         $product->refresh();
         $this->assertSame("https://test.b-cdn.net/products/{$product->id}/front.jpg", $product->front_image);
         $this->assertSame('https://img.example.com/car.jpg', $product->front_image_source);
+        // alive gallery image mirrored, dead one dropped
+        $this->assertSame(["https://test.b-cdn.net/products/{$product->id}/g0.jpg"], $product->other_images);
+        $this->assertSame(
+            ['https://img.example.com/g-alive.jpg', 'https://img.example.com/gone.jpg'],
+            json_decode($product->other_images_source, true),
+        );
     }
 
     public function test_marks_dead_when_download_404s(): void
