@@ -146,44 +146,48 @@ onBeforeUnmount(() => {
 
             <!-- Featured quote left · vertical voices right -->
             <div class="sm-testgrid" style="display: grid; grid-template-columns: 1.65fr 1fr; gap: 20px; margin-top: 44px; align-items: stretch">
-                <!-- Featured quote in a bezel shell -->
+                <!-- Featured quote in a bezel shell: fixed height, content is
+                     absolutely positioned so quote length can never resize
+                     the card (and therefore never the section). -->
                 <div style="background: rgba(11, 30, 59, 0.05); border: 1px solid rgba(11, 30, 59, 0.07); border-radius: 32px; padding: 8px">
-                    <div class="sm-tqcard" style="position: relative; overflow: hidden; height: 100%; display: flex; flex-direction: column; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); border-radius: 24px; padding: 46px 48px 34px; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08)">
+                    <div class="sm-tqcard" style="position: relative; overflow: hidden; display: flex; flex-direction: column; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); border-radius: 24px; padding: 42px 48px 28px; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08)">
                         <div style="position: absolute; bottom: -140px; right: -80px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.13), transparent 70%)"></div>
 
-                        <div style="position: relative; display: flex; align-items: flex-start; gap: 22px">
+                        <div style="position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; gap: 22px">
                             <div style="flex: 0 0 auto; width: 50px; height: 50px; border-radius: 15px; background: linear-gradient(150deg, #e5262d, #c8151c); box-shadow: rgba(224, 31, 38, 0.35) 0 10px 24px; display: flex; align-items: center; justify-content: center">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M10 7H6.5C5.1 7 4 8.1 4 9.5V13c0 1.4 1.1 2.5 2.5 2.5H9c0 2-1.5 3.2-3.4 3.5l.6 1.9C9.4 20.4 11 18.2 11 15V8c0-.6-.4-1-1-1zm9 0h-3.5C14.1 7 13 8.1 13 9.5V13c0 1.4 1.1 2.5 2.5 2.5H18c0 2-1.5 3.2-3.4 3.5l.6 1.9c3.2-.5 4.8-2.7 4.8-5.9V8c0-.6-.4-1-1-1z" /></svg>
                             </div>
-                            <Transition name="tq" mode="out-in">
-                                <div :key="active" style="flex: 1; min-width: 0">
-                                    <div style="display: flex; gap: 4px">
-                                        <svg v-for="i in 5" :key="i" width="17" height="17" viewBox="0 0 24 24" fill="#ffc24b"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                                    </div>
-                                    <p style="font-family: Archivo; font-weight: 600; font-size: 24px; line-height: 1.5; color: #fff; margin-top: 18px; letter-spacing: -0.012em; min-height: 144px">
-                                        “{{ current.quote }}”
-                                    </p>
-                                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 26px; flex-wrap: wrap">
-                                        <div style="display: flex; align-items: center; gap: 14px">
-                                            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); display: flex; align-items: center; justify-content: center; font-family: Archivo; font-weight: 700; font-size: 15px; color: #fff">
-                                                {{ initials(current.name) }}
+                            <div style="flex: 1; min-width: 0; position: relative; align-self: stretch">
+                                <Transition name="tq" mode="out-in">
+                                    <div :key="active" style="position: absolute; inset: 0; display: flex; flex-direction: column">
+                                        <div style="display: flex; gap: 4px; flex: 0 0 auto">
+                                            <svg v-for="i in 5" :key="i" width="17" height="17" viewBox="0 0 24 24" fill="#ffc24b"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                                        </div>
+                                        <p class="sm-tquote" style="font-family: Archivo; font-weight: 600; font-size: 24px; line-height: 1.5; color: #fff; margin-top: 16px; letter-spacing: -0.012em; flex: 1; min-height: 0; overflow: hidden">
+                                            “{{ current.quote }}”
+                                        </p>
+                                        <div style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: nowrap; padding-bottom: 2px">
+                                            <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
+                                                <div style="flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.18); display: flex; align-items: center; justify-content: center; font-family: Archivo; font-weight: 700; font-size: 15px; color: #fff">
+                                                    {{ initials(current.name) }}
+                                                </div>
+                                                <div style="min-width: 0">
+                                                    <div style="font-family: Archivo; font-weight: 700; font-size: 16.5px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ current.name }}</div>
+                                                    <div style="font-size: 13.5px; font-weight: 600; color: #8494ab; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ current.role }} · {{ current.place }}</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div style="font-family: Archivo; font-weight: 700; font-size: 16.5px; color: #fff">{{ current.name }}</div>
-                                                <div style="font-size: 13.5px; font-weight: 600; color: #8494ab; margin-top: 2px">{{ current.role }} · {{ current.place }}</div>
+                                            <div style="flex: 0 0 auto; text-align: right">
+                                                <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.07em; color: #ff8085">PURCHASED</div>
+                                                <div style="font-size: 14px; font-weight: 700; color: #cdd8e8; margin-top: 3px; white-space: nowrap">{{ current.purchased }}</div>
                                             </div>
                                         </div>
-                                        <div style="text-align: right">
-                                            <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.07em; color: #ff8085">PURCHASED</div>
-                                            <div style="font-size: 14px; font-weight: 700; color: #cdd8e8; margin-top: 3px">{{ current.purchased }}</div>
-                                        </div>
                                     </div>
-                                </div>
-                            </Transition>
+                                </Transition>
+                            </div>
                         </div>
 
                         <!-- Controls pinned to card bottom -->
-                        <div style="position: relative; display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: auto; padding-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.08)">
+                        <div style="position: relative; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 22px; padding-top: 22px; border-top: 1px solid rgba(255, 255, 255, 0.08)">
                             <button type="button" class="sm-tbtn" aria-label="Previous testimonial" @click="step(-1); restart()">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
                             </button>
