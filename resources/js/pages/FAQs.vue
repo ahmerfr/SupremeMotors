@@ -38,8 +38,13 @@ const faqs = [
     },
 ];
 
-const open = ref(0);
-const toggle = (i) => (open.value = open.value === i ? -1 : i);
+// Items open independently: closing others would collapse content above
+// the clicked question and yank the page upward.
+const open = ref([0]);
+const isOpen = (i) => open.value.includes(i);
+const toggle = (i) => {
+    open.value = isOpen(i) ? open.value.filter((x) => x !== i) : [...open.value, i];
+};
 
 const teamAvatars = [
     { initials: 'SM', bg: '#c9d3e2' },
@@ -133,35 +138,35 @@ const teamAvatars = [
                             :key="f.q"
                             :style="{
                                 borderRadius: '18px', overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-                                background: open === i ? 'linear-gradient(150deg, #12284a, #0b1e3b 60%, #081730)' : '#fff',
-                                border: open === i ? '1px solid #0b1e3b' : '1px solid #e6eaf0',
-                                boxShadow: open === i ? 'rgba(11, 30, 59, 0.28) 0 14px 34px' : 'rgba(11, 30, 59, 0.04) 0 4px 14px',
+                                background: isOpen(i) ? 'linear-gradient(150deg, #12284a, #0b1e3b 60%, #081730)' : '#fff',
+                                border: isOpen(i) ? '1px solid #0b1e3b' : '1px solid #e6eaf0',
+                                boxShadow: isOpen(i) ? 'rgba(11, 30, 59, 0.28) 0 14px 34px' : 'rgba(11, 30, 59, 0.04) 0 4px 14px',
                             }"
                         >
                             <button
                                 type="button"
                                 style="display: flex; align-items: center; justify-content: space-between; gap: 18px; width: 100%; padding: 22px 26px; border: none; background: transparent; cursor: pointer; text-align: left"
-                                :aria-expanded="open === i"
+                                :aria-expanded="isOpen(i)"
                                 @click="toggle(i)"
                             >
-                                <span :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '16.5px', lineHeight: 1.4, color: open === i ? '#fff' : '#0b1e3b' }">
+                                <span :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '16.5px', lineHeight: 1.4, color: isOpen(i) ? '#fff' : '#0b1e3b' }">
                                     {{ i + 1 }}. {{ f.q }}
                                 </span>
                                 <span
                                     :style="{
                                         flex: '0 0 auto', width: '30px', height: '30px', borderRadius: '50%',
                                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                        background: open === i ? 'rgba(255,255,255,0.12)' : '#f4f6f9',
-                                        border: open === i ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eef1f6',
+                                        background: isOpen(i) ? 'rgba(255,255,255,0.12)' : '#f4f6f9',
+                                        border: isOpen(i) ? '1px solid rgba(255,255,255,0.18)' : '1px solid #eef1f6',
                                         transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
-                                        transform: open === i ? 'rotate(180deg)' : 'none',
+                                        transform: isOpen(i) ? 'rotate(180deg)' : 'none',
                                     }"
                                 >
-                                    <svg v-if="open === i" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14" /></svg>
+                                    <svg v-if="isOpen(i)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14" /></svg>
                                     <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#33445e" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
                                 </span>
                             </button>
-                            <div :style="{ display: 'grid', gridTemplateRows: open === i ? '1fr' : '0fr', transition: 'grid-template-rows 0.35s cubic-bezier(0.32, 0.72, 0, 1)' }">
+                            <div :style="{ display: 'grid', gridTemplateRows: isOpen(i) ? '1fr' : '0fr', transition: 'grid-template-rows 0.35s cubic-bezier(0.32, 0.72, 0, 1)' }">
                                 <div style="overflow: hidden">
                                     <p style="padding: 0 26px 24px; font-size: 15px; line-height: 1.7; color: #a9b7cc; font-weight: 500; max-width: 640px">
                                         {{ f.a }}
