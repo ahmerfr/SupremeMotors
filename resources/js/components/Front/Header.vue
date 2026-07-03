@@ -63,8 +63,10 @@ const readLangCookie = () => {
     currentLang.value = languages.find((l) => l.code === code)?.label || 'English';
 };
 
-const setLanguage = (code) => {
+const setLanguage = async (code) => {
     langOpen.value = false;
+
+    // persist the choice for future visits
     const host = location.hostname;
     if (code === 'en') {
         for (const domain of ['', `; domain=${host}`, `; domain=.${host}`]) {
@@ -74,7 +76,21 @@ const setLanguage = (code) => {
         document.cookie = `googtrans=/en/${code}; path=/`;
         document.cookie = `googtrans=/en/${code}; path=/; domain=.${host}`;
     }
-    location.reload();
+
+    // drive Google Translate's hidden select for an in-place switch —
+    // no page reload. Poll briefly in case the widget is still booting.
+    let combo = null;
+    for (let i = 0; i < 30 && !combo; i++) {
+        combo = document.querySelector('.goog-te-combo');
+        if (!combo) await new Promise((r) => setTimeout(r, 100));
+    }
+    if (combo) {
+        combo.value = code;
+        combo.dispatchEvent(new Event('change'));
+        currentLang.value = languages.find((l) => l.code === code)?.label || 'English';
+    } else {
+        location.reload(); // widget unavailable (blocked/offline): old behavior
+    }
 };
 
 const onDocClick = (e) => {

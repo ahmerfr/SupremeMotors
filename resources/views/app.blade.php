@@ -78,7 +78,11 @@
         <div id="google_translate_element" style="display: none"></div>
         <script>
             function googleTranslateElementInit() {
-                new google.translate.TranslateElement({ pageLanguage: 'en', autoDisplay: false }, 'google_translate_element');
+                new google.translate.TranslateElement({
+                    pageLanguage: 'en',
+                    includedLanguages: 'en,zh-CN,zh-TW,ja,fr,es,de,pt,ru,ar,sw',
+                    autoDisplay: false
+                }, 'google_translate_element');
             }
         </script>
         <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
