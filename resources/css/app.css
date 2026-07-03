@@ -224,9 +224,16 @@ html {
 
 @media (max-width: 1080px) {
     .sm-reccards { grid-template-columns: repeat(2, 1fr) !important; }
+    .sm-catgrid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 1080px) and (min-width: 921px) {
+    .sm-footgrid { grid-template-columns: 1fr 1fr 1fr !important; }
 }
 @media (max-width: 560px) {
     .sm-reccards { grid-template-columns: 1fr !important; }
+    .sm-catgrid { grid-template-columns: 1fr !important; }
+    .sm-footnews > div:last-child > div:first-child { min-width: 0 !important; width: 100%; }
+    .sm-ctarow { padding: 40px 26px !important; }
 }
 
 .sm-typesrow { scrollbar-width: none; }
