@@ -18,66 +18,64 @@
             #loading-overlay {
                 position: fixed;
                 inset: 0;
-                background-color: white;
+                background: #fff;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 z-index: 9999;
-                transition: opacity 0.3s ease;
+                transition: opacity 0.4s ease;
             }
-        
-            .loader-wrapper {
-                padding: 1rem;
-                border: 4px solid rgba(142, 37, 39, 0.2);
-                border-radius: 9999px;
-                box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-                animation: pulse 2s infinite;
-            }
-        
+
             .loader-logo {
-                height: 80px;
-                width: 80px;
+                height: 62px;
+                width: auto;
                 object-fit: contain;
-                border-radius: 9999px;
-                animation: spin 3s linear infinite;
+                animation: loader-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
             }
-        
-            .loader-text {
-                margin-top: 1rem;
-                color: #8e2527;
-                font-weight: 600;
-                font-size: 1.125rem;
+
+            .loader-track {
+                position: relative;
+                width: 210px;
+                height: 3px;
+                border-radius: 100px;
+                background: #eef1f6;
+                overflow: hidden;
+                margin-top: 30px;
+                animation: loader-in 0.6s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) both;
             }
-        
-            @keyframes pulse {
-                0%, 100% {
-                    transform: scale(1);
-                    opacity: 1;
-                }
-                50% {
-                    transform: scale(1.05);
-                    opacity: 0.7;
-                }
+
+            .loader-bar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: 40%;
+                border-radius: 100px;
+                background: linear-gradient(90deg, #e5262d, #c8151c);
+                animation: loader-sweep 1.1s cubic-bezier(0.45, 0, 0.4, 1) infinite;
             }
-        
-            @keyframes spin {
-                0% {
-                    transform: rotate(0deg);
-                }
-                100% {
-                    transform: rotate(360deg);
-                }
+
+            @keyframes loader-sweep {
+                0% { left: -40%; }
+                100% { left: 100%; }
+            }
+
+            @keyframes loader-in {
+                from { opacity: 0; transform: translateY(10px) scale(0.97); }
+                to { opacity: 1; transform: none; }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .loader-logo, .loader-track, .loader-bar { animation: none; }
             }
         </style>
         
     </head>
     <body class="font-sans antialiased">
         <div id="loading-overlay">
-            <div class="loader-wrapper">
-                <img src="/assets/images/site-logo.png" alt="Site Logo" class="loader-logo" />
-            </div>
-            <p class="loader-text">Loading, please wait...</p>
+            <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" class="loader-logo" />
+            <div class="loader-track"><div class="loader-bar"></div></div>
         </div>
 
         @inertia
