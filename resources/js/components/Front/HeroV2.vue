@@ -54,12 +54,12 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
 
         <div class="sm-herogrid" style="position: relative; max-width: 1280px; margin: 0 auto; padding: 70px 24px 88px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center">
             <div>
-                <h1 class="sm-h1" style="font-family: Archivo; font-weight: 800; font-size: 60px; line-height: 1.04; letter-spacing: -0.025em; color: #fff; margin: 26px 0 0">
+                <h1 class="sm-h1" style="font-family: Archivo; font-weight: 800; font-size: 62px; line-height: 1.04; letter-spacing: -0.025em; color: #fff; margin: 0">
                     Your
-                    <span style="position: relative; white-space: nowrap">Journey<span style="position: absolute; left: 0; right: 0; bottom: 6px; height: 11px; background: rgba(224, 31, 38, 0.5); z-index: -1; border-radius: 3px"></span></span><br />Begins With Us
+                    <span style="position: relative; white-space: nowrap">Journey<span style="position: absolute; left: 0; right: 0; bottom: 6px; height: 12px; background: rgba(224, 31, 38, 0.5); z-index: -1; border-radius: 3px"></span></span><br />Begins With Us
                 </h1>
 
-                <p style="font-size: 18px; line-height: 1.6; color: #a9b7cc; margin: 24px 0 0; max-width: 490px">
+                <p style="font-size: 19px; line-height: 1.65; color: #a9b7cc; margin: 26px 0 0; max-width: 500px">
                     From family cars to heavy trucks and construction machinery. Sourced across Japan, China and Europe, inspected with care, and delivered wherever the road takes you.
                 </p>
 
@@ -82,45 +82,45 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                             :src="img"
                             alt=""
                             @error="markAvatarFailed(img)"
-                            :style="{ width: '38px', height: '38px', borderRadius: '50%', border: '2px solid #0b1e3b', marginLeft: i === 0 ? '0' : '-10px', objectFit: 'cover', background: '#c9d3e2' }"
+                            :style="{ width: '42px', height: '42px', borderRadius: '50%', border: '2px solid #0b1e3b', marginLeft: i === 0 ? '0' : '-11px', objectFit: 'cover', background: '#c9d3e2' }"
                         />
                     </div>
-                    <div style="line-height: 1.3">
-                        <div style="font-weight: 800; font-size: 15px"><span style="color: #ffc24b; letter-spacing: 1px">★★★★★</span> <span style="color: #a9b7cc; font-weight: 600">Rated by buyers</span></div>
-                        <div style="color: #8496b0; font-size: 13px; font-weight: 600">Quality vehicles, handled with care</div>
+                    <div style="line-height: 1.35">
+                        <div style="font-weight: 800; font-size: 16px"><span style="color: #ffc24b; letter-spacing: 1px">★★★★★</span> <span style="color: #a9b7cc; font-weight: 600">Rated by buyers</span></div>
+                        <div style="color: #8496b0; font-size: 14px; font-weight: 600">Quality vehicles, handled with care</div>
                     </div>
                 </div>
             </div>
 
             <!-- Search card -->
             <div style="position: relative">
-                <div class="sm-search" style="background: #fff; border-radius: 22px; box-shadow: rgba(0, 0, 0, 0.4) 0 40px 80px; border: 1px solid rgba(255, 255, 255, 0.6); padding: 26px">
-                    <div style="display: flex; align-items: center; gap: 13px">
-                        <div style="width: 46px; height: 46px; border-radius: 13px; background: linear-gradient(150deg, #e5262d, #c8151c); display: flex; align-items: center; justify-content: center; box-shadow: rgba(224, 31, 38, 0.32) 0 8px 20px">
-                            <span style="width: 15px; height: 15px; border: 2px solid #fff; border-radius: 50%; position: relative; display: inline-block"><span style="position: absolute; width: 6px; height: 2px; background: #fff; transform: rotate(45deg); bottom: -2px; right: -3px; border-radius: 2px"></span></span>
+                <div class="sm-search" style="background: #fff; border-radius: 22px; box-shadow: rgba(0, 0, 0, 0.4) 0 40px 80px; border: 1px solid rgba(255, 255, 255, 0.6); padding: 30px">
+                    <div style="display: flex; align-items: center; gap: 14px">
+                        <div style="width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(150deg, #e5262d, #c8151c); display: flex; align-items: center; justify-content: center; box-shadow: rgba(224, 31, 38, 0.32) 0 8px 20px">
+                            <svg width="21" height="21" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.2" stroke="#fff" stroke-width="1.8" /><path d="M11 11l3.2 3.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round" /></svg>
                         </div>
                         <div style="line-height: 1.3">
-                            <div style="font-family: Archivo; font-weight: 800; font-size: 19px; color: #0b1e3b">Find Your Vehicle</div>
-                            <div style="font-size: 13px; font-weight: 600; color: #7d8ea8">Search our curated inventory</div>
+                            <div style="font-family: Archivo; font-weight: 800; font-size: 21px; color: #0b1e3b">Find Your Vehicle</div>
+                            <div style="font-size: 14px; font-weight: 600; color: #7d8ea8">Search our curated inventory</div>
                         </div>
                     </div>
 
                     <div style="margin-top: 22px">
-                        <label style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 8px; padding-left: 2px">SEARCH</label>
-                        <input v-model="search" placeholder="Make or model…" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 14px 15px; font-size: 14.5px; font-weight: 600; font-family: Manrope; color: #0b1e3b; background: #f8fafc; outline: none" @keyup.enter="submit" />
+                        <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">SEARCH</label>
+                        <input v-model="search" placeholder="Make or model…" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #0b1e3b; background: #f8fafc; outline: none" @keyup.enter="submit" />
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px">
                         <div>
-                            <label style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 8px; padding-left: 2px">BRAND</label>
-                            <select v-model="make" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 14px 15px; font-size: 14.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
+                            <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">BRAND</label>
+                            <select v-model="make" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
                                 <option value="">All Brands</option>
                                 <option v-for="m in props.makes" :key="m.id" :value="m.id">{{ m.cat_title }}</option>
                             </select>
                         </div>
                         <div>
-                            <label style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 8px; padding-left: 2px">TYPE</label>
-                            <select v-model="bodyStyle" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 14px 15px; font-size: 14.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
+                            <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">TYPE</label>
+                            <select v-model="bodyStyle" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
                                 <option value="">All Types</option>
                                 <option v-for="t in bodyTypes" :key="t" :value="t">{{ t }}</option>
                             </select>
@@ -128,21 +128,21 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                     </div>
 
                     <div style="margin-top: 16px">
-                        <label style="display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 8px; padding-left: 2px">PRICE RANGE</label>
-                        <select v-model="price" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 14px 15px; font-size: 14.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
+                        <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">PRICE RANGE</label>
+                        <select v-model="price" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
                             <option value="">Any Price</option>
                             <option v-for="(r, i) in priceRanges" :key="r.label" :value="i">{{ r.label }}</option>
                         </select>
                     </div>
 
-                    <button class="scp2" style="width: 100%; margin-top: 22px; display: inline-flex; align-items: center; gap: 9px; justify-content: center; height: 52px; font-size: 15px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); border: none; border-radius: 13px; cursor: pointer; box-shadow: rgba(224, 31, 38, 0.32) 0 12px 28px; transition: transform 0.18s" @click="submit">
-                        <span style="width: 15px; height: 15px; border: 2px solid #fff; border-radius: 50%; position: relative; display: inline-block"><span style="position: absolute; width: 6px; height: 2px; background: #fff; transform: rotate(45deg); bottom: -2px; right: -3px; border-radius: 2px"></span></span>
+                    <button class="scp2" style="width: 100%; margin-top: 24px; display: inline-flex; align-items: center; gap: 10px; justify-content: center; height: 56px; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); border: none; border-radius: 13px; cursor: pointer; box-shadow: rgba(224, 31, 38, 0.32) 0 12px 28px; transition: transform 0.18s" @click="submit">
+                        <svg width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.2" stroke="#fff" stroke-width="1.8" /><path d="M11 11l3.2 3.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round" /></svg>
                         Search Vehicles
                     </button>
 
-                    <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f1f3f7">
-                        <span style="font-size: 12px; font-weight: 800; color: #9aa8bd; letter-spacing: 0.03em">Popular:</span>
-                        <button v-for="p in popular" :key="p" class="scp5" style="font-size: 12.5px; font-weight: 700; color: #33445e; background: #f4f6f9; border: 1px solid #eef1f6; padding: 7px 13px; border-radius: 100px; transition: 0.16s; cursor: pointer" @click="searchPopular(p)">{{ p }}</button>
+                    <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 22px; padding-top: 20px; border-top: 1px solid #f1f3f7">
+                        <span style="font-size: 13px; font-weight: 800; color: #9aa8bd; letter-spacing: 0.03em">Popular:</span>
+                        <button v-for="p in popular" :key="p" class="scp5" style="font-size: 13.5px; font-weight: 700; color: #33445e; background: #f4f6f9; border: 1px solid #eef1f6; padding: 8px 15px; border-radius: 100px; transition: 0.16s; cursor: pointer" @click="searchPopular(p)">{{ p }}</button>
                     </div>
                 </div>
             </div>

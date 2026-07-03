@@ -18,6 +18,28 @@ const submitSearch = () => {
     router.get('/inventory', { type: 'search', search: term }, { onFinish: () => (searching.value = false) });
 };
 
+// Visitor's country like the design intended (geo-detected, cached a day,
+// Hong Kong HQ as the fallback)
+const visitorCountry = ref('Hong Kong');
+onMounted(async () => {
+    try {
+        const cached = JSON.parse(localStorage.getItem('sm_geo') || 'null');
+        if (cached && Date.now() - cached.at < 86400000) {
+            visitorCountry.value = cached.country;
+            return;
+        }
+        const res = await fetch('https://api.country.is/');
+        const data = await res.json();
+        if (data?.country) {
+            const name = new Intl.DisplayNames(['en'], { type: 'region' }).of(data.country) || data.country;
+            visitorCountry.value = name;
+            localStorage.setItem('sm_geo', JSON.stringify({ country: name, at: Date.now() }));
+        }
+    } catch {
+        /* keep fallback */
+    }
+});
+
 // Live clocks for the sourcing markets ("4:12 AM" per the design)
 const timeIn = (tz) => new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
 const chinaTime = ref(timeIn('Asia/Shanghai'));
@@ -76,16 +98,16 @@ const pageLinks = [
                         <div class="sm-util-time" style="width: 1px; height: 13px; background: rgba(255, 255, 255, 0.14)"></div>
                         <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #c2cfe2; white-space: nowrap">
                             <svg width="11" height="13" viewBox="0 0 10 13" fill="none"><path d="M5 1a4 4 0 0 1 4 4c0 2.9-4 7-4 7S1 7.9 1 5a4 4 0 0 1 4-4z" stroke="currentColor" stroke-width="1.3" /><circle cx="5" cy="5" r="1.4" fill="currentColor" /></svg>
-                            Hong Kong
+                            {{ visitorCountry }}
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- main row -->
-            <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 92px; display: flex; align-items: center; gap: 36px">
+            <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 104px; display: flex; align-items: center; gap: 36px">
                 <Link href="/" style="display: flex; align-items: center; flex-shrink: 0">
-                    <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 68px; width: auto; object-fit: contain" />
+                    <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 80px; width: auto; object-fit: contain" />
                 </Link>
 
                 <div class="sm-headsearch" style="flex: 1; position: relative; max-width: 620px; margin: 0 auto">
