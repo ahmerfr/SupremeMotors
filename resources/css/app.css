@@ -238,8 +238,48 @@ html {
     .sm-ctarow { padding: 40px 26px !important; }
 }
 
-.sm-typesrow { scrollbar-width: none; }
-.sm-typesrow::-webkit-scrollbar { display: none; }
+.sm-typesrow, .sm-strip { scrollbar-width: none; }
+.sm-typesrow::-webkit-scrollbar, .sm-strip::-webkit-scrollbar { display: none; }
+
+/* Testimonial carousel arrows (on navy) */
+.sm-tbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 100px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    color: #cdd8e8;
+    cursor: pointer;
+    transition: all 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sm-tbtn:hover {
+    background: linear-gradient(150deg, #e5262d, #c8151c);
+    border-color: transparent;
+    color: #fff;
+    transform: translateY(-1px);
+}
+.sm-tbtn:active { transform: scale(0.96); }
+
+/* Featured-quote crossfade */
+.tq-enter-active { transition: all 0.5s cubic-bezier(0.32, 0.72, 0, 1); }
+.tq-leave-active { transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+.tq-enter-from { opacity: 0; transform: translateX(26px); }
+.tq-leave-to { opacity: 0; transform: translateX(-18px); }
+
+/* Scroll-entry reveal */
+.sm-reveal { opacity: 0; transform: translateY(28px); transition: all 0.8s cubic-bezier(0.32, 0.72, 0, 1); }
+.sm-reveal.is-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+    .sm-reveal { opacity: 1; transform: none; transition: none; }
+    .tq-enter-active, .tq-leave-active { transition: opacity 0.2s; }
+}
+@media (max-width: 700px) {
+    .sm-tqcard { padding: 84px 26px 32px !important; }
+    .sm-tqwrap { padding-left: 0 !important; }
+}
 
 .sm-carbtn {
     display: inline-flex;

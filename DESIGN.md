@@ -130,8 +130,8 @@ Transitions: 0.16–0.2s, no bounce. Respect `prefers-reduced-motion`
 | 4 | Popular brands | `BrandsExplorer.vue` | Top-4 brand cards (3rd = navy highlight) + 2-col text index with counts |
 | 5 | Shop by body type | `ShopByBodyType.vue` | Tile carousel (arrows in header), line-art icons, 6 ProductCards below, "View all X stock" |
 | 6 | Recommended for you | `RecommendedForYou.vue` | Japan/China/Europe pill tabs right of header, 3-col ProductCards, view-all per country |
-| 7 | Testimonials | `Testimonials.vue` | Featured quote on dark card (gold stars, initials avatar, PURCHASED tag) + 4 selector mini-cards, auto-rotates 7s |
-| 8 | CTA banner | `CantFindCta.vue` | Dark card, red glow + giant faint truck outline, red Contact Us button — **no photo** (hero owns the photo) |
+| 7 | Testimonials | `Testimonials.vue` | Centered header (red accent words); double-bezel dark quote card with red quote badge, gold stars, initials avatar, PURCHASED tag; prev/next arrows + elongated-dot pagination; snap-scroll strip of all 10 voices (active = red hairline + lift); 7s auto-rotate, crossfade via `tq-*` transitions, section reveals on scroll (`sm-reveal`) |
+| 8 | CTA banner | `CantFindCta.vue` | Dark card over `/assets/images/cta-vehicle.jpg` (own-catalogue photo — never reuse the hero image, never watermarked scrape images) + left scrim + red glow, red Contact Us button |
 | 9 | Footer | `Footer.vue` | Navy gradient: Stay-updated strip (inline email + red subscribe), brand block + link columns + contact rows, dynamic © year, 5px red gradient baseline |
 
 ## 4. Data rules for homepage sections
