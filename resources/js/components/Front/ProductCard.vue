@@ -25,9 +25,6 @@ const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].so
             <div v-else style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(150deg, #eef1f6, #f8fafc)">
                 <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#c3cdda" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5"/><path d="M2 16.5h20"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5"/></svg>
             </div>
-            <span style="position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 5px; background: #e01f26; color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; padding: 5px 11px; border-radius: 100px">
-                ⚡ Featured
-            </span>
         </div>
         <div style="padding: 20px 20px 22px">
             <span style="display: inline-block; background: linear-gradient(150deg, #e5262d, #c8151c); color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; padding: 4px 11px; border-radius: 6px">{{ brand }}</span>

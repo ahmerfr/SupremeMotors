@@ -2,7 +2,7 @@
 import ProductCard from '@/components/Front/ProductCard.vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import { onMounted, ref } from 'vue';
+import { nextTick, onMounted, ref } from 'vue';
 import BodyTypeIcon from '@/components/Front/BodyTypeIcon.vue';
 
 const props = defineProps({
@@ -12,6 +12,23 @@ const props = defineProps({
 const active = ref(props.bodyTypes[0]?.body_style ?? null);
 const products = ref([]);
 const loading = ref(false);
+
+const rowEl = ref(null);
+const canPrev = ref(false);
+const canNext = ref(false);
+
+const updateArrows = () => {
+    const el = rowEl.value;
+    if (!el) return;
+    canPrev.value = el.scrollLeft > 4;
+    canNext.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 4;
+};
+
+const slide = (dir) => {
+    const el = rowEl.value;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: 'smooth' });
+};
 
 const load = async (style) => {
     active.value = style;
@@ -28,6 +45,8 @@ const load = async (style) => {
 
 onMounted(() => {
     if (active.value) load(active.value);
+    nextTick(updateArrows);
+    window.addEventListener('resize', updateArrows, { passive: true });
 });
 </script>
 
@@ -35,20 +54,30 @@ onMounted(() => {
     <section class="sm-body" style="padding: 104px 24px 0">
         <div style="max-width: 1280px; margin: 0 auto">
             <!-- Header -->
-            <div>
-                <div style="display: inline-flex; align-items: center; gap: 8px; color: #e01f26; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
-                    <span style="width: 22px; height: 2px; background: #e01f26"></span>SHOP BY BODY TYPE
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px">
+                <div>
+                    <div style="display: inline-flex; align-items: center; gap: 8px; color: #e01f26; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
+                        <span style="width: 22px; height: 2px; background: #e01f26"></span>SHOP BY BODY TYPE
+                    </div>
+                    <h2 style="font-family: Archivo; font-weight: 800; font-size: 40px; letter-spacing: -0.025em; color: #0b1e3b; margin-top: 12px; line-height: 1.08">
+                        The right shape for the job
+                    </h2>
+                    <p style="font-size: 16px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 14px; max-width: 520px">
+                        From city sedans to working trucks, pick a body type and browse what is on the yard right now.
+                    </p>
                 </div>
-                <h2 style="font-family: Archivo; font-weight: 800; font-size: 40px; letter-spacing: -0.025em; color: #0b1e3b; margin-top: 12px; line-height: 1.08">
-                    The right shape for the job
-                </h2>
-                <p style="font-size: 16px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 14px; max-width: 520px">
-                    From city sedans to working trucks, pick a body type and browse what is on the yard right now.
-                </p>
+                <div style="display: flex; gap: 10px; flex: 0 0 auto; padding-bottom: 4px">
+                    <button type="button" class="sm-carbtn" :disabled="!canPrev" aria-label="Previous body types" @click="slide(-1)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    <button type="button" class="sm-carbtn" :disabled="!canNext" aria-label="Next body types" @click="slide(1)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                    </button>
+                </div>
             </div>
 
-            <!-- Body type slider -->
-            <div class="sm-typesrow" style="display: flex; gap: 14px; margin-top: 36px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x mandatory">
+            <!-- Body type carousel -->
+            <div ref="rowEl" class="sm-typesrow" style="display: flex; gap: 14px; margin-top: 36px; overflow-x: auto; scroll-snap-type: x mandatory" @scroll.passive="updateArrows">
                 <button
                     v-for="t in props.bodyTypes"
                     :key="t.body_style"

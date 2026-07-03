@@ -229,5 +229,30 @@ html {
     .sm-reccards { grid-template-columns: 1fr !important; }
 }
 
-.sm-typesrow::-webkit-scrollbar { height: 6px; }
-.sm-typesrow::-webkit-scrollbar-thumb { background: #e6eaf0; border-radius: 3px; }
+.sm-typesrow { scrollbar-width: none; }
+.sm-typesrow::-webkit-scrollbar { display: none; }
+
+.sm-carbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 100px;
+    border: 1px solid #e3e8f0;
+    background: #fff;
+    color: #0b1e3b;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.18s;
+}
+.sm-carbtn:hover:not(:disabled) {
+    background: linear-gradient(150deg, #12284a, #0b1e3b);
+    border-color: #0b1e3b;
+    color: #fff;
+    transform: translateY(-1px);
+}
+.sm-carbtn:disabled {
+    color: #c3cdda;
+    border-color: #eef1f6;
+    cursor: default;
+}
