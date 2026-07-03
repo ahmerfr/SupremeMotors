@@ -255,13 +255,7 @@ html {
     .sm-sec { padding: 40px 24px; }
 }
 
-/* Accepted-currencies grid (bank details) */
-.sm-curgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-@media (max-width: 1080px) {
-    .sm-curgrid { grid-template-columns: repeat(3, 1fr); }
-}
 @media (max-width: 560px) {
-    .sm-curgrid { grid-template-columns: repeat(2, 1fr); }
     .sm-bankpairs { grid-template-columns: 1fr !important; }
 }
 

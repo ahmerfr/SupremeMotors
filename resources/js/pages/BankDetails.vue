@@ -2,7 +2,6 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
-import SectionDivider from '@/components/Front/SectionDivider.vue';
 
 const fields = [
     { label: 'Account Name', value: 'Supreme Motor Equipments Limited', note: 'If the name field is too short, continue it in the address line.' },
@@ -32,24 +31,6 @@ const steps = [
         title: 'Share the receipt',
         body: 'Email the transfer copy to info@suprememotors.ltd. Documents are issued to your name once funds clear — typically 1–2 business days.',
     },
-];
-
-const currencies = [
-    { code: 'USD', name: 'US Dollar' },
-    { code: 'HKD', name: 'Hong Kong Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'GBP', name: 'British Pound' },
-    { code: 'JPY', name: 'Japanese Yen' },
-    { code: 'CNY', name: 'Chinese Yuan' },
-    { code: 'CAD', name: 'Canadian Dollar' },
-    { code: 'AUD', name: 'Australian Dollar' },
-    { code: 'CHF', name: 'Swiss Franc' },
-    { code: 'SGD', name: 'Singapore Dollar' },
-    { code: 'NZD', name: 'New Zealand Dollar' },
-    { code: 'SEK', name: 'Swedish Krona' },
-    { code: 'NOK', name: 'Norwegian Krone' },
-    { code: 'DKK', name: 'Danish Krone' },
-    { code: 'ZAR', name: 'South African Rand' },
 ];
 
 const toast = ref('');
@@ -204,37 +185,6 @@ const copyAll = () => {
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                                     </span>
                                 </Link>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <SectionDivider />
-
-            <!-- Accepted currencies -->
-            <section class="sm-body sm-sec">
-                <div style="max-width: 1280px; margin: 0 auto">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
-                        <span style="width: 22px; height: 2px; background: #e01f26"></span>CURRENCIES
-                    </div>
-                    <h2 style="font-family: Archivo; font-weight: 800; font-size: 32px; letter-spacing: -0.02em; color: #0b1e3b; margin-top: 12px">We accept 15 currencies</h2>
-                    <p style="font-size: 15.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 8px; max-width: 560px">
-                        Wire in whichever is easiest for you — your invoice states the currency and the exact amount due.
-                    </p>
-
-                    <div class="sm-curgrid" style="margin-top: 28px">
-                        <div
-                            v-for="c in currencies"
-                            :key="c.code"
-                            style="display: flex; align-items: center; gap: 13px; background: #fff; border: 1px solid #e6eaf0; border-radius: 16px; padding: 15px 17px"
-                        >
-                            <span style="flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: #eef2f7; display: inline-flex; align-items: center; justify-content: center; font-family: Archivo; font-weight: 800; font-size: 12.5px; letter-spacing: 0.03em; color: #33445e">
-                                {{ c.code.slice(0, 2) }}
-                            </span>
-                            <div>
-                                <div style="font-family: Archivo; font-weight: 800; font-size: 15.5px; color: #0b1e3b">{{ c.code }}</div>
-                                <div style="font-size: 12.5px; font-weight: 600; color: #8895ab">{{ c.name }}</div>
                             </div>
                         </div>
                     </div>
