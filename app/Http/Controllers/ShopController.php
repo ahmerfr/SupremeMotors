@@ -17,7 +17,7 @@ class ShopController extends Controller
 {
     public function home()
     {
-        $data = Cache::remember('shop_home_data', 60, function () {
+        $data = Cache::remember('shop_home_data', 1800, function () {
             // Filter sidebar shows the 7 top-level categories; each count
             // rolls up the category's own products plus its subcategories'.
             $counts = Products::query()
@@ -65,7 +65,7 @@ class ShopController extends Controller
     public function listing()
     {
         $request = request();
-        $query = Products::with(['category', 'make']);
+        $query = Products::with(['category:id,cat_title', 'make:id,cat_title']);
 
         $type = $request->input('type') ?? null;
 
@@ -153,7 +153,28 @@ class ShopController extends Controller
 
             $this->applyAttributeFilters($query, $request->all());
         }
-        $results = $query->orderByDesc('created_at')->paginate(30);
+        // paginate()'s COUNT(*) costs ~100-200ms on 453K rows even warm;
+        // totals per filter signature barely change, so cache them briefly.
+        $query->orderByDesc('created_at');
+        $page = max(1, (int) $request->input('page', 1));
+        $countKey = 'listing_count_' . md5(json_encode(collect($request->except('page'))->sortKeys()->all()));
+        $total = Cache::remember($countKey, 300, fn () => $query->toBase()->getCountForPagination());
+
+        $results = new \Illuminate\Pagination\LengthAwarePaginator(
+            $query->forPage($page, 30)->get(),
+            $total,
+            30,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        // Cards render only a ~180-char snippet of product_details, but the
+        // full HTML blob dominated the JSON payload (~130KB/page). Ship the
+        // snippet instead; the product-detail endpoint still serves the full blob.
+        $results->getCollection()->transform(function ($p) {
+            $p->product_details = \Illuminate\Support\Str::limit(trim(strip_tags($p->product_details ?? '')), 220);
+            return $p;
+        });
 
         return $results;
     }

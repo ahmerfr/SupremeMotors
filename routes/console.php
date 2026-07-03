@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 // Scraped image URLs die as vehicles sell at the source; re-verify the
 // homepage segments daily so dead cards never reach visitors.
 Schedule::command('products:verify-images')->dailyAt('04:00');
+
+// Refresh the long-TTL page caches in the background so the ~18s cold
+// rebuild never lands on a visitor.
+Schedule::command('pages:warm')->everyFifteenMinutes();
