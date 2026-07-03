@@ -19,6 +19,8 @@ class PurgeDeadImageProducts extends Command
     private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
     private const POOL = 40;
 
+    private int $skippedUnknown = 0;
+
     public function handle(): int
     {
         $this->checkFrontImages();
@@ -32,6 +34,7 @@ class PurgeDeadImageProducts extends Command
         $doomed = array_merge($doomed, $emptyIds);
 
         $this->info('rescued via gallery image: ' . $rescued);
+        $this->info('skipped (probe inconclusive, kept): ' . $this->skippedUnknown);
         $this->info('to delete (no working image): ' . count($doomed));
 
         if ($this->option('check-only')) {
@@ -155,6 +158,7 @@ class PurgeDeadImageProducts extends Command
 
             // probe round by round so most products need only one request
             $alive = [];
+            $unknown = [];
             for ($roundNo = 0; $roundNo < $probe; $roundNo++) {
                 $pending = collect($candidates)
                     ->filter(fn ($urls, $id) => !isset($alive[$id]) && isset($urls[$roundNo]))
@@ -171,6 +175,10 @@ class PurgeDeadImageProducts extends Command
                         $resp = $responses[(string) $id] ?? null;
                         if ($resp instanceof Response && $resp->successful()) {
                             $alive[$id] = $url;
+                        } elseif (!($resp instanceof Response)) {
+                            // connection error/timeout: status unknown — this
+                            // product must NOT be condemned this run
+                            $unknown[$id] = true;
                         }
                     }
                 }
@@ -181,6 +189,8 @@ class PurgeDeadImageProducts extends Command
                     DB::table('products')->where('id', $r->id)
                         ->update(['front_image' => $alive[$r->id], 'front_image_dead_at' => null]);
                     $rescued++;
+                } elseif (isset($unknown[$r->id])) {
+                    $this->skippedUnknown++;
                 } else {
                     $doomed[] = $r->id;
                 }
