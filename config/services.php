@@ -39,4 +39,12 @@ return [
         ],
     ],
 
+    'bunny' => [
+        'storage_zone' => env('BUNNY_STORAGE_ZONE'),
+        'storage_key' => env('BUNNY_STORAGE_KEY'),
+        // Bunny storage API endpoint; region prefix if the zone isn't in Falkenstein (e.g. ny.storage.bunnycdn.com)
+        'storage_host' => env('BUNNY_STORAGE_HOST', 'storage.bunnycdn.com'),
+        'cdn_host' => env('BUNNY_CDN_HOST'),
+    ],
+
 ];
