@@ -325,6 +325,7 @@ html {
     .sm-testgrid { grid-template-columns: 1fr !important; }
     .sm-testcol { height: 340px; }
     .sm-congrid { grid-template-columns: 1fr !important; }
+    .sm-faqgrid { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 560px) {
     .sm-connames { grid-template-columns: 1fr !important; }
