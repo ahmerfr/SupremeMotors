@@ -1,11 +1,14 @@
 <script setup>
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
     makes: { type: Array, default: () => [] },
     buyerImages: { type: Array, default: () => [] },
 });
+
+const page = usePage();
+const stockTotal = computed(() => Number(page.props.headerData?.total || 0).toLocaleString());
 
 // Skip avatar images that fail to load and backfill from the spares.
 const failedAvatars = ref(new Set());
@@ -95,14 +98,11 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
             <!-- Search card -->
             <div style="position: relative">
                 <div class="sm-search" style="background: #fff; border-radius: 22px; box-shadow: rgba(0, 0, 0, 0.4) 0 40px 80px; border: 1px solid rgba(255, 255, 255, 0.6); padding: 30px">
-                    <div style="display: flex; align-items: center; gap: 14px">
-                        <div style="width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(150deg, #e5262d, #c8151c); display: flex; align-items: center; justify-content: center; box-shadow: rgba(224, 31, 38, 0.32) 0 8px 20px">
-                            <svg width="21" height="21" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.2" stroke="#fff" stroke-width="1.8" /><path d="M11 11l3.2 3.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round" /></svg>
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #f1f3f7">
+                        <div style="font-family: Archivo; font-weight: 800; font-size: 23px; letter-spacing: -0.015em; color: #0b1e3b; line-height: 1.2">
+                            Search <span style="color: #e01f26">{{ stockTotal }}</span> vehicles
                         </div>
-                        <div style="line-height: 1.3">
-                            <div style="font-family: Archivo; font-weight: 800; font-size: 21px; color: #0b1e3b">Find Your Vehicle</div>
-                            <div style="font-size: 14px; font-weight: 600; color: #7d8ea8">Search our curated inventory</div>
-                        </div>
+                        <div style="font-size: 12.5px; font-weight: 700; color: #9aa8bd; letter-spacing: 0.04em; white-space: nowrap">LIVE STOCK</div>
                     </div>
 
                     <div style="margin-top: 22px">
@@ -135,8 +135,7 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                         </select>
                     </div>
 
-                    <button class="scp2" style="width: 100%; margin-top: 24px; display: inline-flex; align-items: center; gap: 10px; justify-content: center; height: 56px; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); border: none; border-radius: 13px; cursor: pointer; box-shadow: rgba(224, 31, 38, 0.32) 0 12px 28px; transition: transform 0.18s" @click="submit">
-                        <svg width="17" height="17" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.2" stroke="#fff" stroke-width="1.8" /><path d="M11 11l3.2 3.2" stroke="#fff" stroke-width="1.8" stroke-linecap="round" /></svg>
+                    <button class="scp2" style="width: 100%; margin-top: 24px; display: inline-flex; align-items: center; justify-content: center; height: 56px; font-size: 16px; font-weight: 800; letter-spacing: 0.01em; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); border: none; border-radius: 13px; cursor: pointer; box-shadow: rgba(224, 31, 38, 0.32) 0 12px 28px; transition: transform 0.18s" @click="submit">
                         Search Vehicles
                     </button>
 
