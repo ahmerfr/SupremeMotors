@@ -36,7 +36,8 @@ const hiddenCount = computed(() => Math.max(0, sorted.value.length - 7));
                     style="display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid #eef1f6; border-radius: 16px; padding: 18px 20px; transition: 0.2s; text-decoration: none; box-shadow: rgba(11, 30, 59, 0.04) 0 4px 14px"
                 >
                     <span style="flex: 0 0 auto; width: 52px; height: 52px; border-radius: 14px; background: #f4f6f9; display: flex; align-items: center; justify-content: center; overflow: hidden">
-                        <img :src="'/storage/' + c.image" :alt="c.cat_title" loading="lazy" style="width: 34px; height: 34px; object-fit: contain" />
+                        <img v-if="c.image" :src="'/storage/' + c.image" :alt="c.cat_title" loading="lazy" style="width: 34px; height: 34px; object-fit: contain" />
+                        <svg v-else width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5"/><path d="M2 16.5h20"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5"/></svg>
                     </span>
                     <span style="min-width: 0">
                         <span style="display: block; font-family: Archivo; font-weight: 700; font-size: 15.5px; color: #0b1e3b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.cat_title }}</span>

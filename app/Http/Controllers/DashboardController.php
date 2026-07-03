@@ -40,13 +40,27 @@ class DashboardController extends Controller
                     'products_count' => $makeCounts[$make->id] ?? 0,
                 ]);
 
-            $categories = Categories::query()
-                ->join('products', 'products.category_id', '=', 'categories.id')
-                ->where('categories.type', 'category')
-                ->groupBy('categories.id', 'categories.cat_title', 'categories.image', 'categories.created_at')
-                ->orderByDesc('categories.created_at')
-                ->selectRaw('categories.id, categories.cat_title, categories.image, COUNT(products.id) as products_count')
-                ->get();
+            // Only the 7 top-level categories, counts rolled up from their
+            // subcategories.
+            $categoryCounts = Products::query()
+                ->whereNotNull('category_id')
+                ->groupBy('category_id')
+                ->selectRaw('category_id, COUNT(*) as c')
+                ->pluck('c', 'category_id');
+
+            $allCategories = Categories::where('type', 'category')->get(['id', 'cat_title', 'image', 'parent_id']);
+
+            $categories = $allCategories->whereNull('parent_id')
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'cat_title' => $p->cat_title,
+                    'image' => $p->image,
+                    'products_count' => ($categoryCounts[$p->id] ?? 0)
+                        + $allCategories->where('parent_id', $p->id)->sum(fn ($c) => $categoryCounts[$c->id] ?? 0),
+                ])
+                ->filter(fn ($p) => $p['products_count'] > 0)
+                ->sortByDesc('products_count')
+                ->values();
 
             // Extra rows beyond the 6 shown: many scraped image URLs are dead
             // (delisted vehicles), so the frontend drops cards whose image
@@ -267,15 +281,18 @@ class DashboardController extends Controller
         $category = Categories::select('id', 'cat_title', 'image', 'type')
             ->findOrFail($category_id);
 
+        // A top-level category page covers its subcategories' products too.
+        $catIds = Categories::expandWithChildren([$category->id]);
+
         // Per-make counts within this category — covered by products_category_make_idx.
         $productCounts = Products::query()
-            ->where('category_id', $category->id)
+            ->whereIn('category_id', $catIds)
             ->whereNotNull('make_id')
             ->groupBy('make_id')
             ->selectRaw('make_id, COUNT(*) as count')
             ->pluck('count', 'make_id');
 
-        $totalProductsCount = Products::where('category_id', $category->id)->count();
+        $totalProductsCount = Products::whereIn('category_id', $catIds)->count();
 
         $makes = Categories::where('type', 'make')
             ->whereIn('id', $productCounts->keys())
@@ -289,14 +306,14 @@ class DashboardController extends Controller
             ]);
 
         $bodyStyle = Products::query()
-            ->where('category_id', $category->id)
+            ->whereIn('category_id', $catIds)
             ->whereNotNull('body_style')
             ->groupBy('body_style')
             ->selectRaw('body_style')
             ->get();
 
         $country_products = Products::where("country", "China")
-            ->where("category_id", $category->id)
+            ->whereIn("category_id", $catIds)
             ->select("title", "front_image", "id", "product_details", "body_style")
             ->limit(8)
             ->get();
@@ -313,7 +330,8 @@ class DashboardController extends Controller
     {
         $category_id = request()->category_id;
         $country = request()->country;
-        $products = Products::where("country", $country)->where("category_id", $category_id)
+        $products = Products::where("country", $country)
+            ->whereIn("category_id", Categories::expandWithChildren([(int) $category_id]))
             ->select("title", "front_image", "id", "product_details", "country")->limit(8)->get();
         return response()->json([
             'success' => true,

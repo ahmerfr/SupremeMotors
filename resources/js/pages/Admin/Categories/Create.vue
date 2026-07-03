@@ -8,6 +8,7 @@ import { computed, ref } from 'vue';
 
 const props = defineProps({
     type: { type: String, default: 'category' },
+    parents: { type: Array, default: () => [] },
 });
 
 const isMake = computed(() => props.type === 'make');
@@ -19,7 +20,7 @@ const breadcrumbs = [
     { title: 'Create', href: `${base.value}/create` },
 ];
 
-const category = ref({ title: '', image: null });
+const category = ref({ title: '', parent_id: '', image: null });
 const imagePreview = ref(null);
 const errors = ref({});
 const showSuccess = ref(false);
@@ -41,6 +42,7 @@ const submitForm = async () => {
     const formData = new FormData();
     formData.append('title', category.value.title);
     formData.append('type', props.type);
+    if (!isMake.value && category.value.parent_id) formData.append('parent_id', category.value.parent_id);
     if (category.value.image) formData.append('image', category.value.image);
 
     try {
@@ -76,6 +78,15 @@ const inputClass =
                     <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Title</label>
                     <input v-model="category.title" type="text" :class="[inputClass, errors.title && 'border-red-500']" />
                     <p v-if="errors.title" class="mt-1 text-sm text-red-500">{{ errors.title[0] }}</p>
+                </div>
+
+                <div v-if="!isMake">
+                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Parent category</label>
+                    <select v-model="category.parent_id" :class="[inputClass, errors.parent_id && 'border-red-500']">
+                        <option value="">— Top level —</option>
+                        <option v-for="p in props.parents" :key="p.id" :value="p.id">{{ p.cat_title }}</option>
+                    </select>
+                    <p v-if="errors.parent_id" class="mt-1 text-sm text-red-500">{{ errors.parent_id[0] }}</p>
                 </div>
 
                 <div>

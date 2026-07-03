@@ -143,6 +143,7 @@ class AdminController extends Controller
         $categories = Categories::query()
             ->where('type', $type)
             ->withCount([($type === 'make' ? 'make_products' : 'cat_products') . ' as products_count'])
+            ->when($type === 'category', fn ($q) => $q->with('parent:id,cat_title')->orderByRaw('parent_id IS NOT NULL'))
             ->orderBy('created_at', 'desc');
         if ($keywords) {
             $categories->where(function ($query) use ($keywords) {
@@ -158,6 +159,9 @@ class AdminController extends Controller
     {
         return Inertia::render('Admin/Categories/Create', [
             'type' => $type,
+            'parents' => $type === 'category'
+                ? Categories::where('type', 'category')->whereNull('parent_id')->orderBy('cat_title')->get(['id', 'cat_title'])
+                : [],
         ]);
     }
     public function categories_store(Request $request)
@@ -165,6 +169,7 @@ class AdminController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'type' => 'required|string|in:category,make',
+            'parent_id' => 'nullable|exists:categories,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
@@ -172,6 +177,7 @@ class AdminController extends Controller
         $category->cat_title = $request->input('title');
         $category->description = "--";
         $category->type = $request->input('type');
+        $category->parent_id = $request->input('type') === 'category' ? ($request->input('parent_id') ?: null) : null;
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('cat_images', 'public');
@@ -187,6 +193,10 @@ class AdminController extends Controller
         $category = Categories::findOrFail($id);
         return Inertia::render('Admin/Categories/Edit', [
             'category' => $category,
+            'parents' => $category->type === 'category'
+                ? Categories::where('type', 'category')->whereNull('parent_id')->where('id', '!=', $category->id)
+                    ->orderBy('cat_title')->get(['id', 'cat_title'])
+                : [],
         ]);
     }
     public function categories_update(Request $request)
@@ -194,6 +204,7 @@ class AdminController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'type' => 'required|string|in:category,make',
+            'parent_id' => 'nullable|exists:categories,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
@@ -201,6 +212,9 @@ class AdminController extends Controller
         $category->cat_title = $request->input('title');
         $category->description = "--";
         $category->type = $request->input('type');
+        if ($category->type === 'category' && (int) $request->input('parent_id') !== $category->id) {
+            $category->parent_id = $request->input('parent_id') ?: null;
+        }
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('cat_images', 'public');

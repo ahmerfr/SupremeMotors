@@ -18,15 +18,27 @@ class ShopController extends Controller
     public function home()
     {
         $data = Cache::remember('shop_home_data', 60, function () {
-            // Inner join drops categories with zero products (parity with the
-            // old Mongo pipeline's `products != []` stage).
-            $categories = Categories::query()
-                ->join('products', 'products.category_id', '=', 'categories.id')
-                ->where('categories.type', 'category')
-                ->groupBy('categories.id', 'categories.cat_title', 'categories.image', 'categories.created_at')
-                ->orderByDesc('categories.created_at')
-                ->selectRaw('categories.id, categories.cat_title, categories.image, COUNT(products.id) as products_count')
-                ->get()
+            // Filter sidebar shows the 7 top-level categories; each count
+            // rolls up the category's own products plus its subcategories'.
+            $counts = Products::query()
+                ->whereNotNull('category_id')
+                ->groupBy('category_id')
+                ->selectRaw('category_id, COUNT(*) as c')
+                ->pluck('c', 'category_id');
+
+            $all = Categories::where('type', 'category')->get(['id', 'cat_title', 'image', 'parent_id']);
+
+            $categories = $all->whereNull('parent_id')
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'cat_title' => $p->cat_title,
+                    'image' => $p->image,
+                    'products_count' => ($counts[$p->id] ?? 0)
+                        + $all->where('parent_id', $p->id)->sum(fn ($c) => $counts[$c->id] ?? 0),
+                ])
+                ->filter(fn ($p) => $p['products_count'] > 0)
+                ->sortByDesc('products_count')
+                ->values()
                 ->toArray();
 
             $makes = Categories::where('type', 'make')
@@ -102,6 +114,11 @@ class ShopController extends Controller
             $priceFilter = $request->input('price');
             $bodyStyle = $request->input('body_style');
             $search = $request->input('search');
+
+            // A top-level category also matches products filed under its subcategories.
+            if (!empty($categoryFilters)) {
+                $categoryFilters = Categories::expandWithChildren($categoryFilters);
+            }
 
             $query = $query->when($search, fn ($q) => $q->search($search))
                 ->when(!empty($categoryFilters), fn($q) => $q->whereIn('category_id', $categoryFilters))

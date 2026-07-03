@@ -56,6 +56,7 @@ const search = () => {
                     <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
                         <tr>
                             <th class="px-5 py-3.5">{{ isMake ? 'Make' : 'Category' }}</th>
+                            <th v-if="!isMake" class="px-5 py-3.5">Parent</th>
                             <th class="px-5 py-3.5 text-right">Products</th>
                             <th class="px-5 py-3.5">Added</th>
                             <th class="px-5 py-3.5 text-right">Actions</th>
@@ -71,6 +72,13 @@ const search = () => {
                                     </div>
                                     <span class="font-semibold text-zinc-900 dark:text-white">{{ c.cat_title }}</span>
                                 </div>
+                            </td>
+                            <td v-if="!isMake" class="px-5 py-3">
+                                <span
+                                    v-if="c.parent"
+                                    class="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                                >{{ c.parent.cat_title }}</span>
+                                <span v-else class="rounded-md bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-[#8e2527] dark:bg-red-950 dark:text-red-300">Top level</span>
                             </td>
                             <td class="px-5 py-3 text-right font-gauge text-zinc-600 dark:text-zinc-300">{{ Number(c.products_count || 0).toLocaleString() }}</td>
                             <td class="px-5 py-3 text-zinc-500 dark:text-zinc-400">{{ c.created_at ? new Date(c.created_at).toLocaleDateString() : '—' }}</td>
