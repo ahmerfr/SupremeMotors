@@ -65,32 +65,50 @@ const readLangCookie = () => {
 
 const setLanguage = async (code) => {
     langOpen.value = false;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    // persist the choice for future visits
-    const host = location.hostname;
-    if (code === 'en') {
-        for (const domain of ['', `; domain=${host}`, `; domain=.${host}`]) {
-            document.cookie = `googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT${domain}`;
+    const writeCookie = () => {
+        const host = location.hostname;
+        if (code === 'en') {
+            for (const domain of ['', `; domain=${host}`, `; domain=.${host}`]) {
+                document.cookie = `googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT${domain}`;
+            }
+        } else {
+            document.cookie = `googtrans=/en/${code}; path=/`;
+            document.cookie = `googtrans=/en/${code}; path=/; domain=.${host}`;
         }
-    } else {
-        document.cookie = `googtrans=/en/${code}; path=/`;
-        document.cookie = `googtrans=/en/${code}; path=/; domain=.${host}`;
-    }
+    };
 
-    // drive Google Translate's hidden select for an in-place switch —
-    // no page reload. Poll briefly in case the widget is still booting.
+    // Proof the widget actually processed the switch: it toggles the
+    // translated-* class on <html> and rewrites its own googtrans cookie.
+    const applied = () => {
+        const translated = /translated-(ltr|rtl)/.test(document.documentElement.className);
+        return code === 'en' ? !translated : translated && document.cookie.includes(`/en/${code}`);
+    };
+
+    // find the hidden select (widget may still be booting)
     let combo = null;
     for (let i = 0; i < 30 && !combo; i++) {
         combo = document.querySelector('.goog-te-combo');
-        if (!combo) await new Promise((r) => setTimeout(r, 100));
+        if (!combo) await sleep(100);
     }
+
     if (combo) {
-        combo.value = code;
-        combo.dispatchEvent(new Event('change'));
-        currentLang.value = languages.find((l) => l.code === code)?.label || 'English';
-    } else {
-        location.reload(); // widget unavailable (blocked/offline): old behavior
+        for (let attempt = 0; attempt < 2 && !applied(); attempt++) {
+            combo.value = code;
+            combo.dispatchEvent(new Event('change'));
+            for (let i = 0; i < 20 && !applied(); i++) await sleep(150);
+        }
+        if (applied()) {
+            writeCookie();
+            currentLang.value = languages.find((l) => l.code === code)?.label || 'English';
+            return;
+        }
     }
+
+    // widget missing or unresponsive: cookie + reload always applies
+    writeCookie();
+    location.reload();
 };
 
 const onDocClick = (e) => {
