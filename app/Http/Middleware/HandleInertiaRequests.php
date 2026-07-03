@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Categories;
+use App\Models\Products;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
@@ -50,6 +53,17 @@ class HandleInertiaRequests extends Middleware
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
             ],
+            // Header strip: live stock stats + top-level category nav.
+            'headerData' => Cache::flexible('header_data', [1800, 86400], fn () => [
+                'total' => Products::count(),
+                'brands' => Categories::where('type', 'make')->count(),
+                'categories' => Categories::where('type', 'category')
+                    ->whereNull('parent_id')
+                    ->orderBy('cat_title')
+                    ->get(['id', 'cat_title'])
+                    ->map(fn ($c) => ['id' => $c->id, 'label' => $c->cat_title])
+                    ->values(),
+            ]),
         ];
     }
 }

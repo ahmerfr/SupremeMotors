@@ -204,9 +204,15 @@ html {
 .scpe:hover { background: #e01f26 !important; border-color: #e01f26 !important; color: #fff !important; }
 .scpf:hover { color: #fff !important; }
 .scpg:hover { transform: translateY(-3px); }
+.scp6:hover { background: #c8151c !important; }
+.scp7:hover { color: #0b1e3b !important; }
+.sm-helplink:hover { opacity: 0.8; }
 @media (max-width: 1080px) {
-    .sm-desknav, .sm-selllink { display: none !important; }
+    .sm-headsearch, .sm-helplink, .sm-headcta, .sm-catnav { display: none !important; }
     .sm-burger { display: flex !important; }
+}
+@media (max-width: 700px) {
+    .sm-util-time, .sm-util-added { display: none !important; }
 }
 @media (max-width: 920px) {
     .sm-herogrid { grid-template-columns: 1fr !important; gap: 40px !important; padding-bottom: 70px !important; }
