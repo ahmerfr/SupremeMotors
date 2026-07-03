@@ -4,20 +4,23 @@ import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, Image as ImageIcon, Loader2 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     category: Object,
 });
 
+const isMake = computed(() => props.category.type === 'make');
+const label = computed(() => (isMake.value ? 'Make' : 'Category'));
+const base = computed(() => (isMake.value ? '/admin/makes' : '/admin/categories'));
+
 const breadcrumbs = [
-    { title: 'Categories/Makes', href: '/admin/categories' },
-    { title: 'Edit', href: `/admin/categories/edit/${props.category.id}` },
+    { title: isMake.value ? 'Makes' : 'Categories', href: base.value },
+    { title: 'Edit', href: `${base.value}/edit/${props.category.id}` },
 ];
 
 const category = ref({
     title: props.category.cat_title || '',
-    type: props.category.type || '',
     image: null,
 });
 const imagePreview = ref(props.category.image ? `/storage/${props.category.image}` : null);
@@ -41,7 +44,7 @@ const submitForm = async () => {
     const formData = new FormData();
     formData.append('id', props.category.id);
     formData.append('title', category.value.title);
-    formData.append('type', category.value.type);
+    formData.append('type', props.category.type);
     if (category.value.image) formData.append('image', category.value.image);
 
     try {
@@ -50,7 +53,7 @@ const submitForm = async () => {
         });
         errors.value = {};
         showSuccess.value = true;
-        setTimeout(() => (window.location.href = route('admin.categories.index')), 1500);
+        setTimeout(() => (window.location.href = base.value), 1500);
     } catch (error) {
         if (error.response?.status === 422) errors.value = error.response.data.errors;
     } finally {
@@ -63,10 +66,10 @@ const inputClass =
 </script>
 
 <template>
-    <Head title="Categories - Edit" />
+    <Head :title="`${label} - Edit`" />
     <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-2xl p-6">
-            <PageHeader :title="`Edit: ${props.category.cat_title}`" subtitle="Update category or make details" />
+            <PageHeader :title="`Edit: ${props.category.cat_title}`" :subtitle="`Update ${label.toLowerCase()} details`" />
 
             <div v-if="showSuccess" class="mb-6 flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <CheckCircle class="h-5 w-5" /> Updated successfully — redirecting…
@@ -77,16 +80,6 @@ const inputClass =
                     <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Title</label>
                     <input v-model="category.title" type="text" :class="[inputClass, errors.title && 'border-red-500']" />
                     <p v-if="errors.title" class="mt-1 text-sm text-red-500">{{ errors.title[0] }}</p>
-                </div>
-
-                <div>
-                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Type</label>
-                    <select v-model="category.type" :class="[inputClass, errors.type && 'border-red-500']">
-                        <option value="" disabled>Select type</option>
-                        <option value="category">Category</option>
-                        <option value="make">Make</option>
-                    </select>
-                    <p v-if="errors.type" class="mt-1 text-sm text-red-500">{{ errors.type[0] }}</p>
                 </div>
 
                 <div>

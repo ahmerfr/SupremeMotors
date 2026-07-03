@@ -4,14 +4,22 @@ import AdminLayout from '@/layouts/AdminLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { CheckCircle, Image as ImageIcon, Loader2 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+
+const props = defineProps({
+    type: { type: String, default: 'category' },
+});
+
+const isMake = computed(() => props.type === 'make');
+const label = computed(() => (isMake.value ? 'Make' : 'Category'));
+const base = computed(() => (isMake.value ? '/admin/makes' : '/admin/categories'));
 
 const breadcrumbs = [
-    { title: 'Categories/Makes', href: '/admin/categories' },
-    { title: 'Create', href: '/admin/categories/create' },
+    { title: isMake.value ? 'Makes' : 'Categories', href: base.value },
+    { title: 'Create', href: `${base.value}/create` },
 ];
 
-const category = ref({ title: '', type: '', image: null });
+const category = ref({ title: '', image: null });
 const imagePreview = ref(null);
 const errors = ref({});
 const showSuccess = ref(false);
@@ -32,7 +40,7 @@ const submitForm = async () => {
     isLoading.value = true;
     const formData = new FormData();
     formData.append('title', category.value.title);
-    formData.append('type', category.value.type);
+    formData.append('type', props.type);
     if (category.value.image) formData.append('image', category.value.image);
 
     try {
@@ -41,7 +49,7 @@ const submitForm = async () => {
         });
         errors.value = {};
         showSuccess.value = true;
-        setTimeout(() => (window.location.href = route('admin.categories.index')), 1500);
+        setTimeout(() => (window.location.href = base.value), 1500);
     } catch (error) {
         if (error.response?.status === 422) errors.value = error.response.data.errors;
     } finally {
@@ -54,10 +62,10 @@ const inputClass =
 </script>
 
 <template>
-    <Head title="Categories - Create" />
+    <Head :title="`${label} - Create`" />
     <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-2xl p-6">
-            <PageHeader title="New Category / Make" subtitle="Add a vehicle category or manufacturer" />
+            <PageHeader :title="`New ${label}`" :subtitle="isMake ? 'Add a vehicle manufacturer' : 'Add a vehicle category'" />
 
             <div v-if="showSuccess" class="mb-6 flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <CheckCircle class="h-5 w-5" /> Created successfully — redirecting…
@@ -68,16 +76,6 @@ const inputClass =
                     <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Title</label>
                     <input v-model="category.title" type="text" :class="[inputClass, errors.title && 'border-red-500']" />
                     <p v-if="errors.title" class="mt-1 text-sm text-red-500">{{ errors.title[0] }}</p>
-                </div>
-
-                <div>
-                    <label class="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">Type</label>
-                    <select v-model="category.type" :class="[inputClass, errors.type && 'border-red-500']">
-                        <option value="" disabled>Select type</option>
-                        <option value="category">Category</option>
-                        <option value="make">Make</option>
-                    </select>
-                    <p v-if="errors.type" class="mt-1 text-sm text-red-500">{{ errors.type[0] }}</p>
                 </div>
 
                 <div>
@@ -101,7 +99,7 @@ const inputClass =
                     class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#8e2527] font-medium text-white transition-colors hover:bg-[#a32c2f] disabled:opacity-60"
                 >
                     <Loader2 v-if="isLoading" class="h-4 w-4 animate-spin" />
-                    Create Entry
+                    Create {{ label }}
                 </button>
             </form>
         </div>

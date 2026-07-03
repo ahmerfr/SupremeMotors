@@ -84,6 +84,14 @@ Route::middleware(['auth', 'verified', 'role:admin,editor'])->prefix('admin')->n
         Route::post('/update', [AdminController::class, 'categories_update'])->name('update');
     });
 
+    // Same controller/pages as categories, scoped to type=make via route default.
+    Route::prefix('makes')->name('makes.')->group(function () {
+        Route::get('/', [AdminController::class, 'categories_index'])->name('index')->defaults('type', 'make');
+        Route::get('/listing', [AdminController::class, 'categories_listing'])->name('listing')->defaults('type', 'make');
+        Route::get('/create', [AdminController::class, 'categories_create'])->name('create')->defaults('type', 'make');
+        Route::get('/edit/{id}', [AdminController::class, 'categories_edit'])->name('edit');
+    });
+
     Route::prefix('products')->name('products.')->group(function () {
         Route::get('/', [AdminController::class, 'products_index'])->name('index');
         Route::get('/listing', [AdminController::class, 'products_listing'])->name('listing');

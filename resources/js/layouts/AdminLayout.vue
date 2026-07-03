@@ -2,7 +2,7 @@
 import AdminSidebar from '@/components/admin/AdminSidebar.vue';
 import AdminTopbar from '@/components/admin/AdminTopbar.vue';
 import { Link } from '@inertiajs/vue3';
-import { Car, Folder, Gauge, Mail, MessageSquareText, Newspaper, Users } from 'lucide-vue-next';
+import { BadgeCheck, Car, Folder, Gauge, Mail, MessageSquareText, Newspaper, Users } from 'lucide-vue-next';
 
 defineProps({
     breadcrumbs: { type: Array, default: () => [] },
@@ -12,6 +12,7 @@ const mobileNav = [
     { href: '/admin/dashboard', icon: Gauge },
     { href: '/admin/products', icon: Car },
     { href: '/admin/categories', icon: Folder },
+    { href: '/admin/makes', icon: BadgeCheck },
     { href: '/admin/query-form', icon: MessageSquareText },
     { href: '/admin/newsletter', icon: Mail },
     { href: '/admin/blogs', icon: Newspaper },

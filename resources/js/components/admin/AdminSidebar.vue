@@ -1,6 +1,6 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3';
-import { Car, Folder, Gauge, LogOut, Mail, MessageSquareText, Newspaper, Users } from 'lucide-vue-next';
+import { BadgeCheck, Car, Folder, Gauge, LogOut, Mail, MessageSquareText, Newspaper, Users } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 const page = usePage();
@@ -18,7 +18,8 @@ const allGroups = [
         label: 'Catalog',
         items: [
             { title: 'Products', href: '/admin/products', icon: Car, roles: ['admin', 'editor'] },
-            { title: 'Categories & makes', href: '/admin/categories', icon: Folder, roles: ['admin', 'editor'] },
+            { title: 'Categories', href: '/admin/categories', icon: Folder, roles: ['admin', 'editor'] },
+            { title: 'Makes', href: '/admin/makes', icon: BadgeCheck, roles: ['admin', 'editor'] },
         ],
     },
     {

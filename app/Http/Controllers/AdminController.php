@@ -129,17 +129,19 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'Role updated.', 'user' => $user->only('id', 'name', 'role')]);
     }
-    public function categories_index()
+    public function categories_index(string $type = 'category')
     {
-        $categories_data = $this->categories_listing();
+        $categories_data = $this->categories_listing($type);
         return Inertia::render('Admin/Categories/Index', [
             'categories' => $categories_data,
+            'type' => $type,
         ]);
     }
-    public function categories_listing()
+    public function categories_listing(string $type = 'category')
     {
         $keywords = request()->keywords;
         $categories = Categories::query()
+            ->where('type', $type)
             ->orderBy('created_at', 'desc');
         if ($keywords) {
             $categories->where(function ($query) use ($keywords) {
@@ -147,19 +149,21 @@ class AdminController extends Controller
                     ->orWhere('description', 'like', '%' . $keywords . '%');
             });
         }
-        $categories = $categories->paginate(15);
+        $categories = $categories->paginate(15)->withQueryString();
         return $categories;
     }
 
-    public function categories_create()
+    public function categories_create(string $type = 'category')
     {
-        return Inertia::render('Admin/Categories/Create');
+        return Inertia::render('Admin/Categories/Create', [
+            'type' => $type,
+        ]);
     }
     public function categories_store(Request $request)
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'type' => 'required|string|max:50',
+            'type' => 'required|string|in:category,make',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
@@ -188,7 +192,7 @@ class AdminController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'type' => 'required|string|max:50',
+            'type' => 'required|string|in:category,make',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 
