@@ -20,7 +20,7 @@ const fmt = (n) => Number(n).toLocaleString();
 </script>
 
 <template>
-    <section class="sm-body" style="padding: 104px 24px 0">
+    <section class="sm-body sm-sec">
         <div style="max-width: 1280px; margin: 0 auto">
             <div class="sm-whygrid" style="display: grid; grid-template-columns: 0.9fr 1.4fr; gap: 40px 64px; align-items: start">
                 <!-- Left: heading + popular brand cards -->

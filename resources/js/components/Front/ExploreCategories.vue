@@ -13,7 +13,7 @@ const hiddenCount = computed(() => Math.max(0, sorted.value.length - 7));
 </script>
 
 <template>
-    <section class="sm-body" style="padding: 104px 24px 0">
+    <section class="sm-body sm-sec">
         <div style="max-width: 1280px; margin: 0 auto">
             <div>
                 <div style="display: inline-flex; align-items: center; gap: 8px; color: #e01f26; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">

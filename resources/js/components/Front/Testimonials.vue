@@ -142,7 +142,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="sm-body" style="padding: 104px 24px 0">
+    <section class="sm-body sm-sec">
         <div ref="sectionEl" class="sm-reveal" style="max-width: 1280px; margin: 0 auto">
             <!-- Theme-standard left header -->
             <div>

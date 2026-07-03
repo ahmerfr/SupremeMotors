@@ -59,7 +59,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <section class="sm-body" style="padding: 104px 24px 0">
+    <section class="sm-body sm-sec">
         <div style="max-width: 1280px; margin: 0 auto">
             <!-- Header -->
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px">

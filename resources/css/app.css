@@ -236,6 +236,15 @@ html {
     .sm-ctarow { padding: 40px 26px !important; }
 }
 
+/* Section rhythm: 60px top+bottom on desktop, 40px on mobile. Same-color
+   neighbors get a container-width divider instead of doubled whitespace. */
+.sm-sec { padding: 60px 24px; }
+.sm-footgap { margin-top: 60px; }
+@media (max-width: 700px) {
+    .sm-sec { padding: 40px 24px; }
+    .sm-footgap { margin-top: 40px; }
+}
+
 .sm-typesrow { scrollbar-width: none; }
 .sm-typesrow::-webkit-scrollbar { display: none; }
 

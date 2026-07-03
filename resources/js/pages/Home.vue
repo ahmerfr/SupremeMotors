@@ -8,6 +8,7 @@ import ShopByBodyType from '@/components/Front/ShopByBodyType.vue';
 import RecommendedForYou from '@/components/Front/RecommendedForYou.vue';
 import Testimonials from '@/components/Front/Testimonials.vue';
 import CantFindCta from '@/components/Front/CantFindCta.vue';
+import SectionDivider from '@/components/Front/SectionDivider.vue';
 
 defineProps({
     categories: Object,
@@ -33,10 +34,15 @@ defineProps({
                     .map(p => p.front_image.includes('product_images') ? '/storage/' + p.front_image : p.front_image)"
             />
             <ExploreCategories :categories="categories" />
+            <SectionDivider />
             <BrandsExplorer :makes="makes" />
+            <SectionDivider />
             <ShopByBodyType :body-types="body_types || []" />
+            <SectionDivider />
             <RecommendedForYou :china="featured_products_china" :japan="featured_products_japan" :europe="featured_products_europe" />
+            <SectionDivider />
             <Testimonials />
+            <SectionDivider />
             <CantFindCta />
         </FrontLayout>
     </div>

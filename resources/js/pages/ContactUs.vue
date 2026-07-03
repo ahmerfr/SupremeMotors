@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { reactive, ref } from 'vue';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
+import SectionDivider from '@/components/Front/SectionDivider.vue';
 import Testimonials from '@/components/Front/Testimonials.vue';
 
 defineProps({
@@ -110,7 +111,7 @@ const labelStyle = 'display: block; font-size: 12px; font-weight: 800; letter-sp
     <div class="flex flex-col min-h-screen">
         <FrontLayout>
             <!-- Banner -->
-            <section class="sm-body" style="padding: 40px 24px 0">
+            <section class="sm-body sm-sec" style="padding-bottom: 0">
                 <div style="max-width: 1280px; margin: 0 auto">
                     <div style="position: relative; overflow: hidden; border-radius: 28px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); padding: 64px 32px; text-align: center">
                         <!-- Corner ring decorations -->
@@ -123,9 +124,8 @@ const labelStyle = 'display: block; font-size: 12px; font-weight: 800; letter-sp
                         <div style="position: absolute; top: -120px; right: 10%; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 70%)"></div>
 
                         <div style="position: relative">
-                            <div style="display: inline-flex; align-items: center; gap: 9px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); padding: 7px 16px; border-radius: 100px">
-                                <span style="width: 7px; height: 7px; border-radius: 50%; background: #e01f26"></span>
-                                <span style="font-size: 12px; font-weight: 800; letter-spacing: 0.08em; color: #cdd8e8">WRITE TO US</span>
+                            <div style="display: inline-flex; align-items: center; gap: 8px; color: #cdd8e8; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
+                                <span style="width: 22px; height: 2px; background: #e01f26"></span>WRITE TO US<span style="width: 22px; height: 2px; background: #e01f26"></span>
                             </div>
                             <h1 style="font-family: Archivo; font-weight: 800; font-size: 44px; letter-spacing: -0.025em; color: #fff; margin-top: 16px; line-height: 1.08">
                                 Get in touch
@@ -139,7 +139,7 @@ const labelStyle = 'display: block; font-size: 12px; font-weight: 800; letter-sp
             </section>
 
             <!-- Form + details -->
-            <section class="sm-body" style="padding: 64px 24px 0">
+            <section class="sm-body sm-sec">
                 <div class="sm-congrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; align-items: start">
                     <!-- Form card -->
                     <div style="background: #fff; border: 1px solid #eef1f6; border-radius: 18px; padding: 40px; box-shadow: rgba(11, 30, 59, 0.04) 0 4px 14px">
@@ -265,6 +265,7 @@ const labelStyle = 'display: block; font-size: 12px; font-weight: 800; letter-sp
                 </div>
             </section>
 
+            <SectionDivider />
             <Testimonials />
         </FrontLayout>
     </div>

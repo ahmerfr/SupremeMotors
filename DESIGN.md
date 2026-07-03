@@ -46,8 +46,14 @@ micro-labels 10.5–12px at 800 weight with letter-spacing 0.03–0.08em.
 ### Geometry
 
 - Section container: `max-width: 1280px; margin: 0 auto`, side padding 24px.
-- Vertical rhythm: every section starts `padding: 104px 24px 0`. The footer
-  provides the final 104px via its own `margin-top`.
+- Vertical rhythm: every section uses the `sm-sec` class — **60px top AND
+  bottom padding on desktop, 40px on mobile (≤700px)**. Never hand-roll
+  section padding.
+- When two adjacent sections share the same background color, separate them
+  with `<SectionDivider />` — a 1px `#eef1f6` hairline at **container width**
+  (never full-bleed). The 60+60 gap alone is not enough separation.
+- The footer uses `sm-footgap` (60px / 40px margin-top), no divider before it
+  (color change is the separation).
 - Radii: hero/dark feature cards **28px** · product/content cards **16–18px** ·
   buttons **13px** · chips/pills **6–11px** · circles `100px`/`50%`.
 - Shadows: cards `rgba(11,30,59,0.04) 0 4px 14px`, hover
@@ -58,6 +64,11 @@ micro-labels 10.5–12px at 800 weight with letter-spacing 0.03–0.08em.
 ## 2. Recurring patterns
 
 ### Section header (light sections)
+
+**Banned: pill-badge eyebrows** (rounded-full chip with a dot and label,
+e.g. `● WRITE TO US` in a bordered pill) — they read as AI-generated. The
+only eyebrow style is the dash eyebrow below; on dark/centered banners use
+label color `#cdd8e8` with a red dash on each side.
 
 Left-aligned, always this exact stack:
 

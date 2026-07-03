@@ -3,7 +3,7 @@ import { Link } from '@inertiajs/vue3';
 </script>
 
 <template>
-    <section class="sm-body" style="padding: 104px 24px 0">
+    <section class="sm-body sm-sec">
         <div style="max-width: 1280px; margin: 0 auto">
             <div style="position: relative; border-radius: 28px; overflow: hidden; background: #081730">
                 <img
