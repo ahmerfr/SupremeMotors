@@ -3,7 +3,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const page = usePage();
-const header = computed(() => page.props.headerData || { total: 0, brands: 0, categories: [] });
+const header = computed(() => page.props.headerData || { total: 0, addedToday: 0, categories: [] });
 const currentUrl = computed(() => page.url);
 
 const menuOpen = ref(false);
@@ -16,8 +16,8 @@ const submitSearch = () => {
     router.get('/inventory', { type: 'search', search: term });
 };
 
-// Live clocks for the sourcing markets
-const timeIn = (tz) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date());
+// Live clocks for the sourcing markets ("4:12 AM" per the design)
+const timeIn = (tz) => new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
 const chinaTime = ref(timeIn('Asia/Shanghai'));
 const japanTime = ref(timeIn('Asia/Tokyo'));
 let clockTimer = null;
@@ -32,8 +32,12 @@ onBeforeUnmount(() => clearInterval(clockTimer));
 const fmt = (n) => Number(n || 0).toLocaleString();
 
 const catHref = (c) => `/inventory?category=${c.id}`;
-const isActiveCat = (c) => currentUrl.value.includes(`category=${c.id}`);
-const isAllActive = computed(() => currentUrl.value === '/inventory' || currentUrl.value.startsWith('/inventory?page'));
+// One tab is always active like the design: the URL-matched category,
+// falling back to the first tab.
+const activeCatId = computed(() => {
+    const hit = (header.value.categories || []).find((c) => currentUrl.value.includes(`category=${c.id}`));
+    return hit ? hit.id : header.value.categories?.[0]?.id;
+});
 
 const pageLinks = [
     { label: 'About Us', href: '/about-us' },
@@ -57,7 +61,7 @@ const pageLinks = [
                         </div>
                         <div class="sm-util-added" style="width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 255, 255, 0.25)"></div>
                         <div class="sm-util-added" style="font-size: 12px; font-weight: 500; color: #7d8ea8; white-space: nowrap; letter-spacing: 0.01em">
-                            Brands <span style="color: #fff; font-weight: 700; margin-left: 3px">{{ fmt(header.brands) }}</span>
+                            Added today <span style="color: #fff; font-weight: 700; margin-left: 3px">{{ fmt(header.addedToday) }}</span>
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 20px">
@@ -123,36 +127,23 @@ const pageLinks = [
             </div>
         </div>
 
-        <!-- Category strip: distinct white surface -->
+        <!-- Category strip: distinct white surface, active tab = navy block -->
         <div style="background: #fff; border-bottom: 1px solid #f1f3f7">
             <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 50px; display: flex; align-items: stretch; gap: 28px">
-                <Link
-                    href="/inventory"
-                    :style="{
-                        display: 'inline-flex', alignItems: 'center', fontSize: '13.5px', whiteSpace: 'nowrap', textDecoration: 'none',
-                        fontWeight: isAllActive ? 800 : 600,
-                        color: isAllActive ? '#0b1e3b' : '#4a5a72',
-                        boxShadow: isAllActive ? 'inset 0 -2px 0 #e01f26' : 'none',
-                        transition: 'color 0.15s',
-                    }"
-                >All Vehicles</Link>
                 <Link
                     v-for="c in header.categories"
                     :key="c.id"
                     :href="catHref(c)"
-                    class="scp7"
-                    :style="{
-                        display: 'inline-flex', alignItems: 'center', fontSize: '13.5px', whiteSpace: 'nowrap', textDecoration: 'none',
-                        fontWeight: isActiveCat(c) ? 800 : 600,
-                        color: isActiveCat(c) ? '#0b1e3b' : '#4a5a72',
-                        boxShadow: isActiveCat(c) ? 'inset 0 -2px 0 #e01f26' : 'none',
-                        transition: 'color 0.15s',
-                    }"
+                    :class="c.id === activeCatId ? '' : 'scp7'"
+                    :style="c.id === activeCatId
+                        ? 'display:inline-flex;align-items:center;padding:0 18px;font-size:13.5px;font-weight:700;color:#fff;background:#0b1e3b;white-space:nowrap;text-decoration:none'
+                        : 'display:inline-flex;align-items:center;padding:0 4px;font-size:13.5px;font-weight:600;color:#4a5a72;white-space:nowrap;transition:color .15s;text-decoration:none'"
                 >{{ c.label }}</Link>
-                <div style="margin-left: auto; display: flex; align-items: center; gap: 8px">
-                    <div style="display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #4a5a72; white-space: nowrap; padding: 7px 12px; border-radius: 8px">
+                <div class="sm-catright" style="margin-left: auto; display: flex; align-items: center; gap: 8px">
+                    <div class="scp0" style="display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #4a5a72; white-space: nowrap; cursor: pointer; padding: 7px 12px; border-radius: 8px; transition: background 0.15s">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.4" stroke="#4a5a72" stroke-width="1.3" /><path d="M1.6 8h12.8M8 1.6c1.8 1.7 2.7 4 2.7 6.4S9.8 12.7 8 14.4C6.2 12.7 5.3 10.4 5.3 8S6.2 3.3 8 1.6z" stroke="#4a5a72" stroke-width="1.1" /></svg>
                         English
+                        <svg width="8" height="5" viewBox="0 0 8 5" fill="none"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
                     </div>
                 </div>
             </div>

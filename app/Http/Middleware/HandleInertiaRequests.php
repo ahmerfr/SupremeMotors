@@ -54,16 +54,20 @@ class HandleInertiaRequests extends Middleware
                 'location' => $request->url(),
             ],
             // Header strip: live stock stats + top-level category nav.
-            'headerData' => Cache::flexible('header_data', [1800, 86400], fn () => [
-                'total' => Products::count(),
-                'brands' => Categories::where('type', 'make')->count(),
-                'categories' => Categories::where('type', 'category')
-                    ->whereNull('parent_id')
-                    ->orderBy('cat_title')
-                    ->get(['id', 'cat_title'])
-                    ->map(fn ($c) => ['id' => $c->id, 'label' => $c->cat_title])
-                    ->values(),
-            ]),
+            'headerData' => Cache::flexible('header_data', [1800, 86400], function () {
+                $order = ['Cars', 'Trucks', 'Electric Vehicles', 'Tractors', 'Buses', 'Heavy Machinery', 'Equipment'];
+
+                return [
+                    'total' => Products::count(),
+                    'addedToday' => Products::where('created_at', '>=', now()->startOfDay())->count(),
+                    'categories' => Categories::where('type', 'category')
+                        ->whereNull('parent_id')
+                        ->get(['id', 'cat_title'])
+                        ->sortBy(fn ($c) => array_search($c->cat_title, $order) === false ? 99 : array_search($c->cat_title, $order))
+                        ->map(fn ($c) => ['id' => $c->id, 'label' => $c->cat_title])
+                        ->values(),
+                ];
+            }),
         ];
     }
 }
