@@ -191,7 +191,9 @@ class DashboardController extends Controller
 
     public function about_page()
     {
-        return Inertia::render('AboutUs');
+        $makesCount = Cache::flexible('about_makes_count', [3600, 86400], fn () => Products::whereNotNull('make_id')->distinct()->count('make_id'));
+
+        return Inertia::render('AboutUs', ['makesCount' => $makesCount]);
     }
 
     public function customerreview_page()

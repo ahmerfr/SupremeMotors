@@ -5,32 +5,37 @@ import FrontLayout from '@/layouts/app/FrontLayout.vue';
 import SectionDivider from '@/components/Front/SectionDivider.vue';
 import Testimonials from '@/components/Front/Testimonials.vue';
 
+const props = defineProps({
+    makesCount: { type: Number, default: 0 },
+});
+
 const page = usePage();
 const stockTotal = computed(() => page.props.headerData?.total ?? 0);
+const addedToday = computed(() => page.props.headerData?.addedToday ?? 0);
 
 const stats = computed(() => [
     { value: stockTotal.value.toLocaleString('en-US'), label: 'Vehicles in stock', live: true },
-    { value: '3', label: 'Sourcing regions' },
-    { value: '2005', label: 'In business since' },
+    { value: addedToday.value.toLocaleString('en-US'), label: 'Added today alone', live: true },
+    { value: String(props.makesCount || 110), label: 'Makes to choose from' },
     { value: '1 day', label: 'Enquiry response' },
 ]);
 
-const values = [
+const promises = [
     {
-        title: 'Integrity',
-        body: 'Honest listings, honest quotes. If a seller’s report notes a defect, you see it — and our bank details never change outside a re-issued invoice.',
+        title: 'If the seller notes a defect, you see it.',
+        body: 'Every listing carries the source inspection data untouched. Bad news travels to you as fast as good news — that’s what makes the good news worth something.',
     },
     {
-        title: 'Customer focus',
-        body: 'A named specialist handles your purchase from enquiry to delivery, and stays reachable after the keys are in your hand.',
+        title: 'One specialist, start to finish.',
+        body: 'The person who quotes your vehicle books your vessel and answers your calls — and still picks up after the keys are in your hand.',
     },
     {
-        title: 'Transparency',
-        body: 'One landed price to your port — vehicle, freight and insurance broken down line by line. No hidden fees, no surprises at customs.',
+        title: 'One landed price. No surprises.',
+        body: 'Vehicle, freight and insurance broken down line by line to your port, FOB or CIF. What customs sees is what you were quoted.',
     },
     {
-        title: 'Passion',
-        body: 'We are vehicle people. From auction-grade sedans to forty-ton machinery, we enjoy finding the right unit as much as you enjoy receiving it.',
+        title: 'Wire only against an invoice.',
+        body: 'Payment goes to our registered Hong Kong account, and those details never change outside a re-issued invoice — never by chat, email or phone.',
     },
 ];
 
@@ -127,22 +132,22 @@ onBeforeUnmount(() => io?.disconnect());
                     </div>
                 </section>
 
-                <!-- Values -->
+                <!-- Promises ledger -->
                 <section class="sm-body sm-sec">
                     <div style="max-width: 1280px; margin: 0 auto">
                         <div class="sm-reveal">
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
                                 <span style="width: 22px; height: 2px; background: #e01f26"></span>HOW WE WORK
                             </div>
-                            <h2 style="font-family: Archivo; font-weight: 800; font-size: 34px; letter-spacing: -0.02em; color: #0b1e3b; margin-top: 12px">
-                                The values behind every shipment
+                            <h2 style="font-family: Archivo; font-weight: 800; font-size: 38px; letter-spacing: -0.02em; color: #0b1e3b; margin-top: 12px; max-width: 640px; line-height: 1.12">
+                                Four promises we run the company on<span style="color: #e01f26">.</span>
                             </h2>
                         </div>
-                        <div class="sm-valgrid sm-reveal" style="margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px">
-                            <div v-for="(v, i) in values" :key="v.title" class="sm-valcard">
-                                <div style="font-family: Archivo; font-weight: 900; font-size: 15px; color: #e01f26">0{{ i + 1 }}</div>
-                                <div style="font-family: Archivo; font-weight: 800; font-size: 19px; color: #0b1e3b; margin-top: 10px">{{ v.title }}</div>
-                                <p style="font-size: 14.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 8px">{{ v.body }}</p>
+                        <div style="margin-top: 34px">
+                            <div v-for="(p, i) in promises" :key="p.title" class="sm-promise sm-reveal" :style="{ transitionDelay: `${i * 60}ms` }">
+                                <div class="sm-promise-num">0{{ i + 1 }}</div>
+                                <h3 class="sm-promise-title">{{ p.title }}</h3>
+                                <p class="sm-promise-body">{{ p.body }}</p>
                             </div>
                         </div>
                     </div>
@@ -179,19 +184,19 @@ onBeforeUnmount(() => io?.disconnect());
                                         </span>
                                     </Link>
                                 </div>
-                                <div style="display: flex; flex-direction: column; justify-content: center; gap: 16px">
-                                    <div style="display: flex; gap: 13px; align-items: flex-start">
+                                <div class="sm-abhqinfo" style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-content: center">
+                                    <div style="grid-column: 1 / -1; display: flex; gap: 13px; align-items: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 18px 20px">
                                         <span style="flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); display: inline-flex; align-items: center; justify-content: center">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cdd8e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
                                         </span>
                                         <div>
                                             <div style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; color: #8ea0bc">REGISTERED OFFICE</div>
                                             <div style="font-size: 14.5px; font-weight: 600; color: #e6ecf5; line-height: 1.6; margin-top: 3px">
-                                                Unit 1603, 16th Floor, The L. Plaza<br />367–375 Queen's Road Central<br />Sheung Wan, Hong Kong
+                                                Unit 1603, 16th Floor, The L. Plaza<br />367–375 Queen's Road Central, Sheung Wan, Hong Kong
                                             </div>
                                         </div>
                                     </div>
-                                    <div style="display: flex; gap: 13px; align-items: flex-start">
+                                    <div style="display: flex; gap: 13px; align-items: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 18px 20px">
                                         <span style="flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); display: inline-flex; align-items: center; justify-content: center">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cdd8e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z" /></svg>
                                         </span>
@@ -200,7 +205,7 @@ onBeforeUnmount(() => io?.disconnect());
                                             <div style="font-size: 14.5px; font-weight: 600; color: #e6ecf5; margin-top: 3px">+852 5322 1678</div>
                                         </div>
                                     </div>
-                                    <div style="display: flex; gap: 13px; align-items: flex-start">
+                                    <div style="display: flex; gap: 13px; align-items: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 18px 20px">
                                         <span style="flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); display: inline-flex; align-items: center; justify-content: center">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cdd8e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 6L2 7" /></svg>
                                         </span>
