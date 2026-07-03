@@ -40,18 +40,64 @@ onMounted(async () => {
     }
 });
 
+// Language switcher driving the hidden Google Translate engine via its cookie
+const languages = [
+    { code: 'en', label: 'English' },
+    { code: 'zh-CN', label: '简体中文' },
+    { code: 'zh-TW', label: '繁體中文' },
+    { code: 'ja', label: '日本語' },
+    { code: 'fr', label: 'Français' },
+    { code: 'es', label: 'Español' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'pt', label: 'Português' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'ar', label: 'العربية' },
+    { code: 'sw', label: 'Kiswahili' },
+];
+const langOpen = ref(false);
+const currentLang = ref('English');
+
+const readLangCookie = () => {
+    const m = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
+    const code = m ? m[1] : 'en';
+    currentLang.value = languages.find((l) => l.code === code)?.label || 'English';
+};
+
+const setLanguage = (code) => {
+    langOpen.value = false;
+    const host = location.hostname;
+    if (code === 'en') {
+        for (const domain of ['', `; domain=${host}`, `; domain=.${host}`]) {
+            document.cookie = `googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT${domain}`;
+        }
+    } else {
+        document.cookie = `googtrans=/en/${code}; path=/`;
+        document.cookie = `googtrans=/en/${code}; path=/; domain=.${host}`;
+    }
+    location.reload();
+};
+
+const onDocClick = (e) => {
+    if (!e.target.closest('.sm-langwrap')) langOpen.value = false;
+};
+
 // Live clocks for the sourcing markets ("4:12 AM" per the design)
 const timeIn = (tz) => new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
 const chinaTime = ref(timeIn('Asia/Shanghai'));
 const japanTime = ref(timeIn('Asia/Tokyo'));
 let clockTimer = null;
 onMounted(() => {
+    readLangCookie();
+    document.addEventListener('click', onDocClick);
     clockTimer = setInterval(() => {
         chinaTime.value = timeIn('Asia/Shanghai');
         japanTime.value = timeIn('Asia/Tokyo');
     }, 30000);
 });
-onBeforeUnmount(() => clearInterval(clockTimer));
+onBeforeUnmount(() => {
+    clearInterval(clockTimer);
+    document.removeEventListener('click', onDocClick);
+});
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 
@@ -164,11 +210,37 @@ const pageLinks = [
                         ? 'display:inline-flex;align-items:center;padding:0 22px;font-size:15px;font-weight:700;color:#fff;background:#0b1e3b;white-space:nowrap;text-decoration:none'
                         : 'display:inline-flex;align-items:center;padding:0 4px;font-size:15px;font-weight:600;color:#4a5a72;white-space:nowrap;transition:color .15s;text-decoration:none'"
                 >{{ c.label }}</Link>
-                <div class="sm-catright" style="margin-left: auto; display: flex; align-items: center; gap: 8px">
-                    <div class="scp0" style="display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; color: #4a5a72; white-space: nowrap; cursor: pointer; padding: 8px 13px; border-radius: 8px; transition: background 0.15s">
+                <div class="sm-catright sm-langwrap" style="margin-left: auto; display: flex; align-items: center; gap: 8px; position: relative">
+                    <button
+                        class="scp0"
+                        style="display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; color: #4a5a72; white-space: nowrap; cursor: pointer; padding: 8px 13px; border-radius: 8px; transition: background 0.15s; border: none; background: transparent; font-family: Manrope"
+                        @click="langOpen = !langOpen"
+                    >
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.4" stroke="#4a5a72" stroke-width="1.3" /><path d="M1.6 8h12.8M8 1.6c1.8 1.7 2.7 4 2.7 6.4S9.8 12.7 8 14.4C6.2 12.7 5.3 10.4 5.3 8S6.2 3.3 8 1.6z" stroke="#4a5a72" stroke-width="1.1" /></svg>
-                        English
-                        <svg width="8" height="5" viewBox="0 0 8 5" fill="none"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+                        <span class="notranslate">{{ currentLang }}</span>
+                        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" :style="{ transform: langOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+                    </button>
+                    <div
+                        v-if="langOpen"
+                        class="notranslate"
+                        style="position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; background: #fff; border: 1px solid #e6eaf0; border-radius: 13px; box-shadow: rgba(8, 23, 48, 0.14) 0 18px 40px; padding: 6px; min-width: 172px"
+                    >
+                        <button
+                            v-for="l in languages"
+                            :key="l.code"
+                            class="scp0"
+                            :style="{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px',
+                                fontSize: '14px', fontWeight: currentLang === l.label ? 800 : 600, fontFamily: 'Manrope',
+                                color: currentLang === l.label ? '#0b1e3b' : '#4a5a72',
+                                padding: '9px 12px', borderRadius: '9px', border: 'none', background: 'transparent',
+                                cursor: 'pointer', textAlign: 'left', transition: 'background .15s',
+                            }"
+                            @click="setLanguage(l.code)"
+                        >
+                            {{ l.label }}
+                            <svg v-if="currentLang === l.label" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e01f26" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                        </button>
                     </div>
                 </div>
             </div>

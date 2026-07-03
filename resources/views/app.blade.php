@@ -73,6 +73,21 @@
         
     </head>
     <body class="font-sans antialiased">
+        <!-- Google Translate engine (UI lives in the header dropdown; the
+             default toolbar/banner is hidden via CSS) -->
+        <div id="google_translate_element" style="display: none"></div>
+        <script>
+            function googleTranslateElementInit() {
+                new google.translate.TranslateElement({ pageLanguage: 'en', autoDisplay: false }, 'google_translate_element');
+            }
+        </script>
+        <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+        <style>
+            body > .skiptranslate { display: none !important; }
+            .goog-te-banner-frame.skiptranslate { display: none !important; }
+            body { top: 0 !important; }
+            font[style] { background: transparent !important; box-shadow: none !important; }
+        </style>
         <div id="loading-overlay">
             <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" class="loader-logo" />
             <div class="loader-track"><div class="loader-bar"></div></div>
