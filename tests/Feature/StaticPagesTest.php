@@ -19,4 +19,9 @@ class StaticPagesTest extends TestCase
     {
         $this->get('/terms-condition')->assertOk()->assertInertia(fn (Assert $page) => $page->component('TermsCondition'));
     }
+
+    public function test_bank_details_page_renders(): void
+    {
+        $this->get('/bank-details')->assertOk()->assertInertia(fn (Assert $page) => $page->component('BankDetails'));
+    }
 }

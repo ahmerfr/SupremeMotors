@@ -1,383 +1,270 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
-import { ref, onMounted } from 'vue';
+import SectionDivider from '@/components/Front/SectionDivider.vue';
 
-const props = defineProps({
-  auth: Object,
-});
+const fields = [
+    { label: 'Account Name', value: 'Supreme Motor Equipments Limited', note: 'If the name field is too short, continue it in the address line.' },
+    { label: 'Account Number', value: '63003711840' },
+    { label: 'SWIFT / BIC', value: 'CHASHKHH', note: 'Use CHASHKHHXXX where 11 characters are required.' },
+    { label: 'Bank Name', value: 'JPMorgan Chase Bank N.A., Hong Kong Branch' },
+    { label: 'Bank Address', value: '18/F, 20/F, 22-29/F, Chater House, 8 Connaught Road Central, Hong Kong' },
+];
 
-const copyToClipboard = (text) => {
-  navigator.clipboard.writeText(text);
-  showToast('Copied to clipboard!');
-};
+const smallFields = [
+    { label: 'Bank Code', value: '007' },
+    { label: 'Branch Code', value: '863' },
+    { label: 'Country / Region', value: 'Hong Kong' },
+    { label: 'Account Type', value: 'Business Account' },
+];
 
-const showingModal = ref(false);
-const toastMessage = ref('');
-const showingToast = ref(false);
-
-const showToast = (message) => {
-  toastMessage.value = message;
-  showingToast.value = true;
-  setTimeout(() => {
-    showingToast.value = false;
-  }, 3000);
-};
+const steps = [
+    {
+        title: 'Get your invoice',
+        body: 'Every payment starts with a commercial invoice from our team stating the vehicle, price, incoterm and destination.',
+    },
+    {
+        title: 'Send the wire',
+        body: 'Pay by SWIFT (T/T), or CHATS/ACH if you bank in Hong Kong. Include the memo: [Buyer Name][Invoice Number][Product].',
+    },
+    {
+        title: 'Share the receipt',
+        body: 'Email the transfer copy to info@suprememotors.ltd. Documents are issued to your name once funds clear — typically 1–2 business days.',
+    },
+];
 
 const currencies = [
-  { code: 'USD', flag: '🇺🇸', name: 'US Dollar' },
-  { code: 'HKD', flag: '🇭🇰', name: 'Hong Kong Dollar' },
-  { code: 'AUD', flag: '🇦🇺', name: 'Australian Dollar' },
-  { code: 'CAD', flag: '🇨🇦', name: 'Canadian Dollar' },
-  { code: 'CNY', flag: '🇨🇳', name: 'Chinese Yuan' },
-  { code: 'CHF', flag: '🇨🇭', name: 'Swiss Franc' },
-  { code: 'DKK', flag: '🇩🇰', name: 'Danish Krone' },
-  { code: 'EUR', flag: '🇪🇺', name: 'Euro' },
-  { code: 'GBP', flag: '🇬🇧', name: 'British Pound' },
-  { code: 'JPY', flag: '🇯🇵', name: 'Japanese Yen' },
-  { code: 'NOK', flag: '🇳🇴', name: 'Norwegian Krone' },
-  { code: 'NZD', flag: '🇳🇿', name: 'New Zealand Dollar' },
-  { code: 'SEK', flag: '🇸🇪', name: 'Swedish Krona' },
-  { code: 'SGD', flag: '🇸🇬', name: 'Singapore Dollar' },
-  { code: 'ZAR', flag: '🇿🇦', name: 'South African Rand' },
+    { code: 'USD', name: 'US Dollar' },
+    { code: 'HKD', name: 'Hong Kong Dollar' },
+    { code: 'EUR', name: 'Euro' },
+    { code: 'GBP', name: 'British Pound' },
+    { code: 'JPY', name: 'Japanese Yen' },
+    { code: 'CNY', name: 'Chinese Yuan' },
+    { code: 'CAD', name: 'Canadian Dollar' },
+    { code: 'AUD', name: 'Australian Dollar' },
+    { code: 'CHF', name: 'Swiss Franc' },
+    { code: 'SGD', name: 'Singapore Dollar' },
+    { code: 'NZD', name: 'New Zealand Dollar' },
+    { code: 'SEK', name: 'Swedish Krona' },
+    { code: 'NOK', name: 'Norwegian Krone' },
+    { code: 'DKK', name: 'Danish Krone' },
+    { code: 'ZAR', name: 'South African Rand' },
 ];
+
+const toast = ref('');
+let toastTimer = null;
+const copy = (text, label) => {
+    navigator.clipboard.writeText(text);
+    toast.value = `${label} copied`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toast.value = ''), 2200);
+};
+
+const copyAll = () => {
+    const all = [...fields, ...smallFields].map((f) => `${f.label}: ${f.value}`).join('\n');
+    copy(all, 'All bank details');
+};
 </script>
 
 <template>
+    <Head title="Bank Details" />
 
-  <Head title="Bank Details - Supreme Motor Equipments" />
-  <div class="flex flex-col min-h-screen">
-    <FrontLayout>
-      <main class="flex-grow">
-        <!-- Hero Section -->
-        <section class="py-24 bg-gradient-to-r from-[#1e4066] to-[#2c5c8e] text-white relative overflow-hidden">
-          <div class="absolute inset-0 opacity-10">
-            <div class="absolute inset-0 bg-repeat"
-              style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNNTAgMzBhMjAgMjAgMCAxIDEtNDAgMCAyMCAyMCAwIDAgMSA0MCAweiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIwLjIiLz48L3N2Zz4=')">
-            </div>
-          </div>
+    <div class="flex flex-col min-h-screen">
+        <FrontLayout>
+            <!-- Banner (shared page-header treatment) -->
+            <section class="sm-body sm-sec" style="padding-bottom: 0">
+                <div style="max-width: 1280px; margin: 0 auto">
+                    <div style="position: relative; overflow: hidden; border-radius: 28px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); padding: 64px 32px; text-align: center">
+                        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" style="position: absolute; top: -70px; left: -70px; width: 220px; height: 220px">
+                            <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
+                        </svg>
+                        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" style="position: absolute; bottom: -70px; right: -70px; width: 220px; height: 220px">
+                            <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
+                        </svg>
+                        <div style="position: absolute; top: -120px; right: 10%; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 70%)"></div>
 
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-            <div class="flex flex-col items-center text-center">
-              <h1 class="text-3xl md:text-5xl font-bold mb-4">Bank Transfer Details</h1>
-              <p class="text-lg md:text-xl max-w-2xl mb-6">Make secure payments to Supreme Motor Equipments Limited</p>
-              <nav class="flex" aria-label="Breadcrumb">
-                <ol class="inline-flex items-center space-x-1 md:space-x-3">
-                  <li class="inline-flex items-center">
-                    <Link href="/"
-                      class="inline-flex items-center text-white hover:text-gray-200 transition duration-300">
-                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"
-                      xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z">
-                      </path>
-                    </svg>
-                    Home
-                    </Link>
-                  </li>
-                  <li>
-                    <div class="flex items-center">
-                      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path fill-rule="evenodd"
-                          d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                          clip-rule="evenodd"></path>
-                      </svg>
-                      <span class="text-white ml-1 md:ml-2">Bank Details</span>
+                        <div style="position: relative">
+                            <div style="display: inline-flex; align-items: center; gap: 8px; color: #cdd8e8; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
+                                <span style="width: 22px; height: 2px; background: #e01f26"></span>PAYMENTS<span style="width: 22px; height: 2px; background: #e01f26"></span>
+                            </div>
+                            <h1 style="font-family: Archivo; font-weight: 800; font-size: 44px; letter-spacing: -0.025em; color: #fff; margin-top: 16px; line-height: 1.08">
+                                Bank Details
+                            </h1>
+                            <p style="font-size: 16px; line-height: 1.65; color: #a9b7cc; font-weight: 500; margin: 12px auto 0; max-width: 540px">
+                                Wire securely to our registered Hong Kong business account — the same details printed on every invoice we issue.
+                            </p>
+                        </div>
                     </div>
-                  </li>
-                </ol>
-              </nav>
-            </div>
-          </div>
-        </section>
+                </div>
+            </section>
 
-        <!-- Bank Details Section -->
-        <section class="py-12 bg-gray-50">
-          <div class="max-w-5xl mx-auto px-4 sm:px-6">
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-              <!-- Header Notice -->
-              <div class="bg-amber-50 border-l-4 border-amber-500 p-4">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd"
-                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                        clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                  <div class="ml-3">
-                    <p class="text-sm text-amber-800">
-                      Only SWIFT(T/T) or CHATS/ACH(HK local) payments are supported by the following account.
+            <!-- Wire details + how to pay -->
+            <section class="sm-body sm-sec">
+                <div class="sm-faqgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 1.35fr 0.85fr; gap: 48px; align-items: start">
+                    <!-- Account card -->
+                    <div style="position: relative; overflow: hidden; border-radius: 24px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); padding: 36px 38px">
+                        <div style="position: absolute; top: -140px; right: -80px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.14), transparent 70%)"></div>
+                        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.5" style="position: absolute; bottom: -80px; left: -80px; width: 240px; height: 240px">
+                            <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
+                        </svg>
+
+                        <div style="position: relative">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+                                <div>
+                                    <div style="font-family: Archivo; font-weight: 800; font-size: 24px; letter-spacing: -0.01em; color: #fff">Wire transfer details</div>
+                                    <p style="font-size: 14px; font-weight: 500; color: #a9b7cc; margin-top: 5px">SWIFT (T/T) international &middot; CHATS / ACH for Hong Kong local</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="scp2"
+                                    style="display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 800; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); padding: 10px 18px; border-radius: 100px; cursor: pointer; transition: transform 0.18s"
+                                    @click="copyAll"
+                                >
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                    Copy all
+                                </button>
+                            </div>
+
+                            <div style="margin-top: 26px; display: flex; flex-direction: column">
+                                <div
+                                    v-for="f in fields"
+                                    :key="f.label"
+                                    style="display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 0; border-top: 1px solid rgba(255, 255, 255, 0.09)"
+                                >
+                                    <div>
+                                        <div style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; color: #8ea0bc">{{ f.label.toUpperCase() }}</div>
+                                        <div style="font-family: Archivo; font-weight: 700; font-size: 16.5px; color: #fff; margin-top: 4px; line-height: 1.45">{{ f.value }}</div>
+                                        <div v-if="f.note" style="font-size: 12.5px; font-weight: 500; color: #7487a3; margin-top: 3px">{{ f.note }}</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="scp2"
+                                        :aria-label="`Copy ${f.label}`"
+                                        style="flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.18s"
+                                        @click="copy(f.value, f.label)"
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cdd8e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                    </button>
+                                </div>
+
+                                <div class="sm-bankpairs" style="display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(255, 255, 255, 0.09)">
+                                    <div v-for="f in smallFields" :key="f.label" style="padding: 15px 0">
+                                        <div style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; color: #8ea0bc">{{ f.label.toUpperCase() }}</div>
+                                        <div style="font-family: Archivo; font-weight: 700; font-size: 16.5px; color: #fff; margin-top: 4px">{{ f.value }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 10px; display: flex; align-items: flex-start; gap: 10px; background: rgba(224, 31, 38, 0.1); border: 1px solid rgba(224, 31, 38, 0.3); border-radius: 14px; padding: 14px 16px">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f2777c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto; margin-top: 2px"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
+                                <p style="font-size: 13.5px; line-height: 1.6; color: #e8b8ba; font-weight: 500">
+                                    Payment memo is required — include <span style="color: #fff; font-weight: 700">[Buyer Name][Invoice Number][Product]</span> so your transfer is matched to your order without delay.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- How to pay rail -->
+                    <div class="sm-faqside">
+                        <h2 style="font-family: Archivo; font-weight: 800; font-size: 26px; letter-spacing: -0.02em; color: #0b1e3b; margin: 0">How paying works</h2>
+                        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 18px">
+                            <div v-for="(s, i) in steps" :key="s.title" style="display: flex; gap: 16px">
+                                <div style="flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: #0b1e3b; color: #fff; font-family: Archivo; font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; justify-content: center">
+                                    {{ i + 1 }}
+                                </div>
+                                <div>
+                                    <div style="font-family: Archivo; font-weight: 800; font-size: 16.5px; color: #0b1e3b">{{ s.title }}</div>
+                                    <p style="font-size: 14.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 4px">{{ s.body }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Verify warning -->
+                        <div style="margin-top: 26px; border-left: 3px solid #e01f26; background: #fdf1f1; border-radius: 0 16px 16px 0; padding: 18px 20px">
+                            <div style="font-family: Archivo; font-weight: 800; font-size: 15.5px; color: #0b1e3b">Verify before you pay</div>
+                            <p style="font-size: 14px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 6px">
+                                These details change only on a re-issued invoice — never by chat, email or phone. If anything you receive differs from this page, stop and contact us first.
+                            </p>
+                        </div>
+
+                        <!-- Help card -->
+                        <div style="position: relative; overflow: hidden; margin-top: 20px; border-radius: 22px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); padding: 26px">
+                            <div style="position: absolute; bottom: -100px; right: -60px; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 70%)"></div>
+                            <div style="position: relative">
+                                <div style="font-family: Archivo; font-weight: 800; font-size: 19px; color: #fff">Need help with a payment?</div>
+                                <p style="font-size: 14px; line-height: 1.6; color: #a9b7cc; font-weight: 500; margin-top: 6px">Our finance team confirms receipt and answers wire questions within one working day.</p>
+                                <Link
+                                    href="/contact-us"
+                                    class="scp2"
+                                    style="display: inline-flex; align-items: center; gap: 9px; margin-top: 18px; font-size: 14.5px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); padding: 12px 22px; border-radius: 100px; box-shadow: rgba(224, 31, 38, 0.35) 0 10px 24px; transition: transform 0.18s; text-decoration: none"
+                                >
+                                    Contact us
+                                    <span style="width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); display: inline-flex; align-items: center; justify-content: center">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                                    </span>
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <SectionDivider />
+
+            <!-- Accepted currencies -->
+            <section class="sm-body sm-sec">
+                <div style="max-width: 1280px; margin: 0 auto">
+                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
+                        <span style="width: 22px; height: 2px; background: #e01f26"></span>CURRENCIES
+                    </div>
+                    <h2 style="font-family: Archivo; font-weight: 800; font-size: 32px; letter-spacing: -0.02em; color: #0b1e3b; margin-top: 12px">We accept 15 currencies</h2>
+                    <p style="font-size: 15.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 8px; max-width: 560px">
+                        Wire in whichever is easiest for you — your invoice states the currency and the exact amount due.
                     </p>
-                  </div>
+
+                    <div class="sm-curgrid" style="margin-top: 28px">
+                        <div
+                            v-for="c in currencies"
+                            :key="c.code"
+                            style="display: flex; align-items: center; gap: 13px; background: #fff; border: 1px solid #e6eaf0; border-radius: 16px; padding: 15px 17px"
+                        >
+                            <span style="flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: #eef2f7; display: inline-flex; align-items: center; justify-content: center; font-family: Archivo; font-weight: 800; font-size: 12.5px; letter-spacing: 0.03em; color: #33445e">
+                                {{ c.code.slice(0, 2) }}
+                            </span>
+                            <div>
+                                <div style="font-family: Archivo; font-weight: 800; font-size: 15.5px; color: #0b1e3b">{{ c.code }}</div>
+                                <div style="font-size: 12.5px; font-weight: 600; color: #8895ab">{{ c.name }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              </div>
+            </section>
 
-              <!-- Bank Details Card -->
-              <div class="p-6">
-                <div class="grid md:grid-cols-2 gap-6">
-                  <!-- Left Column -->
-                  <div class="space-y-6">
-                    <div>
-                      <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-medium text-gray-500">SWIFT/BIC</h3>
-                        <button @click="copyToClipboard('CHASHKHH')"
-                          class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                          </svg>
-                          Copy
-                        </button>
-                      </div>
-                      <p class="text-lg font-medium">CHASHKHH <span class="text-sm text-gray-500">
-                          (* If 11 characters are required: CHASHKHHXXX)</span></p>
-                    </div>
-
-                    <div>
-                      <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-medium text-gray-500">Account Number</h3>
-                        <button @click="copyToClipboard('63003711840')"
-                          class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                          </svg>
-                          Copy
-                        </button>
-                      </div>
-                      <p class="text-lg font-medium">63003711840</p>
-                    </div>
-
-                    <div>
-                      <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-medium text-gray-500">Account Name</h3>
-                        <button @click="copyToClipboard('Supreme Motor Equipments Limited')"
-                          class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                          </svg>
-                          Copy
-                        </button>
-                      </div>
-                      <p class="text-lg font-medium">Supreme Motor Equipments Limited</p>
-                      <p class="text-xs text-gray-500">* If the account name is too long, you can continue filling it
-                        into the
-                        address field.</p>
-                    </div>
-                  </div>
-
-                  <!-- Right Column -->
-                  <div class="space-y-6">
-                    <div>
-                      <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-medium text-gray-500">Bank Name</h3>
-                        <button @click="copyToClipboard('JPMorgan Chase Bank N.A., Hong Kong Branch')"
-                          class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                          </svg>
-                          Copy
-                        </button>
-                      </div>
-                      <p class="text-lg font-medium">JPMorgan Chase Bank N.A., Hong Kong Branch</p>
-                    </div>
-
-                    <div>
-                      <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-medium text-gray-500">Bank Address</h3>
-                        <button
-                          @click="copyToClipboard('18/F, 20/F, 22-29/F, CHATER HOUSE, 8 CONNAUGHT ROAD CENTRAL, HONG KONG')"
-                          class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                          </svg>
-                          Copy
-                        </button>
-                      </div>
-                      <p class="text-lg font-medium">18/F, 20/F, 22-29/F, CHATER HOUSE, 8 CONNAUGHT ROAD CENTRAL, HONG
-                        KONG</p>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                      <div>
-                        <h3 class="text-sm font-medium text-gray-500 mb-2">Country/Region</h3>
-                        <p class="text-lg font-medium">Hong Kong</p>
-                      </div>
-                      <div>
-                        <h3 class="text-sm font-medium text-gray-500 mb-2">Type of Account</h3>
-                        <p class="text-lg font-medium">Business Account</p>
-                      </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                      <div>
-                        <h3 class="text-sm font-medium text-gray-500 mb-2">Bank Code</h3>
-                        <p class="text-lg font-medium">007</p>
-                      </div>
-                      <div>
-                        <h3 class="text-sm font-medium text-gray-500 mb-2">Branch Code</h3>
-                        <p class="text-lg font-medium">863 <span class="text-sm text-gray-500">* If paying from Hong
-                            Kong banks</span></p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Important Message -->
-              <div class="bg-orange-50 p-6">
-                <div class="flex">
-                  <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-orange-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
-                      fill="currentColor" aria-hidden="true">
-                      <path fill-rule="evenodd"
-                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                        clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                  <div class="ml-3">
-                    <h3 class="text-sm font-medium text-orange-800">Payment Memo Required</h3>
-                    <div class="mt-2 text-sm text-orange-700">
-                      <p>The following memo/message should be included to the receiver when making a payment:</p>
-                      <p class="font-medium mt-1">[Buyer Name][Invoice/Contract Number][Product]</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Acceptable Currencies -->
-            <div class="mt-10">
-              <h2 class="text-xl font-bold text-gray-800 mb-6">Acceptable Currencies</h2>
-              <div class="bg-white rounded-xl shadow-lg p-6">
-                <div class="grid grid-cols-3 sm:grid-cols-5 gap-4">
-                  <div v-for="currency in currencies" :key="currency.code"
-                    class="flex flex-col items-center p-3 rounded-lg hover:bg-blue-50 transition-colors duration-200 cursor-pointer  text-black"
-                    @click="copyToClipboard(currency.code)">
-                    <span class="text-2xl mb-1">{{ currency.flag }}</span>
-                    <span class="font-medium">{{ currency.code }}</span>
-                    <span class="text-xs text-gray-500">{{ currency.name }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Additional Information -->
-        <section class="py-12 bg-white">
-          <div class="max-w-5xl mx-auto px-4 sm:px-6">
-            <div class="grid md:grid-cols-3 gap-8">
-              <div class="bg-blue-50 rounded-xl p-6 text-center shadow-sm">
+            <!-- Copy toast -->
+            <Transition name="sm-toast">
                 <div
-                  class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                    v-if="toast"
+                    style="position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 10px; background: #0b1e3b; color: #fff; font-family: Archivo; font-weight: 700; font-size: 14px; padding: 13px 22px; border-radius: 100px; box-shadow: rgba(11, 30, 59, 0.35) 0 14px 34px"
+                >
+                    <span style="width: 20px; height: 20px; border-radius: 50%; background: #22a06b; display: inline-flex; align-items: center; justify-content: center">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    </span>
+                    {{ toast }}
                 </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Processing Time</h3>
-                <p class="text-gray-600">Payments are typically processed within 1-2 business days after receipt.</p>
-              </div>
-
-              <div class="bg-blue-50 rounded-xl p-6 text-center shadow-sm">
-                <div
-                  class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Secure Transactions</h3>
-                <p class="text-gray-600">All payment details are securely processed through our banking partners.</p>
-              </div>
-
-              <div class="bg-blue-50 rounded-xl p-6 text-center shadow-sm">
-                <div
-                  class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 text-blue-600 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Need Help?</h3>
-                <p class="text-gray-600">Contact our finance team for payment assistance or questions.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <!-- Toast Notification -->
-      <div v-if="showingToast"
-        class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd"
-            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-            clip-rule="evenodd" />
-        </svg>
-        {{ toastMessage }}
-      </div>
-    </FrontLayout>
-  </div>
+            </Transition>
+        </FrontLayout>
+    </div>
 </template>
 
 <style scoped>
-.animate-fade-in-down {
-  animation: fadeInDown 0.7s ease-out;
+.sm-toast-enter-active,
+.sm-toast-leave-active {
+    transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.7s ease-out;
-}
-
-@keyframes fadeInDown {
-  from {
+.sm-toast-enter-from,
+.sm-toast-leave-to {
     opacity: 0;
-    transform: translateY(-20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    transform: translateX(-50%) translateY(14px);
 }
 </style>
-
-<script>
-export default {
-  data() {
-    return {
-    }
-  },
-  methods: {
-  },
-  mounted() {
-  }
-}
-</script>
