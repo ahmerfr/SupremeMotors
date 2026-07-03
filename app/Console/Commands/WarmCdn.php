@@ -9,16 +9,32 @@ use Illuminate\Support\Facades\Http;
 
 class WarmCdn extends Command
 {
-    protected $signature = 'products:warm-cdn {--start-id=0 : Resume from this product id}';
+    protected $signature = 'products:warm-cdn
+        {--start-id= : Force a starting product id (default: resume from checkpoint)}
+        {--max-outage-retries=-1 : Give up after this many consecutive same-batch retries (-1 = never)}';
 
-    protected $description = 'Request every CDN image once so Perma-Cache stores a permanent copy; marks fronts that 404 and drops dead gallery entries';
+    protected $description = 'Request every CDN image once so Perma-Cache stores a permanent copy; resumable, outage-tolerant';
 
     private const POOL = 40;
 
+    /** Only these statuses prove the origin lost the file. Everything else is retryable. */
+    private const DEAD_STATUSES = [404, 410];
+
+    private const OUTAGE_SLEEP_SECONDS = 45;
+
     public function handle(): int
     {
-        $cursor = (int) $this->option('start-id');
+        @mkdir(config('cdn.state_dir', storage_path('app/cdn')), 0777, true);
+        $checkpointFile = config('cdn.state_dir', storage_path('app/cdn')) . '/warm.cursor';
+        $retryLog = config('cdn.state_dir', storage_path('app/cdn')) . '/warm-retry.log';
+
+        $cursor = $this->option('start-id') !== null
+            ? (int) $this->option('start-id')
+            : (int) @file_get_contents($checkpointFile);
+
+        $maxOutageRetries = (int) $this->option('max-outage-retries');
         $stats = ['products' => 0, 'warmed' => 0, 'deadFront' => 0, 'deadGallery' => 0, 'retryable' => 0];
+        $this->info("warming from cursor {$cursor}");
 
         while (true) {
             $rows = DB::table('products')
@@ -33,9 +49,7 @@ class WarmCdn extends Command
             if ($rows->isEmpty()) {
                 break;
             }
-            $cursor = $rows->last()->id;
 
-            // flat list of jobs across the batch
             $jobs = [];
             foreach ($rows as $r) {
                 if (str_contains((string) $r->front_image, '.b-cdn.net')) {
@@ -48,24 +62,39 @@ class WarmCdn extends Command
                 }
             }
 
-            $dead = [];
-            foreach (collect($jobs)->chunk(self::POOL) as $chunk) {
-                $responses = Http::pool(fn ($pool) => $chunk->map(
-                    fn ($url, $k) => $pool->as((string) $k)->timeout(30)->head($url)
-                )->all());
-                foreach ($chunk as $k => $url) {
-                    $resp = $responses[(string) $k] ?? null;
-                    if ($resp instanceof Response && $resp->successful()) {
-                        $stats['warmed']++;
-                    } elseif ($resp instanceof Response) {
-                        $dead[$k] = true;
-                    } else {
-                        $stats['retryable']++;
-                    }
+            // probe the whole batch; classify each URL
+            $outageRetries = 0;
+            while (true) {
+                [$dead, $retryable, $warmed, $connFailures] = $this->probe($jobs);
+
+                // Circuit breaker: if most of the batch failed at the connection
+                // level the network is down, not the images. Never advance or
+                // write anything based on an outage — retry the same batch.
+                $isOutage = count($jobs) > 0 && $connFailures / count($jobs) > 0.5;
+                if (! $isOutage) {
+                    break;
                 }
+                $outageRetries++;
+                if ($maxOutageRetries >= 0 && $outageRetries > $maxOutageRetries) {
+                    $this->warn("network outage persisted; stopping at cursor {$cursor} (resume will pick up here)");
+
+                    return self::FAILURE;
+                }
+                $this->warn("network outage detected ({$connFailures}/" . count($jobs) . ' failed) — retrying batch in ' . self::OUTAGE_SLEEP_SECONDS . 's');
+                sleep(self::OUTAGE_SLEEP_SECONDS);
             }
 
-            // apply dead marks / gallery drops
+            $stats['warmed'] += $warmed;
+            $stats['retryable'] += count($retryable);
+            if ($retryable !== []) {
+                $lines = '';
+                foreach ($retryable as $k => $url) {
+                    $lines .= "{$k}\t{$url}\n";
+                }
+                @file_put_contents($retryLog, $lines, FILE_APPEND);
+            }
+
+            // apply confirmed-dead marks / gallery drops
             foreach ($rows as $r) {
                 $update = [];
                 if (isset($dead["{$r->id}|front"])) {
@@ -91,13 +120,56 @@ class WarmCdn extends Command
                 }
             }
 
+            // advance + persist the checkpoint only after the batch fully landed
+            $cursor = $rows->last()->id;
+            file_put_contents($checkpointFile, (string) $cursor);
+
             $stats['products'] += $rows->count();
             if ($stats['products'] % 5000 < 200) {
                 $this->info("products {$stats['products']} | warmed {$stats['warmed']} | dead front {$stats['deadFront']} | dead gallery {$stats['deadGallery']} | retryable {$stats['retryable']} | cursor {$cursor}");
             }
         }
 
-        $this->info("DONE: products {$stats['products']} | warmed {$stats['warmed']} | dead front {$stats['deadFront']} | dead gallery {$stats['deadGallery']} | retryable {$stats['retryable']}");
+        $summary = "products {$stats['products']} | warmed {$stats['warmed']} | dead front {$stats['deadFront']} | dead gallery {$stats['deadGallery']} | retryable {$stats['retryable']}";
+        file_put_contents(config('cdn.state_dir', storage_path('app/cdn')) . '/warm.done', now()->toDateTimeString() . "\n" . $summary . "\n");
+        $this->info('WARM COMPLETE: ' . $summary);
+
         return self::SUCCESS;
+    }
+
+    /**
+     * HEAD every job URL. Returns [confirmed dead, retryable, warmed count, connection failures].
+     *
+     * @param  array<string, string>  $jobs
+     * @return array{0: array<string, bool>, 1: array<string, string>, 2: int, 3: int}
+     */
+    private function probe(array $jobs): array
+    {
+        $dead = [];
+        $retryable = [];
+        $warmed = 0;
+        $connFailures = 0;
+
+        foreach (collect($jobs)->chunk(self::POOL) as $chunk) {
+            $responses = Http::pool(fn ($pool) => $chunk->map(
+                fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout(45)->head($url)
+            )->all());
+            foreach ($chunk as $k => $url) {
+                $resp = $responses[(string) $k] ?? null;
+                if ($resp instanceof Response && $resp->successful()) {
+                    $warmed++;
+                } elseif ($resp instanceof Response && in_array($resp->status(), self::DEAD_STATUSES, true)) {
+                    $dead[$k] = true;
+                } elseif ($resp instanceof Response) {
+                    // 5xx / 429 / anything else: the file may be fine — retry later
+                    $retryable[$k] = $url;
+                } else {
+                    $retryable[$k] = $url;
+                    $connFailures++;
+                }
+            }
+        }
+
+        return [$dead, $retryable, $warmed, $connFailures];
     }
 }
