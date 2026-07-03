@@ -281,13 +281,13 @@ html {
     .tq-enter-active, .tq-leave-active { transition: opacity 0.2s; }
 }
 /* Fixed card height: quote length must never resize the section. */
-.sm-tqcard { height: 440px; }
+.sm-tqcard { height: 470px; }
 @media (max-width: 1080px) {
     .sm-testgrid { grid-template-columns: 1fr !important; }
     .sm-testcol { height: 340px; }
 }
 @media (max-width: 700px) {
-    .sm-tqcard { height: 560px; padding: 28px 24px 24px !important; }
+    .sm-tqcard { height: 600px; padding: 28px 24px 24px !important; }
     .sm-tquote { font-size: 18px !important; }
 }
 

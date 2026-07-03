@@ -104,9 +104,15 @@ const select = (i) => {
 };
 
 const stripEl = ref(null);
+// Scroll the strip only (scrollIntoView may scroll the page itself), and to
+// an absolute centered target: reading scrollTop for a "nearest" check races
+// with still-running smooth scrolls and goes stale.
 const scrollActiveIntoView = () => {
-    const el = stripEl.value?.children[active.value];
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    const strip = stripEl.value;
+    const el = strip?.children[active.value];
+    if (!strip || !el) return;
+    const target = el.offsetTop - (strip.clientHeight - el.offsetHeight) / 2;
+    strip.scrollTo({ top: Math.max(0, Math.min(target, strip.scrollHeight - strip.clientHeight)), behavior: 'smooth' });
 };
 
 const sectionEl = ref(null);
@@ -153,10 +159,12 @@ onBeforeUnmount(() => {
                     <div class="sm-tqcard" style="position: relative; overflow: hidden; display: flex; flex-direction: column; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730); border-radius: 24px; padding: 42px 48px 28px; box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08)">
                         <div style="position: absolute; bottom: -140px; right: -80px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.13), transparent 70%)"></div>
 
-                        <div style="position: relative; flex: 1; min-height: 0; display: flex; align-items: flex-start; gap: 22px">
-                            <div style="flex: 0 0 auto; width: 50px; height: 50px; border-radius: 15px; background: linear-gradient(150deg, #e5262d, #c8151c); box-shadow: rgba(224, 31, 38, 0.35) 0 10px 24px; display: flex; align-items: center; justify-content: center">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M10 7H6.5C5.1 7 4 8.1 4 9.5V13c0 1.4 1.1 2.5 2.5 2.5H9c0 2-1.5 3.2-3.4 3.5l.6 1.9C9.4 20.4 11 18.2 11 15V8c0-.6-.4-1-1-1zm9 0h-3.5C14.1 7 13 8.1 13 9.5V13c0 1.4 1.1 2.5 2.5 2.5H18c0 2-1.5 3.2-3.4 3.5l.6 1.9c3.2-.5 4.8-2.7 4.8-5.9V8c0-.6-.4-1-1-1z" /></svg>
-                            </div>
+                        <!-- Decorative quote badge: absolute + half opacity, out of the layout flow -->
+                        <div style="position: absolute; top: 30px; left: 36px; z-index: 0; opacity: 0.5; width: 64px; height: 64px; border-radius: 18px; background: linear-gradient(150deg, #e5262d, #c8151c); display: flex; align-items: center; justify-content: center">
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M10 7H6.5C5.1 7 4 8.1 4 9.5V13c0 1.4 1.1 2.5 2.5 2.5H9c0 2-1.5 3.2-3.4 3.5l.6 1.9C9.4 20.4 11 18.2 11 15V8c0-.6-.4-1-1-1zm9 0h-3.5C14.1 7 13 8.1 13 9.5V13c0 1.4 1.1 2.5 2.5 2.5H18c0 2-1.5 3.2-3.4 3.5l.6 1.9c3.2-.5 4.8-2.7 4.8-5.9V8c0-.6-.4-1-1-1z" /></svg>
+                        </div>
+
+                        <div style="position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; padding-top: 58px">
                             <div style="flex: 1; min-width: 0; position: relative; align-self: stretch">
                                 <Transition name="tq" mode="out-in">
                                     <div :key="active" style="position: absolute; inset: 0; display: flex; flex-direction: column">
@@ -215,7 +223,7 @@ onBeforeUnmount(() => {
 
                 <!-- Vertical scroller of all voices -->
                 <div class="sm-testcol" style="position: relative">
-                    <div ref="stripEl" class="sm-teststrip" style="position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px; scroll-snap-type: y proximity">
+                    <div ref="stripEl" class="sm-teststrip" style="position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px 6px 8px 2px; scroll-padding-top: 2px; scroll-snap-type: y proximity">
                         <button
                             v-for="(t, i) in testimonials"
                             :key="t.name"
@@ -226,7 +234,7 @@ onBeforeUnmount(() => {
                                 transition: 'all 0.45s cubic-bezier(0.32, 0.72, 0, 1)',
                                 background: i === active ? '#fff' : '#f8fafc',
                                 border: i === active ? '1px solid rgba(224, 31, 38, 0.45)' : '1px solid #eef1f6',
-                                boxShadow: i === active ? 'rgba(224, 31, 38, 0.08) 0 12px 26px' : 'none',
+                                boxShadow: i === active ? 'rgba(224, 31, 38, 0.08) 0 8px 20px' : 'none',
                             }"
                             @click="select(i)"
                         >
