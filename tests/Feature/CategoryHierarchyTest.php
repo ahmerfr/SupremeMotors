@@ -56,6 +56,19 @@ class CategoryHierarchyTest extends TestCase
         $this->assertEqualsCanonicalizing(['Howo Dumper', 'Plain Truck'], $titles->all());
     }
 
+    public function test_admin_category_list_rolls_up_parent_counts(): void
+    {
+        [$trucks, $dump] = $this->seedTree();
+        $admin = \App\Models\User::factory()->admin()->create();
+
+        $response = $this->actingAs($admin)->get('/admin/categories');
+
+        $response->assertOk();
+        $rows = collect($response->original->getData()['page']['props']['categories']['data']);
+        $this->assertSame(2, $rows->firstWhere('id', $trucks->id)['products_count']);
+        $this->assertSame(1, $rows->firstWhere('id', $dump->id)['products_count']);
+    }
+
     public function test_homepage_categories_are_top_level_with_rolled_up_counts(): void
     {
         $this->seedTree();

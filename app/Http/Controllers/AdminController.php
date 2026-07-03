@@ -155,6 +155,29 @@ class AdminController extends Controller
             });
         }
         $categories = $categories->paginate(15)->withQueryString();
+
+        // Parent rows roll up their subcategories' products (a parent like
+        // Equipment holds no products directly, so the raw count reads 0).
+        if ($type === 'category') {
+            $counts = Products::query()
+                ->whereNotNull('category_id')
+                ->groupBy('category_id')
+                ->selectRaw('category_id, COUNT(*) as c')
+                ->pluck('c', 'category_id');
+            $childrenByParent = Categories::where('type', 'category')
+                ->whereNotNull('parent_id')
+                ->get(['id', 'parent_id'])
+                ->groupBy('parent_id');
+
+            $categories->getCollection()->transform(function ($c) use ($counts, $childrenByParent) {
+                if ($c->parent_id === null) {
+                    $c->products_count = ($counts[$c->id] ?? 0)
+                        + ($childrenByParent[$c->id] ?? collect())->sum(fn ($ch) => $counts[$ch->id] ?? 0);
+                }
+                return $c;
+            });
+        }
+
         return $categories;
     }
 
