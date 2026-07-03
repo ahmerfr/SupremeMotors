@@ -77,6 +77,24 @@ class DashboardController extends Controller
     }
 
 
+    public function body_type_products()
+    {
+        $style = (string) request()->query('style', '');
+
+        // Slim payload for the homepage tiles: no pagination count, no
+        // product_details blob — the full listing endpoint sends ~100KB.
+        return Cache::remember('home_bt_' . md5($style), 60, function () use ($style) {
+            return Products::with(['category:id,cat_title', 'make:id,cat_title'])
+                ->where('body_style', $style)
+                ->whereNotNull('front_image')
+                ->select('id', 'title', 'front_image', 'price', 'website', 'country',
+                    'category_id', 'make_id', 'fuel', 'transmission', 'mileage_km')
+                ->latest('created_at')
+                ->limit(6)
+                ->get();
+        });
+    }
+
     public function filter_bodystyle()
     {
         $body_styles = request()->body_style;

@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminController;
 
 Route::get('/', [DashboardController::class, 'home'])->name('home');
 Route::get('/filter-bodystyle', [DashboardController::class, 'filter_bodystyle'])->name('filter-bodystyle');
+Route::get('/home/body-type-products', [DashboardController::class, 'body_type_products'])->name('home.body-type-products');
 Route::get('/filter-countryproducts', [DashboardController::class, 'filter_countryproducts'])->name('filter-countryproducts');
 
 Route::prefix('category')->name('product-category.')->group(function () {

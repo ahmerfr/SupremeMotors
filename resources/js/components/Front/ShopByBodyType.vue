@@ -3,23 +3,11 @@ import ProductCard from '@/components/Front/ProductCard.vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
+import BodyTypeIcon from '@/components/Front/BodyTypeIcon.vue';
 
 const props = defineProps({
     bodyTypes: { type: Array, default: () => [] },
 });
-
-const icons = {
-    'Van / Minivan': '🚐',
-    'SUV': '🚙',
-    'Mini Vehicle': '🚗',
-    'Hatchback': '🚘',
-    'Sedan': '🚗',
-    'Wagon': '🚐',
-    'Truck': '🛻',
-    'Coupe': '🏎️',
-    'Convertible': '🏎️',
-    'Bus': '🚌',
-};
 
 const active = ref(props.bodyTypes[0]?.body_style ?? null);
 const products = ref([]);
@@ -29,8 +17,8 @@ const load = async (style) => {
     active.value = style;
     loading.value = true;
     try {
-        const { data } = await axios.get('/inventory/listing', { params: { type: 'search', body_style: style } });
-        products.value = (data.data || []).slice(0, 6);
+        const { data } = await axios.get('/home/body-type-products', { params: { style } });
+        products.value = data || [];
     } catch {
         products.value = [];
     } finally {
@@ -74,7 +62,7 @@ onMounted(() => {
                     }"
                     @click="load(t.body_style)"
                 >
-                    <div style="font-size: 30px; line-height: 1" :style="{ filter: active === t.body_style ? 'none' : 'grayscale(0.6)' }">{{ icons[t.body_style] || '🚗' }}</div>
+                    <div :style="{ color: active === t.body_style ? '#ff6b70' : '#8494ab', transition: '0.18s' }"><BodyTypeIcon :type="t.body_style" /></div>
                     <div :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '14px', marginTop: '10px', color: active === t.body_style ? '#fff' : '#0b1e3b' }">{{ t.body_style }}</div>
                     <div :style="{ fontSize: '11.5px', fontWeight: 700, marginTop: '3px', color: active === t.body_style ? '#a9b7cc' : '#8494ab' }">{{ Number(t.count).toLocaleString() }}</div>
                 </button>
