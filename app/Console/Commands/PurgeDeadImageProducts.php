@@ -12,18 +12,28 @@ class PurgeDeadImageProducts extends Command
 {
     protected $signature = 'products:purge-dead-images
         {--check-only : Verify and mark, but delete nothing}
+        {--rescue-only : Skip the front-image sweep; rescue/condemn only already-marked products}
+        {--pool=40 : Concurrent HTTP checks}
         {--gallery-probe=3 : How many other_images to try before declaring a product imageless}';
 
     protected $description = 'Verify every product front image, rescue products via alive gallery images, delete products with no working image at all';
 
     private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-    private const POOL = 40;
 
+    private int $pool = 40;
     private int $skippedUnknown = 0;
 
     public function handle(): int
     {
-        $this->checkFrontImages();
+        $this->pool = max(5, (int) $this->option('pool'));
+
+        if (!$this->option('rescue-only')) {
+            $this->checkFrontImages();
+        } else {
+            $this->info('rescue-only: skipping front sweep ('
+                . DB::table('products')->whereNotNull('front_image_dead_at')->count()
+                . ' products already marked)');
+        }
         [$rescued, $doomed] = $this->rescueOrCondemn();
 
         // Products with no front image at all were never sellable either.
@@ -97,7 +107,7 @@ class PurgeDeadImageProducts extends Command
             }
 
             $remote = $rows->filter(fn ($r) => str_starts_with($r->front_image, 'http'));
-            foreach ($remote->chunk(self::POOL) as $chunk) {
+            foreach ($remote->chunk($this->pool) as $chunk) {
                 $responses = Http::pool(fn ($pool) => $chunk->mapWithKeys(
                     fn ($r) => [(string) $r->id => $pool->as((string) $r->id)
                         ->withHeaders(['User-Agent' => self::USER_AGENT])->timeout(8)->head($r->front_image)]
@@ -166,7 +176,7 @@ class PurgeDeadImageProducts extends Command
                 if ($pending->isEmpty()) {
                     continue;
                 }
-                foreach ($pending->chunk(self::POOL) as $chunk) {
+                foreach ($pending->chunk($this->pool) as $chunk) {
                     $responses = Http::pool(fn ($pool) => $chunk->map(
                         fn ($url, $id) => $pool->as((string) $id)
                             ->withHeaders(['User-Agent' => self::USER_AGENT])->timeout(8)->head($url)
