@@ -186,12 +186,12 @@ const jump = (id) => {
                     </div>
 
                     <!-- Sections -->
-                    <div style="display: flex; flex-direction: column; gap: 14px">
+                    <div style="display: flex; flex-direction: column; gap: 42px">
                         <article
                             v-for="(s, i) in sections"
                             :id="s.id"
                             :key="s.id"
-                            style="scroll-margin-top: 228px; background: #fff; border: 1px solid #e6eaf0; border-radius: 18px; box-shadow: rgba(11, 30, 59, 0.04) 0 4px 14px; padding: 30px 34px"
+                            style="scroll-margin-top: 228px"
                         >
                             <h2 style="display: flex; align-items: baseline; gap: 14px; font-family: Archivo; font-weight: 800; font-size: 20px; letter-spacing: -0.01em; color: #0b1e3b; margin: 0">
                                 <span style="color: #e01f26; font-size: 15px">{{ String(i + 1).padStart(2, '0') }}</span>

@@ -75,7 +75,7 @@ const socials = [
 </script>
 
 <template>
-    <footer class="sm-body sm-footgap" style="background: linear-gradient(180deg, #0b1e3b, #081730)">
+    <footer class="sm-body" style="background: linear-gradient(180deg, #0b1e3b, #081730)">
         <!-- Stay updated strip (kept per user requirement; not in the design mock) -->
         <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.09)">
             <div class="sm-footnews" style="max-width: 1180px; margin: 0 auto; padding: 48px 24px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap">
