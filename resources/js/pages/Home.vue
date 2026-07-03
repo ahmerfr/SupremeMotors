@@ -6,6 +6,7 @@ import ExploreCategories from '@/components/Front/ExploreCategories.vue';
 import BrandsExplorer from '@/components/Front/BrandsExplorer.vue';
 import ShopByBodyType from '@/components/Front/ShopByBodyType.vue';
 import RecommendedForYou from '@/components/Front/RecommendedForYou.vue';
+import Testimonials from '@/components/Front/Testimonials.vue';
 import CantFindCta from '@/components/Front/CantFindCta.vue';
 
 defineProps({
@@ -35,6 +36,7 @@ defineProps({
             <BrandsExplorer :makes="makes" />
             <ShopByBodyType :body-types="body_types || []" />
             <RecommendedForYou :china="featured_products_china" :japan="featured_products_japan" :europe="featured_products_europe" />
+            <Testimonials />
             <CantFindCta />
         </FrontLayout>
     </div>
