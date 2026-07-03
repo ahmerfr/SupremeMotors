@@ -23,10 +23,30 @@ class VerifyProductImages extends Command
     {
         $segments = [];
         foreach (Products::whereNotNull('body_style')->distinct()->pluck('body_style') as $style) {
-            $segments[] = ['label' => "body:{$style}", 'column' => 'body_style', 'value' => $style];
+            $segments[] = ['label' => "body:{$style}", 'wheres' => ['body_style' => $style]];
+
+            // The body-type section interleaves makes, so each top make of
+            // the segment needs a few verified-alive rows of its own.
+            $topMakes = Products::query()
+                ->where('body_style', $style)
+                ->whereNotNull('make_id')
+                ->whereNotNull('front_image')
+                ->groupBy('make_id')
+                ->selectRaw('make_id, COUNT(*) as c')
+                ->orderByDesc('c')
+                ->limit(5)
+                ->pluck('make_id');
+            foreach ($topMakes as $makeId) {
+                $segments[] = [
+                    'label' => "body:{$style}/make:{$makeId}",
+                    'wheres' => ['body_style' => $style, 'make_id' => $makeId],
+                    'target' => 4,
+                    'cap' => 250,
+                ];
+            }
         }
         foreach (['Japan', 'China', 'Thailand'] as $country) {
-            $segments[] = ['label' => "country:{$country}", 'column' => 'country', 'value' => $country];
+            $segments[] = ['label' => "country:{$country}", 'wheres' => ['country' => $country]];
         }
 
         foreach ($segments as $segment) {
@@ -38,8 +58,8 @@ class VerifyProductImages extends Command
 
     private function verifySegment(array $segment): void
     {
-        $target = (int) $this->option('per-segment');
-        $cap = (int) $this->option('scan-cap');
+        $target = $segment['target'] ?? (int) $this->option('per-segment');
+        $cap = $segment['cap'] ?? (int) $this->option('scan-cap');
         $alive = 0;
         $dead = 0;
         $scanned = 0;
@@ -47,7 +67,7 @@ class VerifyProductImages extends Command
 
         while ($alive < $target && $scanned < $cap) {
             $rows = Products::query()
-                ->where($segment['column'], $segment['value'])
+                ->where($segment['wheres'])
                 ->whereNotNull('front_image')
                 ->whereNull('front_image_dead_at')
                 ->when($cursor, fn ($q) => $q->where('created_at', '<', $cursor))

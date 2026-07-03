@@ -87,16 +87,27 @@ class DashboardController extends Controller
 
         // Slim payload for the homepage tiles: no pagination count, no
         // product_details blob — the full listing endpoint sends ~100KB.
+        // Plain newest-first returns a single-make wall (the newest scrape
+        // region is Toyota-dominated), so interleave the newest rows of each
+        // make instead: every make's freshest card first, then seconds, etc.
         return Cache::remember('home_bt_' . md5($style), 60, function () use ($style) {
+            $ids = collect(\DB::select(
+                'SELECT id FROM (
+                    SELECT id, created_at,
+                           ROW_NUMBER() OVER (PARTITION BY make_id ORDER BY created_at DESC) AS rn
+                    FROM products
+                    WHERE body_style = ? AND front_image IS NOT NULL AND front_image_dead_at IS NULL
+                ) t WHERE rn <= 6 ORDER BY rn ASC, created_at DESC LIMIT 36',
+                [$style]
+            ))->pluck('id');
+
             return Products::with(['category:id,cat_title', 'make:id,cat_title'])
-                ->where('body_style', $style)
-                ->whereNotNull('front_image')
-                ->whereNull('front_image_dead_at')
+                ->whereIn('id', $ids)
                 ->select('id', 'title', 'front_image', 'price', 'website', 'country',
                     'category_id', 'make_id', 'fuel', 'transmission', 'mileage_km')
-                ->latest('created_at')
-                ->limit(40)
-                ->get();
+                ->get()
+                ->sortBy(fn ($p) => $ids->search($p->id))
+                ->values();
         });
     }
 
