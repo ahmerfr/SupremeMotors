@@ -20,7 +20,7 @@ import { Link } from '@inertiajs/vue3';
                             Can't find what you're looking for?
                         </h2>
                         <p style="font-size: 15.5px; line-height: 1.65; color: #a9b7cc; font-weight: 500; margin-top: 14px">
-                            Tell our specialists what you need. We source cars, trucks and heavy machinery directly from Japan and China — including stock that never makes it to the site.
+                            Tell our specialists what you need. We source cars, trucks and heavy machinery directly from Japan, China and Europe — including stock that never makes it to the site.
                         </p>
                     </div>
                     <Link

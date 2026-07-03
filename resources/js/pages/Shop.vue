@@ -340,14 +340,14 @@ function toggleFilters() {
                         <img loading="lazy" src="https://flagcdn.com/w40/jp.png" alt="Japan" class="w-8 h-6 object-cover" />
                         <span class="ml-3 text-sm text-gray-700">Japan</span>
                       </div>
-                      <!-- <div
-                        @click="selectedCountry = 'Thailand'; applyFilters()"
+                      <div
+                        @click="selectedCountry = 'Europe'; applyFilters()"
                         class="flex items-center cursor-pointer p-2 rounded-lg transition hover:bg-gray-100"
-                        :class="{ 'bg-blue-50 border border-blue-500': selectedCountry === 'Thailand' }"
+                        :class="{ 'bg-blue-50 border border-blue-500': selectedCountry === 'Europe' }"
                       >
-                        <img src="https://flagcdn.com/w40/th.png" alt="Thailand" class="w-8 h-6 object-cover" />
-                        <span class="ml-3 text-sm text-gray-700">Thailand</span>
-                      </div> -->
+                        <img loading="lazy" src="https://flagcdn.com/w40/eu.png" alt="Europe" class="w-8 h-6 object-cover" />
+                        <span class="ml-3 text-sm text-gray-700">Europe</span>
+                      </div>
                     </div>
                   </div>
 

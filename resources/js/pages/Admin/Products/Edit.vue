@@ -338,6 +338,7 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                     <option value="" disabled>Select Country</option>
                                     <option value="China">China</option>
                                     <option value="Japan">Japan</option>
+                                    <option value="Europe">Europe</option>
                                 </select>
                                 <p v-if="errors.country" class="mt-1 text-sm text-red-500">
                                     {{ errors.country[0] }}

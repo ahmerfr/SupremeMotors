@@ -60,7 +60,7 @@ const fmt = (n) => Number(n).toLocaleString();
                 <div>
                     <p style="font-size: 14.5px; line-height: 1.7; color: #8494ab; font-weight: 600; max-width: 520px">
                         Browse our wide range of trucks, cars and heavy machinery and find the perfect vehicle to match your work and needs.
-                        <br />We offer various brands across Japan and China.
+                        <br />We offer various brands across Japan, China and Europe.
                     </p>
 
                     <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin: 28px 0 14px">OTHER BRANDS:</div>

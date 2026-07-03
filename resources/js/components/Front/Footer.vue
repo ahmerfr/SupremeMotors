@@ -142,7 +142,7 @@ const subscribe = async () => {
                     <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 56px; width: auto; object-fit: contain" />
                 </Link>
                 <p style="font-size: 14px; line-height: 1.65; color: #93a3bd; font-weight: 500; margin-top: 20px; max-width: 260px">
-                    Quality cars, trucks and heavy machinery sourced from Japan and China — with clarity, care and confidence.
+                    Quality cars, trucks and heavy machinery sourced from Japan, China and Europe — with clarity, care and confidence.
                 </p>
                 <div style="display: flex; gap: 10px; margin-top: 22px">
                     <a

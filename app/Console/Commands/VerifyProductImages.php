@@ -45,7 +45,7 @@ class VerifyProductImages extends Command
                 ];
             }
         }
-        foreach (['Japan', 'China', 'Thailand'] as $country) {
+        foreach (['Japan', 'China', 'Europe'] as $country) {
             $segments[] = ['label' => "country:{$country}", 'wheres' => ['country' => $country]];
         }
 

@@ -60,7 +60,7 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                 </h1>
 
                 <p style="font-size: 18px; line-height: 1.6; color: #a9b7cc; margin: 24px 0 0; max-width: 490px">
-                    From family cars to heavy trucks and construction machinery. Sourced across Japan and China, inspected with care, and delivered wherever the road takes you.
+                    From family cars to heavy trucks and construction machinery. Sourced across Japan, China and Europe, inspected with care, and delivered wherever the road takes you.
                 </p>
 
                 <div style="display: flex; gap: 14px; margin-top: 34px; flex-wrap: wrap">

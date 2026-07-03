@@ -6,13 +6,17 @@ import { computed, ref } from 'vue';
 const props = defineProps({
     china: { type: Array, default: () => [] },
     japan: { type: Array, default: () => [] },
+    europe: { type: Array, default: () => [] },
 });
 
 const tabs = [
     { key: 'japan', label: 'Japan' },
     { key: 'china', label: 'China' },
+    { key: 'europe', label: 'Europe' },
 ];
 const active = ref('japan');
+const lists = { japan: () => props.japan, china: () => props.china, europe: () => props.europe };
+const countryName = { japan: 'Japan', china: 'China', europe: 'Europe' };
 
 // Cards whose image 404s (dead/hotlink-blocked scrape URLs) are dropped and
 // backfilled from the extra candidates the backend sends.
@@ -22,7 +26,7 @@ const markFailed = (id) => {
 };
 
 const products = computed(() =>
-    (active.value === 'china' ? props.china : props.japan).filter((p) => !failed.value.has(p.id)).slice(0, 6),
+    lists[active.value]().filter((p) => !failed.value.has(p.id)).slice(0, 6),
 );
 
 </script>
@@ -40,7 +44,7 @@ const products = computed(() =>
                         Recommended for you
                     </h2>
                     <p style="font-size: 16px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 14px; max-width: 520px">
-                        Hand-picked cars, trucks and machinery from our latest stock in Japan and China, ready for the road or the job site.
+                        Hand-picked cars, trucks and machinery from our latest stock in Japan, China and Europe, ready for the road or the job site.
                     </p>
                 </div>
 
@@ -70,10 +74,10 @@ const products = computed(() =>
 
             <div style="display: flex; justify-content: center; margin-top: 36px">
                 <Link
-                    :href="`/inventory?country=${active === 'china' ? 'China' : 'Japan'}`"
+                    :href="`/inventory?country=${countryName[active]}`"
                     class="scp2"
                     style="display: inline-flex; align-items: center; gap: 9px; font-size: 14.5px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #12284a, #0b1e3b); padding: 15px 28px; border-radius: 13px; box-shadow: rgba(11, 30, 59, 0.25) 0 12px 28px; transition: transform 0.18s; text-decoration: none"
-                >View all {{ active === 'china' ? 'China' : 'Japan' }} stock →</Link>
+                >View all {{ countryName[active] }} stock →</Link>
             </div>
         </div>
     </section>

@@ -15,6 +15,7 @@ defineProps({
     body_types: Object,
     featured_products_china: Object,
     featured_products_japan: Object,
+    featured_products_europe: Object,
 });
 </script>
 
@@ -33,7 +34,7 @@ defineProps({
             <ExploreCategories :categories="categories" />
             <BrandsExplorer :makes="makes" />
             <ShopByBodyType :body-types="body_types || []" />
-            <RecommendedForYou :china="featured_products_china" :japan="featured_products_japan" />
+            <RecommendedForYou :china="featured_products_china" :japan="featured_products_japan" :europe="featured_products_europe" />
             <CantFindCta />
         </FrontLayout>
     </div>

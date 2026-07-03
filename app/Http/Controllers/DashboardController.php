@@ -87,7 +87,7 @@ class DashboardController extends Controller
                 'body_types' => $body_types,
                 'featured_products_china' => $featured('China'),
                 'featured_products_japan' => $featured('Japan'),
-                'featured_products_thailand' => $featured('Thailand'),
+                'featured_products_europe' => $featured('Europe'),
             ];
         });
 
