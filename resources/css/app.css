@@ -257,6 +257,24 @@ html {
     .sm-footgap { margin-top: 40px; }
 }
 
+/* Green "online" pulse dot (live indicators) */
+.sm-livedot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+    animation: sm-livepulse 2s ease-out infinite;
+}
+@keyframes sm-livepulse {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+    70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sm-livedot { animation: none; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
+}
+
 .sm-typesrow { scrollbar-width: none; }
 .sm-typesrow::-webkit-scrollbar { display: none; }
 

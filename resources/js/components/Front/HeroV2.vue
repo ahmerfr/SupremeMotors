@@ -102,7 +102,9 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                         <div style="font-family: Archivo; font-weight: 800; font-size: 23px; letter-spacing: -0.015em; color: #0b1e3b; line-height: 1.2">
                             Search <span style="color: #e01f26">{{ stockTotal }}</span> vehicles
                         </div>
-                        <div style="font-size: 12.5px; font-weight: 700; color: #9aa8bd; letter-spacing: 0.04em; white-space: nowrap">LIVE STOCK</div>
+                        <div style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #9aa8bd; letter-spacing: 0.04em; white-space: nowrap">
+                            <span class="sm-livedot"></span>LIVE STOCK
+                        </div>
                     </div>
 
                     <div style="margin-top: 22px">
