@@ -17,7 +17,7 @@ class ShopController extends Controller
 {
     public function home()
     {
-        $data = Cache::remember('shop_home_data', 1800, function () {
+        $data = Cache::flexible('shop_home_data', [1800, 86400], function () {
             // Filter sidebar shows the 7 top-level categories; each count
             // rolls up the category's own products plus its subcategories'.
             $counts = Products::query()
@@ -158,7 +158,7 @@ class ShopController extends Controller
         $query->orderByDesc('created_at');
         $page = max(1, (int) $request->input('page', 1));
         $countKey = 'listing_count_' . md5(json_encode(collect($request->except('page'))->sortKeys()->all()));
-        $total = Cache::remember($countKey, 300, fn () => $query->toBase()->getCountForPagination());
+        $total = Cache::flexible($countKey, [300, 3600], fn () => $query->toBase()->getCountForPagination());
 
         $results = new \Illuminate\Pagination\LengthAwarePaginator(
             $query->forPage($page, 30)->get(),

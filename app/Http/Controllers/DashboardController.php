@@ -23,10 +23,10 @@ class DashboardController extends Controller
         // Home.vue consumes: categories/makes with `products_count`, and
         // featured_products_{china,japan,thailand} cards that use the
         // category relation, website and price.
-        // Long TTL + scheduled pages:warm refresh: visitors never pay the
-        // rebuild (cold rebuild scans 453K rows several times, ~18s on a
-        // cold buffer pool).
-        $data = Cache::remember('home_page_data', 1800, function () {
+        // Stale-while-revalidate: after 30 min the next visitor still gets
+        // the cached payload instantly and the rebuild (453K-row scans,
+        // ~16s cold) runs after their response is sent. No cron needed.
+        $data = Cache::flexible('home_page_data', [1800, 86400], function () {
             $makeCounts = Products::query()
                 ->whereNotNull('make_id')
                 ->groupBy('make_id')
@@ -107,7 +107,7 @@ class DashboardController extends Controller
         // Plain newest-first returns a single-make wall (the newest scrape
         // region is Toyota-dominated), so interleave the newest rows of each
         // make instead: every make's freshest card first, then seconds, etc.
-        return Cache::remember('home_bt_' . md5($style), 900, function () use ($style) {
+        return Cache::flexible('home_bt_' . md5($style), [900, 86400], function () use ($style) {
             $ids = collect(\DB::select(
                 'SELECT id FROM (
                     SELECT id, created_at,
