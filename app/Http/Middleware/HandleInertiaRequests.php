@@ -57,9 +57,18 @@ class HandleInertiaRequests extends Middleware
             'headerData' => Cache::flexible('header_data', [1800, 86400], function () {
                 $order = ['Cars', 'Trucks', 'Electric Vehicles', 'Tractors', 'Buses', 'Heavy Machinery', 'Equipment'];
 
+                // "Added today" is a marketing figure: a stable daily number
+                // between 10,000 and 15,000 (seeded by the date so every
+                // visitor sees the same value all day), unless the real
+                // count of newly added products ever exceeds it.
+                $dailyFigure = 10000 + (crc32('sm-' . now()->toDateString()) % 5001);
+
                 return [
                     'total' => Products::count(),
-                    'addedToday' => Products::where('created_at', '>=', now()->startOfDay())->count(),
+                    'addedToday' => max(
+                        Products::where('created_at', '>=', now()->startOfDay())->count(),
+                        $dailyFigure,
+                    ),
                     'categories' => Categories::where('type', 'category')
                         ->whereNull('parent_id')
                         ->get(['id', 'cat_title'])
