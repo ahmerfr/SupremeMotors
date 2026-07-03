@@ -29,4 +29,9 @@ class StaticPagesTest extends TestCase
     {
         $this->get('/how-to-buy')->assertOk()->assertInertia(fn (Assert $page) => $page->component('HowtoBuy'));
     }
+
+    public function test_about_us_page_renders(): void
+    {
+        $this->get('/about-us')->assertOk()->assertInertia(fn (Assert $page) => $page->component('AboutUs'));
+    }
 }
