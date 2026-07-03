@@ -142,6 +142,7 @@ class AdminController extends Controller
         $keywords = request()->keywords;
         $categories = Categories::query()
             ->where('type', $type)
+            ->withCount([($type === 'make' ? 'make_products' : 'cat_products') . ' as products_count'])
             ->orderBy('created_at', 'desc');
         if ($keywords) {
             $categories->where(function ($query) use ($keywords) {

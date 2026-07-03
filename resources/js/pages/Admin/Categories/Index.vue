@@ -51,28 +51,40 @@ const search = () => {
 
             <EmptyState v-if="!categories.data.length" :message="`No ${label.toLowerCase()} found.`" :icon="Folder" />
 
-            <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                <div
-                    v-for="c in categories.data"
-                    :key="c.id"
-                    class="group relative rounded-2xl border border-zinc-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                    <div class="flex items-center gap-3">
-                        <div class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800">
-                            <img v-if="c.image" :src="`/storage/${c.image}`" alt="" class="h-10 w-10 object-contain" />
-                            <Folder v-else class="h-6 w-6 text-zinc-400" />
-                        </div>
-                        <div class="min-w-0">
-                            <div class="truncate font-bold text-zinc-900 dark:text-white">{{ c.cat_title }}</div>
-                        </div>
-                    </div>
-                    <Link
-                        :href="`${base}/edit/${c.id}`"
-                        class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 opacity-0 transition-all hover:bg-[#8e2527] hover:text-white group-hover:opacity-100"
-                    >
-                        <Pencil class="h-4 w-4" />
-                    </Link>
-                </div>
+            <div v-else class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-zinc-400">
+                        <tr>
+                            <th class="px-5 py-3.5">{{ isMake ? 'Make' : 'Category' }}</th>
+                            <th class="px-5 py-3.5 text-right">Products</th>
+                            <th class="px-5 py-3.5">Added</th>
+                            <th class="px-5 py-3.5 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        <tr v-for="c in categories.data" :key="c.id" class="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                            <td class="px-5 py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
+                                        <img v-if="c.image" :src="`/storage/${c.image}`" alt="" class="h-7 w-7 object-contain" />
+                                        <Folder v-else class="h-4 w-4 text-zinc-400" />
+                                    </div>
+                                    <span class="font-semibold text-zinc-900 dark:text-white">{{ c.cat_title }}</span>
+                                </div>
+                            </td>
+                            <td class="px-5 py-3 text-right font-gauge text-zinc-600 dark:text-zinc-300">{{ Number(c.products_count || 0).toLocaleString() }}</td>
+                            <td class="px-5 py-3 text-zinc-500 dark:text-zinc-400">{{ c.created_at ? new Date(c.created_at).toLocaleDateString() : '—' }}</td>
+                            <td class="px-5 py-3 text-right">
+                                <Link
+                                    :href="`${base}/edit/${c.id}`"
+                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-[#8e2527] hover:text-white dark:text-zinc-400"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </Link>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <AdminPagination :links="categories.links" />
