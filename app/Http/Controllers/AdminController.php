@@ -143,7 +143,10 @@ class AdminController extends Controller
         $categories = Categories::query()
             ->where('type', $type)
             ->withCount([($type === 'make' ? 'make_products' : 'cat_products') . ' as products_count'])
-            ->when($type === 'category', fn ($q) => $q->with('parent:id,cat_title')->orderByRaw('parent_id IS NOT NULL'))
+            // Tree order: each top-level category directly followed by its
+            // subcategories, so the dash-prefixed children read as a group.
+            ->when($type === 'category', fn ($q) => $q->with('parent:id,cat_title')
+                ->orderByRaw('COALESCE(parent_id, id), parent_id IS NOT NULL, cat_title'))
             ->orderBy('created_at', 'desc');
         if ($keywords) {
             $categories->where(function ($query) use ($keywords) {

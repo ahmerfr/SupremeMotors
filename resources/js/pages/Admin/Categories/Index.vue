@@ -65,12 +65,13 @@ const search = () => {
                     <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                         <tr v-for="c in categories.data" :key="c.id" class="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                             <td class="px-5 py-3">
-                                <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-3" :class="!isMake && c.parent_id ? 'pl-8' : ''">
+                                    <span v-if="!isMake && c.parent_id" class="select-none text-zinc-300 dark:text-zinc-600">—</span>
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800">
                                         <img v-if="c.image" :src="`/storage/${c.image}`" alt="" class="h-7 w-7 object-contain" />
                                         <Folder v-else class="h-4 w-4 text-zinc-400" />
                                     </div>
-                                    <span class="font-semibold text-zinc-900 dark:text-white">{{ c.cat_title }}</span>
+                                    <span :class="!isMake && c.parent_id ? 'font-medium text-zinc-700 dark:text-zinc-300' : 'font-semibold text-zinc-900 dark:text-white'">{{ c.cat_title }}</span>
                                 </div>
                             </td>
                             <td v-if="!isMake" class="px-5 py-3">
