@@ -259,50 +259,91 @@ html {
     .sm-bankpairs { grid-template-columns: 1fr !important; }
 }
 
-/* About page — promises render as an editorial ledger, not cards */
-.sm-promise {
+/* About page — promises bento inside the dark showroom panel.
+   Double-bezel cards: hairline shell around an inner core with its own
+   highlight, asymmetric 7/5 then 5/7 spans. */
+.sm-pbento {
     display: grid;
-    grid-template-columns: 90px 380px 1fr;
-    gap: 28px;
-    align-items: baseline;
-    padding: 30px 0;
-    border-top: 1px solid #e6eaf0;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 14px;
 }
-.sm-promise:last-child { border-bottom: 1px solid #e6eaf0; }
-.sm-promise-num {
+.sm-pwide { grid-column: span 7; }
+.sm-pnarrow { grid-column: span 5; }
+.sm-pcard {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 24px;
+    padding: 7px;
+    transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1), border-color 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sm-pcard:hover { transform: translateY(-6px); border-color: rgba(255, 255, 255, 0.18); }
+.sm-pcore {
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012));
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.09);
+    padding: 30px 32px 32px;
+}
+.sm-pnum {
+    position: absolute;
+    top: -14px;
+    right: 14px;
     font-family: Archivo;
     font-weight: 900;
-    font-size: 34px;
-    letter-spacing: -0.02em;
-    color: transparent;
-    -webkit-text-stroke: 1.6px rgba(224, 31, 38, 0.55);
+    font-size: 112px;
+    letter-spacing: -0.04em;
     line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 1.8px rgba(255, 255, 255, 0.1);
+    user-select: none;
+    transition: -webkit-text-stroke-color 0.5s cubic-bezier(0.32, 0.72, 0, 1);
 }
-.sm-promise-title {
+.sm-pcard:hover .sm-pnum { -webkit-text-stroke-color: rgba(224, 31, 38, 0.5); }
+.sm-ptitle {
+    position: relative;
     font-family: Archivo;
     font-weight: 800;
-    font-size: 21px;
+    font-size: 23px;
     letter-spacing: -0.015em;
-    line-height: 1.3;
-    color: #0b1e3b;
+    line-height: 1.22;
+    color: #fff;
     margin: 0;
+    max-width: 420px;
 }
-.sm-promise-body {
-    font-size: 15px;
+.sm-pbody {
+    position: relative;
+    font-size: 14.5px;
     line-height: 1.7;
-    color: #5b6b82;
+    color: #a9b7cc;
     font-weight: 500;
-    margin: 0;
-    max-width: 560px;
+    margin: 12px 0 0;
+    max-width: 480px;
 }
+.sm-pred .sm-pcore::after {
+    content: '';
+    position: absolute;
+    right: -90px;
+    bottom: -120px;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(224, 31, 38, 0.22), transparent 68%);
+}
+.sm-pred .sm-pnum { -webkit-text-stroke-color: rgba(224, 31, 38, 0.35); }
 @media (max-width: 1080px) {
     .sm-abgrid { grid-template-columns: 1fr !important; }
-    .sm-promise { grid-template-columns: 64px 1fr; gap: 10px 18px; }
-    .sm-promise-body { grid-column: 2; }
-    .sm-abhq { grid-template-columns: 1fr !important; padding: 40px 30px !important; }
+    .sm-pwide, .sm-pnarrow { grid-column: span 12; }
+    .sm-pnum { font-size: 88px; }
+    .sm-abhq { grid-template-columns: 1fr !important; }
     .sm-abhqinfo { grid-template-columns: 1fr !important; }
     .sm-abstats { grid-template-columns: 1fr 1fr !important; row-gap: 10px; }
     .sm-abstats > div:nth-child(odd) { border-left: none !important; }
+}
+@media (max-width: 700px) {
+    .sm-about .sm-reveal[style*='padding: 56px'] { padding: 34px 22px !important; }
+    .sm-pcore { padding: 24px 22px 26px; }
 }
 @media (max-width: 560px) {
     .sm-abstats { grid-template-columns: 1fr !important; }

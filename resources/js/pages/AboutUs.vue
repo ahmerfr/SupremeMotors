@@ -132,37 +132,48 @@ onBeforeUnmount(() => io?.disconnect());
                     </div>
                 </section>
 
-                <!-- Promises ledger -->
+                <!-- Showroom panel: promises bento + registered office -->
                 <section class="sm-body sm-sec">
                     <div style="max-width: 1280px; margin: 0 auto">
-                        <div class="sm-reveal">
-                            <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
-                                <span style="width: 22px; height: 2px; background: #e01f26"></span>HOW WE WORK
-                            </div>
-                            <h2 style="font-family: Archivo; font-weight: 800; font-size: 38px; letter-spacing: -0.02em; color: #0b1e3b; margin-top: 12px; max-width: 640px; line-height: 1.12">
-                                Four promises we run the company on<span style="color: #e01f26">.</span>
-                            </h2>
-                        </div>
-                        <div style="margin-top: 34px">
-                            <div v-for="(p, i) in promises" :key="p.title" class="sm-promise sm-reveal" :style="{ transitionDelay: `${i * 60}ms` }">
-                                <div class="sm-promise-num">0{{ i + 1 }}</div>
-                                <h3 class="sm-promise-title">{{ p.title }}</h3>
-                                <p class="sm-promise-body">{{ p.body }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Registered office -->
-                <section class="sm-body sm-sec" style="padding-top: 0">
-                    <div style="max-width: 1280px; margin: 0 auto">
-                        <div class="sm-reveal" style="position: relative; overflow: hidden; border-radius: 28px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730)">
-                            <div style="position: absolute; top: -140px; right: -80px; width: 480px; height: 480px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.16), transparent 68%)"></div>
-                            <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.5" style="position: absolute; bottom: -80px; left: -80px; width: 260px; height: 260px">
+                        <div class="sm-reveal" style="position: relative; overflow: hidden; border-radius: 30px; background: linear-gradient(155deg, #13294c, #0b1e3b 48%, #081730); padding: 56px">
+                            <div style="position: absolute; top: -180px; left: 22%; width: 560px; height: 560px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.14), transparent 68%)"></div>
+                            <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" style="position: absolute; top: -90px; right: -90px; width: 300px; height: 300px">
                                 <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
                             </svg>
 
-                            <div class="sm-abhq" style="position: relative; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 44px; padding: 54px 56px">
+                            <div class="sm-phead" style="position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; flex-wrap: wrap">
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #cdd8e8">
+                                        <span style="width: 22px; height: 2px; background: #e01f26"></span>HOW WE WORK
+                                    </div>
+                                    <h2 style="font-family: Archivo; font-weight: 800; font-size: 38px; letter-spacing: -0.02em; color: #fff; margin-top: 12px; max-width: 560px; line-height: 1.1">
+                                        Four promises we run the company on<span style="color: #e01f26">.</span>
+                                    </h2>
+                                </div>
+                                <p style="font-size: 14.5px; line-height: 1.65; color: #8ea0bc; font-weight: 500; max-width: 300px; margin: 0 0 6px">
+                                    No fine print. These are the terms we hold ourselves to on every unit we ship.
+                                </p>
+                            </div>
+
+                            <div class="sm-pbento" style="position: relative; margin-top: 34px">
+                                <div
+                                    v-for="(p, i) in promises"
+                                    :key="p.title"
+                                    class="sm-pcard sm-reveal"
+                                    :class="[i === 0 || i === 3 ? 'sm-pwide' : 'sm-pnarrow', { 'sm-pred': i === 3 }]"
+                                    :style="{ transitionDelay: `${i * 60}ms` }"
+                                >
+                                    <div class="sm-pcore">
+                                        <div class="sm-pnum" aria-hidden="true">0{{ i + 1 }}</div>
+                                        <h3 class="sm-ptitle">{{ p.title }}</h3>
+                                        <p class="sm-pbody">{{ p.body }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="position: relative; height: 1px; background: rgba(255, 255, 255, 0.1); margin: 44px 0"></div>
+
+                            <div class="sm-abhq" style="position: relative; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 44px">
                                 <div>
                                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #cdd8e8">
                                         <span style="width: 22px; height: 2px; background: #e01f26"></span>REGISTERED IN HONG KONG
