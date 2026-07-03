@@ -29,37 +29,40 @@ const footCols = [
         head: 'Company',
         items: [
             { label: 'About Us', href: '/about-us' },
-            { label: 'How It Works', href: '/how-to-buy' },
-            { label: 'Our Team', href: '/about-us' },
-            { label: 'Careers', href: '/contact-us' },
-            { label: 'Contact', href: '/contact-us' },
+            { label: 'Blog', href: '/blogs' },
+            { label: 'Our Inventory', href: '/inventory' },
+            { label: 'FAQs', href: '/faqs' },
+            { label: 'Terms', href: '/terms-condition' },
+            { label: 'Contact Us', href: '/contact-us' },
         ],
     },
     {
         head: 'Quick Links',
         items: [
             { label: 'Inventory', href: '/inventory' },
-            { label: 'Sell Your Vehicle', href: '/query-form' },
-            { label: 'Pricing Updates', href: '/blogs' },
-            { label: 'Blog', href: '/blogs' },
-            { label: 'FAQs', href: '/faqs' },
+            { label: 'About Us', href: '/about-us' },
+            { label: 'Bank Details', href: '/bank-details' },
+            { label: 'How it Works', href: '/how-to-buy' },
+            { label: 'Contact', href: '/contact-us' },
         ],
     },
     {
         head: 'Our Brands',
-        items: ['Toyota', 'Porsche', 'Audi', 'BMW', 'Volkswagen'].map((b) => ({
+        items: ['Toyota', 'Porsche', 'Audi', 'BMW', 'Ford', 'Nissan', 'Peugeot', 'Volkswagen'].map((b) => ({
             label: b,
             href: `/inventory?type=search&search=${b}`,
         })),
     },
     {
-        head: 'Vehicle Types',
+        head: 'Vehicles Type',
         items: [
             { label: 'Sedan', href: '/inventory?type=search&body_style=Sedan' },
-            { label: 'SUV', href: '/inventory?type=search&body_style=SUV' },
             { label: 'Hatchback', href: '/inventory?type=search&body_style=Hatchback' },
+            { label: 'SUV', href: '/inventory?type=search&body_style=SUV' },
             { label: 'Hybrid', href: '/inventory?type=search&fuel=Hybrid' },
+            { label: 'Coupe', href: '/inventory?type=search&body_style=Coupe' },
             { label: 'Truck', href: '/inventory?type=search&body_style=Truck' },
+            { label: 'Convertible', href: '/inventory?type=search&body_style=Convertible' },
         ],
     },
 ];
