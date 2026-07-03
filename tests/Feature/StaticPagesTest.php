@@ -14,4 +14,9 @@ class StaticPagesTest extends TestCase
     {
         $this->get('/faqs')->assertOk()->assertInertia(fn (Assert $page) => $page->component('FAQs'));
     }
+
+    public function test_terms_page_renders(): void
+    {
+        $this->get('/terms-condition')->assertOk()->assertInertia(fn (Assert $page) => $page->component('TermsCondition'));
+    }
 }

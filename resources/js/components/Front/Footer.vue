@@ -32,7 +32,7 @@ const footCols = [
             { label: 'Blog', href: '/blogs' },
             { label: 'Our Inventory', href: '/inventory' },
             { label: 'FAQs', href: '/faqs' },
-            { label: 'Terms', href: '/terms-condition' },
+            { label: 'Terms & Conditions', href: '/terms-condition' },
             { label: 'Contact Us', href: '/contact-us' },
         ],
     },
