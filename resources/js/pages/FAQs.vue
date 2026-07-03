@@ -83,7 +83,10 @@ const teamAvatars = [
             <!-- FAQ layout: intro + talk card left, accordion right -->
             <section class="sm-body sm-sec">
                 <div class="sm-faqgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 0.85fr 1.4fr; gap: 48px; align-items: start">
-                    <div>
+                    <div class="sm-faqside">
+                        <h2 style="font-family: Archivo; font-weight: 800; font-size: 34px; letter-spacing: -0.025em; color: #0b1e3b; line-height: 1.1; margin: 0 0 14px">
+                            FAQ<span style="color: #e01f26">.</span>
+                        </h2>
                         <p style="font-size: 16px; line-height: 1.65; color: #5b6b82; font-weight: 500; max-width: 380px">
                             Find quick answers to common questions about buying, shipping and payments. Can't find yours? Our specialists reply within one working day.
                         </p>

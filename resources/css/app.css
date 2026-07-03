@@ -321,11 +321,15 @@ html {
 }
 /* Fixed card height: quote length must never resize the section. */
 .sm-tqcard { height: 470px; }
+/* FAQ left column follows the reader while the accordion scrolls.
+   Offset clears the sticky header (42 util + 104 main + 56 strip ≈ 204px). */
+.sm-faqside { position: sticky; top: 228px; }
 @media (max-width: 1080px) {
     .sm-testgrid { grid-template-columns: 1fr !important; }
     .sm-testcol { height: 340px; }
     .sm-congrid { grid-template-columns: 1fr !important; }
     .sm-faqgrid { grid-template-columns: 1fr !important; }
+    .sm-faqside { position: static; }
 }
 @media (max-width: 560px) {
     .sm-connames { grid-template-columns: 1fr !important; }
