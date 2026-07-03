@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { onBeforeUnmount, onMounted } from 'vue';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
 import SectionDivider from '@/components/Front/SectionDivider.vue';
 import CantFindCta from '@/components/Front/CantFindCta.vue';
@@ -59,6 +60,22 @@ const steps = [
         ],
     },
 ];
+
+let io = null;
+onMounted(() => {
+    io = new IntersectionObserver(
+        (entries) =>
+            entries.forEach((e) => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('is-in');
+                    io.unobserve(e.target);
+                }
+            }),
+        { threshold: 0.18 },
+    );
+    document.querySelectorAll('.sm-route .sm-reveal').forEach((el) => io.observe(el));
+});
+onBeforeUnmount(() => io?.disconnect());
 </script>
 
 <template>
@@ -93,35 +110,28 @@ const steps = [
                 </div>
             </section>
 
-            <!-- Journey timeline -->
+            <!-- Journey: editorial zigzag around a road spine -->
             <section class="sm-body sm-sec">
-                <div style="max-width: 880px; margin: 0 auto">
-                    <div v-for="(s, i) in steps" :key="s.title" style="display: flex; gap: 28px">
-                        <!-- Rail: number + connecting line -->
-                        <div style="display: flex; flex-direction: column; align-items: center; flex: 0 0 auto">
-                            <div
-                                :style="{
-                                    width: '52px', height: '52px', borderRadius: '50%', flex: '0 0 auto',
-                                    background: i === steps.length - 1 ? 'linear-gradient(150deg, #e5262d, #c8151c)' : '#0b1e3b',
-                                    color: '#fff', fontFamily: 'Archivo', fontWeight: 800, fontSize: '18px',
-                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: i === steps.length - 1 ? 'rgba(224, 31, 38, 0.35) 0 10px 24px' : 'rgba(11, 30, 59, 0.22) 0 10px 24px',
-                                }"
-                            >
-                                {{ i + 1 }}
-                            </div>
-                            <div v-if="i < steps.length - 1" style="width: 2px; flex: 1; background: linear-gradient(180deg, #d4dbe6, #e6eaf0); margin: 10px 0"></div>
-                        </div>
+                <div class="sm-route">
+                    <div class="sm-rspine" aria-hidden="true"></div>
 
+                    <div
+                        v-for="(s, i) in steps"
+                        :key="s.title"
+                        class="sm-rrow sm-reveal"
+                        :class="{ 'is-flip': i % 2 === 1 }"
+                        :style="{ transitionDelay: `${(i % 2) * 70}ms` }"
+                    >
                         <!-- Step content -->
-                        <div :style="{ paddingBottom: i < steps.length - 1 ? '46px' : '0' }">
-                            <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
-                                <h2 style="font-family: Archivo; font-weight: 800; font-size: 25px; letter-spacing: -0.015em; color: #0b1e3b; margin: 0; line-height: 1.2">
-                                    {{ s.title }}
-                                </h2>
-                                <span style="font-size: 13.5px; font-weight: 700; color: #8895ab">{{ s.timing }}</span>
+                        <div class="sm-rcontent">
+                            <h2 style="font-family: Archivo; font-weight: 800; font-size: 30px; letter-spacing: -0.02em; color: #0b1e3b; margin: 0; line-height: 1.15">
+                                {{ s.title }}
+                            </h2>
+                            <div style="display: flex; align-items: center; gap: 9px; margin-top: 9px">
+                                <span style="width: 22px; height: 2px; background: #e01f26; flex: 0 0 auto"></span>
+                                <span style="font-size: 13px; font-weight: 800; letter-spacing: 0.05em; color: #8895ab">{{ s.timing.toUpperCase() }}</span>
                             </div>
-                            <p style="font-size: 15.5px; line-height: 1.7; color: #5b6b82; font-weight: 500; margin-top: 10px; max-width: 640px">
+                            <p style="font-size: 15.5px; line-height: 1.7; color: #5b6b82; font-weight: 500; margin-top: 14px">
                                 {{ s.body }}
                             </p>
                             <ul style="list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 9px">
@@ -136,18 +146,31 @@ const steps = [
                                 v-if="s.link"
                                 :href="s.link.href"
                                 class="scp3"
-                                style="display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 14.5px; font-weight: 800; color: #e01f26; text-decoration: none"
+                                style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 14.5px; font-weight: 800; color: #e01f26; text-decoration: none"
                             >
                                 {{ s.link.label }}
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                             </Link>
                         </div>
+
+                        <!-- Node on the spine -->
+                        <div class="sm-rnodecell">
+                            <div class="sm-rnode" :class="{ 'is-final': i === steps.length - 1 }">{{ i + 1 }}</div>
+                        </div>
+
+                        <!-- Giant ghost number -->
+                        <div class="sm-rghost" aria-hidden="true">
+                            <div class="sm-rnum" :class="{ 'is-final': i === steps.length - 1 }">0{{ i + 1 }}</div>
+                        </div>
                     </div>
 
-                    <p style="font-size: 15px; font-weight: 500; color: #5b6b82; margin: 44px 0 0; text-align: center">
-                        Still unsure about something?
-                        <Link href="/faqs" style="color: #e01f26; font-weight: 800; text-decoration: none">Read the FAQ →</Link>
-                    </p>
+                    <!-- Finish line -->
+                    <div class="sm-rfinish sm-reveal">
+                        <span class="sm-rflag" aria-hidden="true"></span>
+                        <span style="font-family: Archivo; font-weight: 800; font-size: 15px; color: #0b1e3b">Keys in hand</span>
+                        <span style="font-size: 13.5px; font-weight: 600; color: #8895ab">— that's the whole route. Questions on the way?</span>
+                        <Link href="/faqs" style="font-size: 13.5px; color: #e01f26; font-weight: 800; text-decoration: none">Read the FAQ →</Link>
+                    </div>
                 </div>
             </section>
 
