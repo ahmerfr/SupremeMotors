@@ -1,5 +1,28 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import axios from 'axios';
+import { ref } from 'vue';
+
+const email = ref('');
+const btnLabel = ref('Subscribe →');
+const error = ref('');
+const busy = ref(false);
+
+const subscribe = async () => {
+    if (!email.value.trim() || busy.value) return;
+    busy.value = true;
+    error.value = '';
+    try {
+        await axios.post('/newsletter/subscribe', { email: email.value });
+        btnLabel.value = 'Subscribed ✓';
+        email.value = '';
+        setTimeout(() => (btnLabel.value = 'Subscribe →'), 2500);
+    } catch (e) {
+        error.value = e.response?.data?.message || 'Something went wrong. Try again.';
+    } finally {
+        busy.value = false;
+    }
+};
 
 const footCols = [
     {
@@ -50,6 +73,34 @@ const socials = [
 
 <template>
     <footer class="sm-body sm-footgap" style="background: linear-gradient(180deg, #0b1e3b, #081730)">
+        <!-- Stay updated strip (kept per user requirement; not in the design mock) -->
+        <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.09)">
+            <div class="sm-footnews" style="max-width: 1180px; margin: 0 auto; padding: 40px 24px; display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap">
+                <div>
+                    <div style="font-family: Archivo; font-weight: 800; font-size: 24px; letter-spacing: -0.015em; color: #fff">Stay updated</div>
+                    <p style="font-size: 14px; font-weight: 500; color: #93a3bd; margin-top: 7px">Subscribe to receive exclusive offers and new arrivals</p>
+                </div>
+                <div>
+                    <div style="display: flex; gap: 0; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.13); border-radius: 14px; padding: 5px; min-width: 400px">
+                        <input
+                            v-model="email"
+                            type="email"
+                            placeholder="Enter your email"
+                            style="flex: 1; background: transparent; border: none; outline: none; padding: 12px 16px; font-size: 14.5px; font-weight: 600; font-family: Manrope; color: #fff; min-width: 0"
+                            @keyup.enter="subscribe"
+                        />
+                        <button
+                            class="scp2"
+                            :disabled="busy"
+                            style="flex: 0 0 auto; font-size: 14px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); border: none; border-radius: 10px; padding: 12px 22px; cursor: pointer; transition: transform 0.18s"
+                            @click="subscribe"
+                        >{{ btnLabel }}</button>
+                    </div>
+                    <div v-if="error" style="font-size: 12.5px; color: #ff8085; font-weight: 700; margin-top: 9px">{{ error }}</div>
+                </div>
+            </div>
+        </div>
+
         <div class="sm-footgrid" style="max-width: 1180px; margin: 0 auto; padding: 64px 24px 48px; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr; gap: 40px">
             <div>
                 <Link href="/" style="display: inline-flex; align-items: center">
