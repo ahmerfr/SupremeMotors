@@ -48,13 +48,17 @@ class DashboardController extends Controller
                 ->selectRaw('categories.id, categories.cat_title, categories.image, COUNT(products.id) as products_count')
                 ->get();
 
-            $featured = fn (string $country) => Products::with(['category', 'make'])
+            // Extra rows beyond the 6 shown: many scraped image URLs are dead
+            // (delisted vehicles), so the frontend drops cards whose image
+            // fails to load and backfills from these candidates.
+            $featured = fn (string $country) => Products::with(['category:id,cat_title', 'make:id,cat_title'])
                 ->where('country', $country)
                 ->whereNotNull('front_image')
+                ->whereNull('front_image_dead_at')
                 ->select('id', 'title', 'front_image', 'price', 'website', 'country', 'category_id', 'make_id',
-                    'fuel', 'transmission', 'mileage_km', 'year', 'product_details')
+                    'fuel', 'transmission', 'mileage_km', 'year')
                 ->latest('created_at')
-                ->limit(8)
+                ->limit(24)
                 ->get();
 
             $body_types = Products::whereNotNull('body_style')
@@ -87,10 +91,11 @@ class DashboardController extends Controller
             return Products::with(['category:id,cat_title', 'make:id,cat_title'])
                 ->where('body_style', $style)
                 ->whereNotNull('front_image')
+                ->whereNull('front_image_dead_at')
                 ->select('id', 'title', 'front_image', 'price', 'website', 'country',
                     'category_id', 'make_id', 'fuel', 'transmission', 'mileage_km')
                 ->latest('created_at')
-                ->limit(6)
+                ->limit(40)
                 ->get();
         });
     }

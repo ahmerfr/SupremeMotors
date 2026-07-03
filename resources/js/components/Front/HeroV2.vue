@@ -1,11 +1,18 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     makes: { type: Array, default: () => [] },
     buyerImages: { type: Array, default: () => [] },
 });
+
+// Skip avatar images that fail to load and backfill from the spares.
+const failedAvatars = ref(new Set());
+const avatars = computed(() => props.buyerImages.filter((img) => !failedAvatars.value.has(img)).slice(0, 4));
+const markAvatarFailed = (img) => {
+    failedAvatars.value = new Set(failedAvatars.value).add(img);
+};
 
 const search = ref('');
 const make = ref('');
@@ -70,10 +77,11 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                 <div style="display: flex; align-items: center; gap: 22px; margin-top: 38px; flex-wrap: wrap">
                     <div style="display: flex; align-items: center">
                         <img
-                            v-for="(img, i) in props.buyerImages.slice(0, 4)"
-                            :key="i"
+                            v-for="(img, i) in avatars"
+                            :key="img"
                             :src="img"
                             alt=""
+                            @error="markAvatarFailed(img)"
                             :style="{ width: '38px', height: '38px', borderRadius: '50%', border: '2px solid #0b1e3b', marginLeft: i === 0 ? '0' : '-10px', objectFit: 'cover', background: '#c9d3e2' }"
                         />
                     </div>

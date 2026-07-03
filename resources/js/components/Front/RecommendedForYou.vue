@@ -14,7 +14,16 @@ const tabs = [
 ];
 const active = ref('japan');
 
-const products = computed(() => (active.value === 'china' ? props.china : props.japan).slice(0, 6));
+// Cards whose image 404s (dead/hotlink-blocked scrape URLs) are dropped and
+// backfilled from the extra candidates the backend sends.
+const failed = ref(new Set());
+const markFailed = (id) => {
+    failed.value = new Set(failed.value).add(id);
+};
+
+const products = computed(() =>
+    (active.value === 'china' ? props.china : props.japan).filter((p) => !failed.value.has(p.id)).slice(0, 6),
+);
 
 </script>
 
@@ -56,7 +65,7 @@ const products = computed(() => (active.value === 'china' ? props.china : props.
 
             <!-- Cards -->
             <div class="sm-reccards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 44px">
-                <ProductCard v-for="p in products" :key="p.id" :product="p" />
+                <ProductCard v-for="p in products" :key="p.id" :product="p" @img-error="markFailed(p.id)" />
             </div>
 
             <div style="display: flex; justify-content: center; margin-top: 36px">

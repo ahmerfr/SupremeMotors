@@ -2,7 +2,7 @@
 import ProductCard from '@/components/Front/ProductCard.vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import { nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import BodyTypeIcon from '@/components/Front/BodyTypeIcon.vue';
 
 const props = defineProps({
@@ -12,6 +12,13 @@ const props = defineProps({
 const active = ref(props.bodyTypes[0]?.body_style ?? null);
 const products = ref([]);
 const loading = ref(false);
+
+// Drop cards whose image 404s and backfill from the extra candidates.
+const failed = ref(new Set());
+const markFailed = (id) => {
+    failed.value = new Set(failed.value).add(id);
+};
+const visible = computed(() => products.value.filter((p) => !failed.value.has(p.id)).slice(0, 6));
 
 const rowEl = ref(null);
 const canPrev = ref(false);
@@ -33,6 +40,7 @@ const slide = (dir) => {
 const load = async (style) => {
     active.value = style;
     loading.value = true;
+    failed.value = new Set();
     try {
         const { data } = await axios.get('/home/body-type-products', { params: { style } });
         products.value = data || [];
@@ -102,7 +110,7 @@ onMounted(() => {
                 <div v-for="i in 6" :key="i" style="height: 420px; border-radius: 18px; background: linear-gradient(100deg, #f4f6f9 40%, #eef1f6 50%, #f4f6f9 60%); border: 1px solid #eef1f6"></div>
             </div>
             <div v-else class="sm-reccards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 30px">
-                <ProductCard v-for="p in products" :key="p.id" :product="p" />
+                <ProductCard v-for="p in visible" :key="p.id" :product="p" @img-error="markFailed(p.id)" />
             </div>
 
             <div style="display: flex; justify-content: center; margin-top: 36px">
