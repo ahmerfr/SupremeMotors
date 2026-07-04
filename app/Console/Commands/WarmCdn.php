@@ -11,23 +11,32 @@ class WarmCdn extends Command
 {
     protected $signature = 'products:warm-cdn
         {--start-id= : Force a starting product id (default: resume from checkpoint)}
+        {--scope=all : all | fronts (fronts warms only front images, own checkpoint)}
+        {--pool= : concurrent HEADs (default 100)}
         {--max-outage-retries=-1 : Give up after this many consecutive same-batch retries (-1 = never)}';
 
     protected $description = 'Request every CDN image once so Perma-Cache stores a permanent copy; resumable, outage-tolerant';
 
-    // HEADs mostly wait on Bunny's origin fetch (2-5s on a cache miss), so a
-    // wide pool is what sets throughput; 40 measured out to ~days for 2M images.
-    private const POOL = 160;
+    // HEADs mostly wait on Bunny's origin fetch (2-5s on a cache miss), so the
+    // pool sets throughput — but past the origin's tolerance connections start
+    // dying in 45s timeouts and goodput collapses. 100 is the balance point.
+    private const POOL = 100;
 
     /** Only these statuses prove the origin lost the file. Everything else is retryable. */
     private const DEAD_STATUSES = [404, 410];
 
     private const OUTAGE_SLEEP_SECONDS = 45;
 
+    private int $pool = self::POOL;
+
     public function handle(): int
     {
+        $frontsOnly = $this->option('scope') === 'fronts';
+        $this->pool = (int) ($this->option('pool') ?: self::POOL);
+
         @mkdir(config('cdn.state_dir', storage_path('app/cdn')), 0777, true);
-        $checkpointFile = config('cdn.state_dir', storage_path('app/cdn')) . '/warm.cursor';
+        $suffix = $frontsOnly ? '-fronts' : '';
+        $checkpointFile = config('cdn.state_dir', storage_path('app/cdn')) . "/warm{$suffix}.cursor";
         $retryLog = config('cdn.state_dir', storage_path('app/cdn')) . '/warm-retry.log';
 
         $cursor = $this->option('start-id') !== null
@@ -36,7 +45,7 @@ class WarmCdn extends Command
 
         $maxOutageRetries = (int) $this->option('max-outage-retries');
         $stats = ['products' => 0, 'warmed' => 0, 'deadFront' => 0, 'deadGallery' => 0, 'retryable' => 0];
-        $this->info("warming from cursor {$cursor}");
+        $this->info('warming ' . ($frontsOnly ? 'FRONTS ONLY ' : '') . "from cursor {$cursor} (pool {$this->pool})");
 
         while (true) {
             $rows = DB::table('products')
@@ -44,9 +53,9 @@ class WarmCdn extends Command
                 ->whereNull('front_image_dead_at')
                 ->where(fn ($q) => $q
                     ->where('front_image', 'like', '%.b-cdn.net%')
-                    ->orWhere('other_images', 'like', '%.b-cdn.net%'))
+                    ->when(! $frontsOnly, fn ($qq) => $qq->orWhere('other_images', 'like', '%.b-cdn.net%')))
                 ->orderBy('id')
-                ->limit(200)
+                ->limit($frontsOnly ? 500 : 200)
                 ->get(['id', 'front_image', 'other_images']);
             if ($rows->isEmpty()) {
                 break;
@@ -57,9 +66,11 @@ class WarmCdn extends Command
                 if (str_contains((string) $r->front_image, '.b-cdn.net')) {
                     $jobs["{$r->id}|front"] = $r->front_image;
                 }
-                foreach (json_decode($r->other_images ?? '[]', true) ?: [] as $i => $url) {
-                    if (is_string($url) && str_contains($url, '.b-cdn.net')) {
-                        $jobs["{$r->id}|g{$i}"] = $url;
+                if (! $frontsOnly) {
+                    foreach (json_decode($r->other_images ?? '[]', true) ?: [] as $i => $url) {
+                        if (is_string($url) && str_contains($url, '.b-cdn.net')) {
+                            $jobs["{$r->id}|g{$i}"] = $url;
+                        }
                     }
                 }
             }
@@ -172,7 +183,7 @@ class WarmCdn extends Command
         $warmed = 0;
         $connFailures = 0;
 
-        foreach (collect($jobs)->chunk(self::POOL) as $chunk) {
+        foreach (collect($jobs)->chunk($this->pool) as $chunk) {
             $responses = Http::pool(fn ($pool) => $chunk->map(
                 fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout(45)->head($url)
             )->all());

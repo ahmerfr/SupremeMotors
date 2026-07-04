@@ -46,9 +46,12 @@ class CdnPipeline extends Command
         }
 
         if (! file_exists(config('cdn.state_dir', storage_path('app/cdn')) . '/'.'warm.done')) {
-            $this->info('=== stage 3: warm crawl (Perma-Cache fill) ===');
+            // Fronts first: listing images are what visitors and the business
+            // depend on. Galleries warm in a later scope=all pass (organic
+            // traffic also fills them via Perma-Cache in the meantime).
+            $this->info('=== stage 3: warm crawl, front images (Perma-Cache fill) ===');
 
-            return $this->call('products:warm-cdn');
+            return $this->call('products:warm-cdn', ['--scope' => 'fronts']);
         }
         $this->info('warm already done — pipeline complete');
 
