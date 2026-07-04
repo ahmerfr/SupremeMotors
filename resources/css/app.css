@@ -783,3 +783,12 @@ html {
     border-color: #eef1f6;
     cursor: default;
 }
+/* gallery slider arrows: shadowed surface, hover goes navy (never invisible) */
+.sm-pdarrow {
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: rgba(11, 30, 59, 0.18) 0 6px 16px;
+}
+.sm-pdarrow:hover:not(:disabled) {
+    background: linear-gradient(150deg, #12284a, #0b1e3b);
+    color: #fff;
+}

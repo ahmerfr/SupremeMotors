@@ -50,14 +50,6 @@ const slide = (dir) => {
     active.value = (Math.min(active.value, n - 1) + dir + n) % n;
 };
 
-/* thumbnail grid: first 7 + a "+N photos" expander tile */
-const showAllThumbs = ref(false);
-const THUMB_PREVIEW = 7;
-const visibleThumbs = computed(() =>
-    showAllThumbs.value ? visibleGallery.value : visibleGallery.value.slice(0, THUMB_PREVIEW + 1),
-);
-const hiddenCount = computed(() => Math.max(0, visibleGallery.value.length - (THUMB_PREVIEW + 1)));
-
 onMounted(() => {
     for (const url of gallery.value.slice(0, 8)) {
         const img = new Image();
@@ -185,56 +177,31 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
 
                             <!-- Slider arrows -->
                             <template v-if="visibleGallery.length > 1">
-                                <button
-                                    type="button"
-                                    class="sm-carbtn"
-                                    aria-label="Previous photo"
-                                    style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); background: rgba(255, 255, 255, 0.92)"
-                                    @click.stop="slide(-1)"
-                                >
+                                <button type="button" class="sm-carbtn sm-pdarrow" aria-label="Previous photo" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%)" @click.stop="slide(-1)">
                                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
                                 </button>
-                                <button
-                                    type="button"
-                                    class="sm-carbtn"
-                                    aria-label="Next photo"
-                                    style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: rgba(255, 255, 255, 0.92)"
-                                    @click.stop="slide(1)"
-                                >
+                                <button type="button" class="sm-carbtn sm-pdarrow" aria-label="Next photo" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%)" @click.stop="slide(1)">
                                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
                                 </button>
                             </template>
                         </div>
 
-                        <!-- Thumbnail grid -->
-                        <div v-if="visibleGallery.length > 1" class="sm-pdthumbs" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px">
-                            <template v-for="(img, i) in visibleThumbs" :key="img">
-                                <!-- expander tile replaces the last preview thumb when photos are hidden -->
-                                <button
-                                    v-if="!showAllThumbs && hiddenCount > 0 && i === THUMB_PREVIEW"
-                                    type="button"
-                                    style="position: relative; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; cursor: pointer; padding: 0; border: 1px solid #eef1f6"
-                                    @click="showAllThumbs = true"
-                                >
-                                    <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.4)" />
-                                    <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: Archivo; font-weight: 800; font-size: 17px">
-                                        +{{ hiddenCount + 1 }} photos
-                                    </span>
-                                </button>
-                                <button
-                                    v-else
-                                    type="button"
-                                    :style="{
-                                        aspectRatio: '4 / 3', borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', padding: 0,
-                                        border: i === active ? '2.5px solid #e01f26' : '1px solid #eef1f6',
-                                        opacity: i === active ? 1 : 0.85,
-                                        transition: '0.15s',
-                                    }"
-                                    @click="active = i; isZoomed = false"
-                                >
-                                    <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="markFailed(img)" />
-                                </button>
-                            </template>
+                        <!-- Thumbnail grid: every photo, big tiles -->
+                        <div v-if="visibleGallery.length > 1" class="sm-pdthumbs" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px">
+                            <button
+                                v-for="(img, i) in visibleGallery"
+                                :key="img"
+                                type="button"
+                                :style="{
+                                    aspectRatio: '4 / 3', borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', padding: 0,
+                                    border: i === active ? '2.5px solid #e01f26' : '1px solid #eef1f6',
+                                    opacity: i === active ? 1 : 0.85,
+                                    transition: '0.15s',
+                                }"
+                                @click="active = i; isZoomed = false"
+                            >
+                                <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="markFailed(img)" />
+                            </button>
                         </div>
                     </div>
 
@@ -263,7 +230,6 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
                                 <div style="font-family: Archivo; font-weight: 800; font-size: 38px; letter-spacing: -0.02em; color: #fff">
                                     ${{ fmtNum(p.price) }}
                                 </div>
-                                <div style="font-size: 12.5px; font-weight: 600; color: #8ea0bc; margin-top: 3px">FOB price — ask for a landed quote to your port</div>
                             </div>
                             <div v-else>
                                 <div style="font-family: Archivo; font-weight: 800; font-size: 30px; color: #fff">Enquire for price</div>
