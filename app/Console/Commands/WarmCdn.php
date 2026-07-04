@@ -12,6 +12,9 @@ class WarmCdn extends Command
     protected $signature = 'products:warm-cdn
         {--start-id= : Force a starting product id (default: resume from checkpoint)}
         {--scope=all : all | fronts (fronts warms only front images, own checkpoint)}
+        {--shard= : Named id-range worker; writes warm-<shard>.done instead of warm.done}
+        {--min-id=0 : Shard range start (inclusive lower bound)}
+        {--max-id= : Shard range end (exclusive upper bound)}
         {--pool= : concurrent HEADs (default 100)}
         {--max-outage-retries=-1 : Give up after this many consecutive same-batch retries (-1 = never)}';
 
@@ -32,24 +35,29 @@ class WarmCdn extends Command
     public function handle(): int
     {
         $frontsOnly = $this->option('scope') === 'fronts';
+        $shard = (string) $this->option('shard');
+        $minId = (int) $this->option('min-id');
+        $maxId = $this->option('max-id') !== null ? (int) $this->option('max-id') : null;
         $this->pool = (int) ($this->option('pool') ?: self::POOL);
 
         @mkdir(config('cdn.state_dir', storage_path('app/cdn')), 0777, true);
-        $suffix = $frontsOnly ? '-fronts' : '';
+        $suffix = ($frontsOnly ? '-fronts' : '') . ($shard !== '' ? "-{$shard}" : '');
         $checkpointFile = config('cdn.state_dir', storage_path('app/cdn')) . "/warm{$suffix}.cursor";
         $retryLog = config('cdn.state_dir', storage_path('app/cdn')) . '/warm-retry.log';
 
         $cursor = $this->option('start-id') !== null
             ? (int) $this->option('start-id')
             : (int) @file_get_contents($checkpointFile);
+        $cursor = max($cursor, $minId - 1);
 
         $maxOutageRetries = (int) $this->option('max-outage-retries');
         $stats = ['products' => 0, 'warmed' => 0, 'deadFront' => 0, 'deadGallery' => 0, 'retryable' => 0];
-        $this->info('warming ' . ($frontsOnly ? 'FRONTS ONLY ' : '') . "from cursor {$cursor} (pool {$this->pool})");
+        $this->info('warming ' . ($frontsOnly ? 'FRONTS ONLY ' : '') . ($shard !== '' ? "shard {$shard} [{$minId}, " . ($maxId ?? '∞') . ') ' : '') . "from cursor {$cursor} (pool {$this->pool})");
 
         while (true) {
             $rows = DB::table('products')
                 ->where('id', '>', $cursor)
+                ->when($maxId !== null, fn ($q) => $q->where('id', '<', $maxId))
                 ->whereNull('front_image_dead_at')
                 ->where(fn ($q) => $q
                     ->where('front_image', 'like', '%.b-cdn.net%')
@@ -164,8 +172,11 @@ class WarmCdn extends Command
         }
 
         $summary = "products {$stats['products']} | warmed {$stats['warmed']} | dead front {$stats['deadFront']} | dead gallery {$stats['deadGallery']} | retryable {$stats['retryable']}";
-        file_put_contents(config('cdn.state_dir', storage_path('app/cdn')) . '/warm.done', now()->toDateTimeString() . "\n" . $summary . "\n");
-        $this->info('WARM COMPLETE: ' . $summary);
+        // A shard finishing only proves its range; the coordinator writes
+        // warm.done once every shard's marker exists.
+        $doneFile = $shard !== '' ? "warm-{$shard}.done" : 'warm.done';
+        file_put_contents(config('cdn.state_dir', storage_path('app/cdn')) . '/' . $doneFile, now()->toDateTimeString() . "\n" . $summary . "\n");
+        $this->info('WARM COMPLETE' . ($shard !== '' ? " (shard {$shard})" : '') . ': ' . $summary);
 
         return self::SUCCESS;
     }
