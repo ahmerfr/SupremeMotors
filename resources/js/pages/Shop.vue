@@ -200,7 +200,7 @@ const BANNER_IMAGES = {
     'Electric Vehicles': '/storage/cat_images/electric-car.png',
     'Tractors': '/storage/cat_images/wheel-tractor-logo.png',
     'Heavy Machinery': '/storage/cat_images/heavy-machinery-banner.png',
-    'Equipment': '/storage/cat_images/fork-lift.png',
+    'Equipment': '/storage/cat_images/equipment-banner.png',
 };
 const ALL_BANNER_IMAGE = '/storage/cat_images/cars.png';
 
