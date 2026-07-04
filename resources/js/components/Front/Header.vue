@@ -136,11 +136,24 @@ onBeforeUnmount(() => {
 const fmt = (n) => Number(n || 0).toLocaleString();
 
 const catHref = (c) => `/inventory?category=${c.id}`;
-// One tab is always active like the design: the URL-matched category,
-// falling back to the first tab.
+
+// One tab is always active like the design. 'All' owns the inventory page
+// (and everywhere else); a category tab lights up only when the URL's
+// category param is exactly that single category.
+const catTabs = computed(() => [
+    { id: '__all', label: 'All', href: '/inventory' },
+    ...(header.value.categories || []).map((c) => ({ id: c.id, label: c.label, href: catHref(c) })),
+]);
+const urlCategoryParam = computed(() => {
+    try {
+        return new URL(currentUrl.value, window.location.origin).searchParams.get('category') ?? '';
+    } catch {
+        return '';
+    }
+});
 const activeCatId = computed(() => {
-    const hit = (header.value.categories || []).find((c) => currentUrl.value.includes(`category=${c.id}`));
-    return hit ? hit.id : header.value.categories?.[0]?.id;
+    const hit = (header.value.categories || []).find((c) => urlCategoryParam.value === String(c.id));
+    return hit ? hit.id : '__all';
 });
 
 const pageLinks = [
@@ -236,9 +249,9 @@ const pageLinks = [
         <div style="background: #fff; border-bottom: 1px solid #f1f3f7">
             <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: stretch; gap: 32px">
                 <Link
-                    v-for="c in header.categories"
+                    v-for="c in catTabs"
                     :key="c.id"
-                    :href="catHref(c)"
+                    :href="c.href"
                     :class="c.id === activeCatId ? '' : 'scp7'"
                     :style="c.id === activeCatId
                         ? 'display:inline-flex;align-items:center;padding:0 22px;font-size:15px;font-weight:700;color:#fff;background:#0b1e3b;white-space:nowrap;text-decoration:none'

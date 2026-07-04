@@ -178,6 +178,28 @@ const advancedCount = computed(() => {
     return n;
 });
 
+/* ---------------- dynamic page head ---------------- */
+
+const selectedCategoryNames = computed(() => applied.value.category.map(categoryName));
+const headTitle = computed(() =>
+    selectedCategoryNames.value.length === 1
+        ? `Browse our range of ${selectedCategoryNames.value[0]}`
+        : 'Browse Our Entire Range',
+);
+// Big line-art silhouette on the right, matched to the selected category.
+const headIcon = computed(() => {
+    const map = {
+        'Cars': 'Sedan',
+        'Trucks': 'Truck',
+        'Buses': 'Bus',
+        'Electric Vehicles': 'Hatchback',
+        'Tractors': 'Truck',
+        'Heavy Machinery': 'Truck',
+        'Equipment': 'Van / Minivan',
+    };
+    return selectedCategoryNames.value.length === 1 ? (map[selectedCategoryNames.value[0]] ?? 'SUV') : 'SUV';
+});
+
 /* ---------------- sidebar sections (collapsible) ---------------- */
 
 const sideOpen = reactive({
@@ -348,18 +370,21 @@ watch(drawerOpen, (open) => {
                             <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
                         </div>
                         <h1 style="font-family: Archivo; font-weight: 800; font-size: 54px; letter-spacing: -0.03em; color: #0b1e3b; margin-top: 12px; line-height: 1.04">
-                            Browse our stock<span style="color: #e01f26">.</span>
+                            {{ headTitle }}<span style="color: #e01f26">.</span>
                         </h1>
                         <p style="font-size: 16.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 12px">
                             Sourced from Japan, China and Europe — updated daily.
                         </p>
                     </div>
-                    <div class="sm-invstat" style="flex: 0 0 auto; text-align: right; padding-bottom: 4px">
+                    <div class="sm-invstat" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end">
+                        <div style="color: #c6d0de; margin-bottom: -6px" aria-hidden="true">
+                            <BodyTypeIcon :key="headIcon" :type="headIcon" :size="190" />
+                        </div>
                         <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px">
                             <span class="sm-livedot"></span>
-                            <span style="font-family: Archivo; font-weight: 800; font-size: 44px; letter-spacing: -0.02em; color: #0b1e3b; line-height: 1">{{ stockTotal.toLocaleString() }}</span>
+                            <span style="font-family: Archivo; font-weight: 800; font-size: 30px; letter-spacing: -0.02em; color: #0b1e3b; line-height: 1">{{ stockTotal.toLocaleString() }}</span>
                         </div>
-                        <div style="font-size: 12.5px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin-top: 6px">VEHICLES LIVE RIGHT NOW</div>
+                        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin-top: 5px">VEHICLES LIVE RIGHT NOW</div>
                     </div>
                 </div>
             </section>
