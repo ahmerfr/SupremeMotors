@@ -188,6 +188,11 @@ class WarmCdn extends Command
     /**
      * HEAD every job URL. Returns [confirmed dead, retryable, warmed count, connection failures].
      *
+     * Chunked pools wait on their slowest member (head-of-line blocking), so a
+     * long timeout lets one straggler hold a whole chunk hostage. Two passes:
+     * a fast pass with a short cap clears the quick majority, then only the
+     * stragglers get the full configured timeout.
+     *
      * @param  array<string, string>  $jobs
      * @return array{0: array<string, bool>, 1: array<string, string>, 2: int, 3: int}
      */
@@ -198,24 +203,36 @@ class WarmCdn extends Command
         $warmed = 0;
         $connFailures = 0;
 
-        foreach (collect($jobs)->chunk($this->pool) as $chunk) {
-            $responses = Http::pool(fn ($pool) => $chunk->map(
-                fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout($this->timeoutSeconds)->head($url)
-            )->all());
-            foreach ($chunk as $k => $url) {
-                $resp = $responses[(string) $k] ?? null;
-                if ($resp instanceof Response && $resp->successful()) {
-                    $warmed++;
-                } elseif ($resp instanceof Response && in_array($resp->status(), self::DEAD_STATUSES, true)) {
-                    $dead[$k] = true;
-                } elseif ($resp instanceof Response) {
-                    // 5xx / 429 / anything else: the file may be fine — retry later
-                    $retryable[$k] = $url;
-                } else {
-                    $retryable[$k] = $url;
-                    $connFailures++;
+        $fastTimeout = min(20, $this->timeoutSeconds);
+        $stragglers = [];
+
+        $classify = function (array $batch, int $timeout, bool $collectStragglers) use (&$dead, &$retryable, &$warmed, &$connFailures, &$stragglers): void {
+            foreach (collect($batch)->chunk($this->pool) as $chunk) {
+                $responses = Http::pool(fn ($pool) => $chunk->map(
+                    fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout($timeout)->head($url)
+                )->all());
+                foreach ($chunk as $k => $url) {
+                    $resp = $responses[(string) $k] ?? null;
+                    if ($resp instanceof Response && $resp->successful()) {
+                        $warmed++;
+                    } elseif ($resp instanceof Response && in_array($resp->status(), self::DEAD_STATUSES, true)) {
+                        $dead[$k] = true;
+                    } elseif ($resp instanceof Response) {
+                        // 5xx / 429 / anything else: the file may be fine — retry later
+                        $retryable[$k] = $url;
+                    } elseif ($collectStragglers) {
+                        $stragglers[$k] = $url;
+                    } else {
+                        $retryable[$k] = $url;
+                        $connFailures++;
+                    }
                 }
             }
+        };
+
+        $classify($jobs, $fastTimeout, $this->timeoutSeconds > $fastTimeout);
+        if ($stragglers !== []) {
+            $classify($stragglers, $this->timeoutSeconds, false);
         }
 
         return [$dead, $retryable, $warmed, $connFailures];
