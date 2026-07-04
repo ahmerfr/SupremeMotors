@@ -573,6 +573,9 @@ html {
     .sm-invbanner h1 { font-size: 34px !important; }
     .sm-invcutout { display: none; }
 }
+@media (max-width: 1300px) {
+    .sm-invgrid { grid-template-columns: 1fr 1fr !important; }
+}
 @media (max-width: 1080px) {
     .sm-invgrid { grid-template-columns: 1fr 1fr !important; }
     .sm-shopgrid { grid-template-columns: 1fr !important; }

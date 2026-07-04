@@ -375,7 +375,7 @@ watch(drawerOpen, (open) => {
         <FrontLayout>
             <!-- Page banner: navy card like the other pages, text left, photo right -->
             <section class="sm-body" style="padding: 60px 24px 0">
-                <div style="max-width: 1280px; margin: 0 auto">
+                <div style="max-width: 1420px; margin: 0 auto">
                     <div style="position: relative; overflow: hidden; border-radius: 28px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730)">
                         <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" style="position: absolute; top: -70px; left: -70px; width: 220px; height: 220px">
                             <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
@@ -412,7 +412,7 @@ watch(drawerOpen, (open) => {
 
             <!-- Sidebar + results -->
             <section class="sm-body" style="padding: 30px 24px 60px">
-                <div class="sm-shopgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 228px 1fr; gap: 36px; align-items: start">
+                <div class="sm-shopgrid" style="max-width: 1420px; margin: 0 auto; display: grid; grid-template-columns: 228px 1fr; gap: 36px; align-items: start">
                     <!-- Sidebar -->
                     <aside class="sm-sidebar">
                         <!-- Category -->
@@ -579,7 +579,7 @@ watch(drawerOpen, (open) => {
                         <div
                             v-if="products?.data?.length"
                             class="sm-invgrid"
-                            :style="{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginTop: '22px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
+                            :style="{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginTop: '22px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
                         >
                             <ProductCard v-for="p in products.data" :key="p.id" :product="p" />
                         </div>
