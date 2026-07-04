@@ -43,6 +43,21 @@ const onMove = (e) => {
     };
 };
 
+const slide = (dir) => {
+    const n = visibleGallery.value.length;
+    if (!n) return;
+    isZoomed.value = false;
+    active.value = (Math.min(active.value, n - 1) + dir + n) % n;
+};
+
+/* thumbnail grid: first 7 + a "+N photos" expander tile */
+const showAllThumbs = ref(false);
+const THUMB_PREVIEW = 7;
+const visibleThumbs = computed(() =>
+    showAllThumbs.value ? visibleGallery.value : visibleGallery.value.slice(0, THUMB_PREVIEW + 1),
+);
+const hiddenCount = computed(() => Math.max(0, visibleGallery.value.length - (THUMB_PREVIEW + 1)));
+
 onMounted(() => {
     for (const url of gallery.value.slice(0, 8)) {
         const img = new Image();
@@ -167,23 +182,59 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
                             <div v-if="visibleGallery.length" style="position: absolute; bottom: 14px; right: 16px; background: rgba(11, 30, 59, 0.75); color: #fff; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 100px">
                                 {{ Math.min(active + 1, visibleGallery.length) }} / {{ visibleGallery.length }}
                             </div>
+
+                            <!-- Slider arrows -->
+                            <template v-if="visibleGallery.length > 1">
+                                <button
+                                    type="button"
+                                    class="sm-carbtn"
+                                    aria-label="Previous photo"
+                                    style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); background: rgba(255, 255, 255, 0.92)"
+                                    @click.stop="slide(-1)"
+                                >
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="sm-carbtn"
+                                    aria-label="Next photo"
+                                    style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: rgba(255, 255, 255, 0.92)"
+                                    @click.stop="slide(1)"
+                                >
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                                </button>
+                            </template>
                         </div>
 
-                        <!-- Thumbs -->
-                        <div v-if="visibleGallery.length > 1" class="sm-typesrow" style="display: flex; gap: 10px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px">
-                            <button
-                                v-for="(img, i) in visibleGallery"
-                                :key="img"
-                                type="button"
-                                :style="{
-                                    flex: '0 0 auto', width: '92px', height: '68px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer', padding: 0,
-                                    border: i === active ? '2px solid #e01f26' : '1px solid #eef1f6',
-                                    opacity: i === active ? 1 : 0.75,
-                                }"
-                                @click="active = i; isZoomed = false"
-                            >
-                                <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="markFailed(img)" />
-                            </button>
+                        <!-- Thumbnail grid -->
+                        <div v-if="visibleGallery.length > 1" class="sm-pdthumbs" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px">
+                            <template v-for="(img, i) in visibleThumbs" :key="img">
+                                <!-- expander tile replaces the last preview thumb when photos are hidden -->
+                                <button
+                                    v-if="!showAllThumbs && hiddenCount > 0 && i === THUMB_PREVIEW"
+                                    type="button"
+                                    style="position: relative; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; cursor: pointer; padding: 0; border: 1px solid #eef1f6"
+                                    @click="showAllThumbs = true"
+                                >
+                                    <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover; filter: brightness(0.4)" />
+                                    <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-family: Archivo; font-weight: 800; font-size: 17px">
+                                        +{{ hiddenCount + 1 }} photos
+                                    </span>
+                                </button>
+                                <button
+                                    v-else
+                                    type="button"
+                                    :style="{
+                                        aspectRatio: '4 / 3', borderRadius: '14px', overflow: 'hidden', cursor: 'pointer', padding: 0,
+                                        border: i === active ? '2.5px solid #e01f26' : '1px solid #eef1f6',
+                                        opacity: i === active ? 1 : 0.85,
+                                        transition: '0.15s',
+                                    }"
+                                    @click="active = i; isZoomed = false"
+                                >
+                                    <img :src="img" alt="" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="markFailed(img)" />
+                                </button>
+                            </template>
                         </div>
                     </div>
 
