@@ -329,12 +329,12 @@ class ShopController extends Controller
             return response()->json([]);
         }
 
+        // FULLTEXT via the shared search scope — LIKE '%term%' was a full
+        // table scan and would take seconds at the 2M-product target.
         $products = Products::query()
             ->with('make:id,cat_title')
-            ->where(function ($q) use ($query) {
-                $q->where('title', 'like', "%{$query}%")
-                    ->orWhere('country', 'like', "%{$query}%");
-            })
+            ->whereNull('front_image_dead_at')
+            ->search($query)
             ->select('id', 'title', 'front_image', 'make_id', 'country', 'price')
             ->limit(10)
             ->get();
