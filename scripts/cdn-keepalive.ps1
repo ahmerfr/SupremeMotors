@@ -17,6 +17,11 @@ if (Test-Path $doneMarker) {
 
 # 2. MySQL up?
 $mysqld = Get-Process mysqld -ErrorAction SilentlyContinue
+if ($mysqld) {
+    # my.ini still carries the 16M pool; anything that restarts MySQL shrinks the
+    # lock table and big UPDATEs die with error 1206 — enforce the size every tick.
+    & 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -P 3307 -u root -B -e 'SET GLOBAL innodb_buffer_pool_size=536870912' 2>$null
+}
 if (-not $mysqld) {
     Start-Process -FilePath 'C:\xampp\mysql\bin\mysqld.exe' -ArgumentList '--defaults-file=C:\xampp\mysql\bin\my.ini','--standalone' -WindowStyle Hidden
     # wait for the port (up to 90s)
