@@ -178,6 +178,20 @@ const advancedCount = computed(() => {
     return n;
 });
 
+/* ---------------- sidebar sections (collapsible) ---------------- */
+
+const sideOpen = reactive({
+    category: true,
+    body: true,
+    make: true,
+    price: false,
+    origin: false,
+});
+// a section holding an applied filter never starts collapsed
+const a0 = fromParams(props.filters);
+if (a0.price_min !== '' || a0.price_max !== '') sideOpen.price = true;
+if (a0.country.length) sideOpen.origin = true;
+
 /* ---------------- sidebar option lists ---------------- */
 
 const makeSearch = ref('');
@@ -336,82 +350,109 @@ watch(drawerOpen, (open) => {
         <FrontLayout>
             <!-- Page head -->
             <section class="sm-body" style="padding: 60px 24px 0">
-                <div style="max-width: 1280px; margin: 0 auto">
-                    <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
-                        <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
+                <div class="sm-invhead" style="max-width: 1280px; margin: 0 auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
+                            <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
+                        </div>
+                        <h1 style="font-family: Archivo; font-weight: 800; font-size: 54px; letter-spacing: -0.03em; color: #0b1e3b; margin-top: 12px; line-height: 1.04">
+                            Browse our stock<span style="color: #e01f26">.</span>
+                        </h1>
+                        <p style="font-size: 16.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 12px">
+                            Sourced from Japan, China and Europe — updated daily.
+                        </p>
                     </div>
-                    <h1 style="font-family: Archivo; font-weight: 800; font-size: 40px; letter-spacing: -0.025em; color: #0b1e3b; margin-top: 12px; line-height: 1.08">
-                        Browse our stock
-                    </h1>
-                    <p style="font-size: 16px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 10px">
-                        {{ stockTotal.toLocaleString() }} vehicles live from Japan, China and Europe — updated daily.
-                    </p>
+                    <div class="sm-invstat" style="flex: 0 0 auto; text-align: right; padding-bottom: 4px">
+                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px">
+                            <span class="sm-livedot"></span>
+                            <span style="font-family: Archivo; font-weight: 800; font-size: 44px; letter-spacing: -0.02em; color: #0b1e3b; line-height: 1">{{ stockTotal.toLocaleString() }}</span>
+                        </div>
+                        <div style="font-size: 12.5px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin-top: 6px">VEHICLES LIVE RIGHT NOW</div>
+                    </div>
                 </div>
             </section>
 
             <!-- Sidebar + results -->
-            <section class="sm-body" style="padding: 34px 24px 60px">
-                <div class="sm-shopgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 264px 1fr; gap: 40px; align-items: start">
+            <section class="sm-body" style="padding: 30px 24px 60px">
+                <div class="sm-shopgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 228px 1fr; gap: 36px; align-items: start">
                     <!-- Sidebar -->
                     <aside class="sm-sidebar" :style="{ position: 'sticky', top: sideTop + 'px' }">
                         <!-- Category -->
                         <div class="sm-ssec">
-                            <div class="sm-ssec-head">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.category" @click="sideOpen.category = !sideOpen.category">
                                 <span>Category</span>
-                                <button v-if="applied.category.length" type="button" class="sm-sreset" @click="resetKeys('category')">Reset</button>
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.category.length" class="sm-sreset" role="button" @click.stop="resetKeys('category')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.category ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
+                            </button>
+                            <div v-show="sideOpen.category" class="sm-ssec-body">
+                                <label v-for="c in categories" :key="c.id" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.category.includes(String(c.id))" @change="toggleApplied(applied.category, String(c.id))" />
+                                    <span style="flex: 1">{{ c.cat_title }}</span>
+                                    <span class="sm-fcount">{{ Number(c.products_count).toLocaleString() }}</span>
+                                </label>
                             </div>
-                            <label v-for="c in categories" :key="c.id" class="sm-frow">
-                                <input type="checkbox" class="sm-fcheck" :checked="applied.category.includes(String(c.id))" @change="toggleApplied(applied.category, String(c.id))" />
-                                <span style="flex: 1">{{ c.cat_title }}</span>
-                                <span class="sm-fcount">{{ Number(c.products_count).toLocaleString() }}</span>
-                            </label>
                         </div>
 
                         <!-- Body type -->
                         <div class="sm-ssec">
-                            <div class="sm-ssec-head">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.body" @click="sideOpen.body = !sideOpen.body">
                                 <span>Body type</span>
-                                <button v-if="applied.body_style.length" type="button" class="sm-sreset" @click="resetKeys('body_style')">Reset</button>
-                            </div>
-                            <label v-for="b in sidebarBodies" :key="b.value" class="sm-frow">
-                                <input type="checkbox" class="sm-fcheck" :checked="applied.body_style.includes(b.value)" @change="toggleApplied(applied.body_style, b.value)" />
-                                <span style="flex: 1">{{ b.value }}</span>
-                                <span class="sm-fcount">{{ Number(b.count).toLocaleString() }}</span>
-                            </label>
-                            <button v-if="(facets.body_styles ?? []).length > 8" type="button" class="sm-smore" @click="showAllBodies = !showAllBodies">
-                                {{ showAllBodies ? 'Show fewer' : `Show all ${(facets.body_styles ?? []).length}` }}
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.body_style.length" class="sm-sreset" role="button" @click.stop="resetKeys('body_style')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.body ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
                             </button>
+                            <div v-show="sideOpen.body" class="sm-ssec-body">
+                                <label v-for="b in sidebarBodies" :key="b.value" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.body_style.includes(b.value)" @change="toggleApplied(applied.body_style, b.value)" />
+                                    <span style="flex: 1">{{ b.value }}</span>
+                                    <span class="sm-fcount">{{ Number(b.count).toLocaleString() }}</span>
+                                </label>
+                                <button v-if="(facets.body_styles ?? []).length > 8" type="button" class="sm-smore" @click="showAllBodies = !showAllBodies">
+                                    {{ showAllBodies ? 'Show fewer' : `Show all ${(facets.body_styles ?? []).length}` }}
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Make -->
                         <div class="sm-ssec">
-                            <div class="sm-ssec-head">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.make" @click="sideOpen.make = !sideOpen.make">
                                 <span>Make</span>
-                                <button v-if="applied.make.length" type="button" class="sm-sreset" @click="resetKeys('make')">Reset</button>
-                            </div>
-                            <input
-                                v-model="makeSearch"
-                                type="text"
-                                placeholder="Search makes…"
-                                style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
-                            />
-                            <label v-for="m in sidebarMakes" :key="m.id" class="sm-frow">
-                                <input type="checkbox" class="sm-fcheck" :checked="applied.make.includes(String(m.id))" @change="toggleApplied(applied.make, String(m.id))" />
-                                <span style="flex: 1">{{ m.cat_title }}</span>
-                                <span class="sm-fcount">{{ Number(m.products_count).toLocaleString() }}</span>
-                            </label>
-                            <button v-if="!showAllMakes && !makeSearch && makes.length > 8" type="button" class="sm-smore" @click="showAllMakes = true">
-                                Show all {{ makes.length }} makes
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.make.length" class="sm-sreset" role="button" @click.stop="resetKeys('make')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.make ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
                             </button>
+                            <div v-show="sideOpen.make" class="sm-ssec-body">
+                                <input
+                                    v-model="makeSearch"
+                                    type="text"
+                                    placeholder="Search makes…"
+                                    style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
+                                />
+                                <label v-for="m in sidebarMakes" :key="m.id" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.make.includes(String(m.id))" @change="toggleApplied(applied.make, String(m.id))" />
+                                    <span style="flex: 1">{{ m.cat_title }}</span>
+                                    <span class="sm-fcount">{{ Number(m.products_count).toLocaleString() }}</span>
+                                </label>
+                                <button v-if="!showAllMakes && !makeSearch && makes.length > 8" type="button" class="sm-smore" @click="showAllMakes = true">
+                                    Show all {{ makes.length }} makes
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Price -->
                         <div class="sm-ssec">
-                            <div class="sm-ssec-head">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.price" @click="sideOpen.price = !sideOpen.price">
                                 <span>Price</span>
-                                <button v-if="applied.price_min !== '' || applied.price_max !== ''" type="button" class="sm-sreset" @click="resetKeys('price_min', 'price_max')">Reset</button>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.price_min !== '' || applied.price_max !== ''" class="sm-sreset" role="button" @click.stop="resetKeys('price_min', 'price_max')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.price ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
+                            </button>
+                            <div v-show="sideOpen.price" class="sm-ssec-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
                                 <select v-model="applied.price_min" class="sm-fselect" style="height: 38px" @change="sideApply">
                                     <option value="">No min</option>
                                     <option v-for="p in priceSteps" :key="'spmin' + p" :value="p">{{ kFmt(p) }}</option>
@@ -425,15 +466,20 @@ watch(drawerOpen, (open) => {
 
                         <!-- Origin -->
                         <div class="sm-ssec">
-                            <div class="sm-ssec-head">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.origin" @click="sideOpen.origin = !sideOpen.origin">
                                 <span>Origin</span>
-                                <button v-if="applied.country.length" type="button" class="sm-sreset" @click="resetKeys('country')">Reset</button>
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.country.length" class="sm-sreset" role="button" @click.stop="resetKeys('country')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.origin ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
+                            </button>
+                            <div v-show="sideOpen.origin" class="sm-ssec-body">
+                                <label v-for="c in facets.countries ?? []" :key="c.value" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.country.includes(c.value)" @change="toggleApplied(applied.country, c.value)" />
+                                    <span style="flex: 1">{{ c.value }}</span>
+                                    <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
+                                </label>
                             </div>
-                            <label v-for="c in facets.countries ?? []" :key="c.value" class="sm-frow">
-                                <input type="checkbox" class="sm-fcheck" :checked="applied.country.includes(c.value)" @change="toggleApplied(applied.country, c.value)" />
-                                <span style="flex: 1">{{ c.value }}</span>
-                                <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
-                            </label>
                         </div>
 
                         <button type="button" class="scp2 sm-advbtn" @click="openDrawer()">

@@ -351,24 +351,32 @@ html {
 }
 
 /* Inventory: filter sidebar, applied chips, advanced drawer */
-.sm-ssec { padding: 18px 0; border-bottom: 1px solid #eef1f6; }
-.sm-sidebar > .sm-ssec:first-child { padding-top: 0; }
+.sm-ssec { border-bottom: 1px solid #eef1f6; }
 .sm-ssec-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    width: 100%;
+    padding: 16px 0;
+    border: none;
+    background: none;
+    cursor: pointer;
     font-family: Archivo, sans-serif;
-    font-weight: 700;
-    font-size: 15px;
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: -0.01em;
     color: #0b1e3b;
-    margin-bottom: 8px;
+    text-align: left;
 }
+.sm-ssec-tools { display: inline-flex; align-items: center; gap: 10px; }
+.sm-ssec-body { padding-bottom: 16px; }
 .sm-sreset {
     border: none;
     background: none;
     font-family: Manrope, sans-serif;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 800;
+    letter-spacing: 0.03em;
     color: #e01f26;
     cursor: pointer;
     padding: 0;
@@ -560,6 +568,10 @@ html {
 /* Desktop: the sidebar owns category/make; the drawer's duplicate section
    only exists for mobile, where the sidebar is hidden. */
 .sm-drawer-mainsections { display: none; }
+@media (max-width: 900px) {
+    .sm-invstat { display: none; }
+    .sm-invhead h1 { font-size: 40px !important; }
+}
 @media (max-width: 1080px) {
     .sm-invgrid { grid-template-columns: 1fr 1fr !important; }
     .sm-shopgrid { grid-template-columns: 1fr !important; }
