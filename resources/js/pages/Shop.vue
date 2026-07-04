@@ -497,7 +497,8 @@ watch(drawerOpen, (open) => {
                         <!-- Count | search + sort -->
                         <div class="sm-reshead" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #eef1f6">
                             <div :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '18px', color: '#0b1e3b', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s', flex: '0 0 auto' }">
-                                {{ (products?.total ?? 0).toLocaleString() }} vehicles
+                                Showing {{ (products?.from ?? 0).toLocaleString() }}–{{ (products?.to ?? 0).toLocaleString() }}
+                                <span style="font-weight: 600; color: #8494ab">of {{ (products?.total ?? 0).toLocaleString() }} results</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
                                 <button type="button" class="sm-advbtn sm-advbtn-mobile scp2" style="display: none" @click="openDrawer()">
