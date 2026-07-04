@@ -20,10 +20,14 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Ou
 $shards = @(
     @{ name = 'ga'; min = 0;      max = 176298; pool = 40; timeout = 45;  scope = 'all' },
     @{ name = 'gb'; min = 176298; max = 232420; pool = 6;  timeout = 120; scope = 'all' },
-    @{ name = 'gc';  min = 232420; max = 300000; pool = 90; timeout = 20; scope = 'all' },
-    @{ name = 'gc2'; min = 300000; max = 345000; pool = 90; timeout = 20; scope = 'all' },
-    @{ name = 'gd';  min = 345000; max = 385000; pool = 90; timeout = 20; scope = 'all' },
-    @{ name = 'gd2'; min = 385000; max = 453376; pool = 90; timeout = 20; scope = 'all' }
+    @{ name = 'gc';  min = 232420; max = 270000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gc3'; min = 270000; max = 300000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gc2'; min = 300000; max = 324000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gc4'; min = 324000; max = 345000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gd';  min = 345000; max = 368000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gd3'; min = 368000; max = 385000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gd2'; min = 385000; max = 420000; pool = 120; timeout = 20; scope = 'all' },
+    @{ name = 'gd4'; min = 420000; max = 453376; pool = 120; timeout = 20; scope = 'all' }
 )
 
 if (Test-Path (Join-Path $state 'warm.done')) {
