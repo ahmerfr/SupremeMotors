@@ -60,7 +60,7 @@ const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].so
                 <div style="padding: 11px 12px">
                     <div style="display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; color: #9aa8bd; letter-spacing: 0.03em">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e01f26" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0-8-8"/><path d="M12 12l4-4"/><path d="M4 12h2"/><path d="M12 4v2"/></svg>
-                        TRAVELLED
+                        KILOMETERS
                     </div>
                     <div style="font-size: 13px; font-weight: 700; color: #33445e; margin-top: 4px">{{ km }}</div>
                 </div>
