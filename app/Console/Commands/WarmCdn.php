@@ -64,16 +64,24 @@ class WarmCdn extends Command
                 }
             }
 
-            // probe the whole batch; classify each URL
+            // probe the batch; classify each URL. On outage rounds, only the
+            // failing subset is retried — successes are banked across rounds.
             $outageRetries = 0;
+            $attempt = $jobs;
+            $dead = [];
+            $retryable = [];
+            $warmed = 0;
             while (true) {
-                [$dead, $retryable, $warmed, $connFailures] = $this->probe($jobs);
+                [$deadRound, $retryRound, $warmedRound, $connFailures] = $this->probe($attempt);
+                $dead += $deadRound;
+                $warmed += $warmedRound;
 
-                // Circuit breaker: if most of the batch failed at the connection
-                // level the network is down, not the images. Never advance or
-                // write anything based on an outage — retry the same batch.
-                $isOutage = count($jobs) > 0 && $connFailures / count($jobs) > 0.5;
+                // Circuit breaker: if most of the attempt failed at the
+                // connection level the network is down, not the images. Never
+                // mark anything dead or advance the cursor on outage signal.
+                $isOutage = count($attempt) > 0 && $connFailures / count($attempt) > 0.5;
                 if (! $isOutage) {
+                    $retryable += $retryRound;
                     break;
                 }
                 $outageRetries++;
@@ -82,7 +90,19 @@ class WarmCdn extends Command
 
                     return self::FAILURE;
                 }
-                $this->warn("network outage detected ({$connFailures}/" . count($jobs) . ' failed) — retrying batch in ' . self::OUTAGE_SLEEP_SECONDS . 's');
+                // Partial-failure escape: rounds that keep half-failing while
+                // the network is demonstrably alive (>=10% succeeding) mean a
+                // struggling origin, not an outage — log the stragglers for the
+                // retry pass and move on rather than stalling the whole crawl.
+                // A true outage (>=90% failing) keeps retrying forever.
+                $partiallyAlive = $connFailures / count($attempt) < 0.9;
+                if ($outageRetries >= 6 && $partiallyAlive) {
+                    $retryable += $retryRound;
+                    $this->warn('persistent partial failures after ' . $outageRetries . ' rounds — logging ' . count($retryRound) . ' stragglers and moving on');
+                    break;
+                }
+                $this->warn("network outage detected ({$connFailures}/" . count($attempt) . ' failed) — retrying failed subset in ' . self::OUTAGE_SLEEP_SECONDS . 's');
+                $attempt = $retryRound;
                 sleep(self::OUTAGE_SLEEP_SECONDS);
             }
 
