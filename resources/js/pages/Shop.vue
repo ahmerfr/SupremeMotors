@@ -191,13 +191,24 @@ const headTitle = computed(() => {
     }
     return 'Browse Our Entire Range';
 });
-// Real photo on the banner's right, matched to the selected category.
+// Real photo on the banner's right, one per category, all served from our
+// own CDN stock (Perma-Cache keeps them even if the products sell).
+const BANNER_IMAGES = {
+    'Cars': 'https://sm-tcv.b-cdn.net/cdn/trade/img06/cars/3147874/36848863/2009+audi+a4/01.jpg',
+    'Trucks': 'https://sm-madeinchina.b-cdn.net/202f0j00rNBTZQEMJKgY/Euro-II-LHD-Rhd-30m3-HOWO-8X4-Oil-Tanker-Fuel-Tank-Truck.jpg',
+    'Buses': 'https://sm-linemedia.b-cdn.net/img/s/double-decker-bus-Setra-S-431-DT---1750339333154543141_big--25061916221305967200.jpg',
+    'Electric Vehicles': 'https://sm-chinacrunch.b-cdn.net/cdn/shop/files/xpeng_g9_evmarketplace_chinacrunch_06.png',
+    'Tractors': 'https://sm-linemedia.b-cdn.net/img/s/wheel-tractor-Claas-Xerion-3800---1716902853714514154_big--24052816260390817100.jpg',
+    'Heavy Machinery': 'https://sm-linemedia.b-cdn.net/img/s/construction-equipment-compact-track-loader-AGT-YSRT14---1710613113456158748_big--24031619012843811300.jpg',
+    'Equipment': 'https://sm-linemedia.b-cdn.net/img/s/side-loader-B-P-Battioni-e-Pagani-HT5EL---1734687685360945607_big--24122011412504474600.jpg',
+};
+const ALL_BANNER_IMAGE = 'https://sm-tcv.b-cdn.net/cdn/trade/img06/cars/683103/39625706/2018+honda+legend/01.jpg';
+
 const headImage = computed(() => {
-    const truckish = ['Trucks', 'Buses', 'Tractors', 'Heavy Machinery', 'Equipment'];
-    if (selectedCategoryNames.value.length === 1 && truckish.includes(selectedCategoryNames.value[0])) {
-        return '/assets/images/hero-truck.jpg';
+    if (selectedCategoryNames.value.length === 1) {
+        return BANNER_IMAGES[selectedCategoryNames.value[0]] ?? ALL_BANNER_IMAGE;
     }
-    return '/assets/images/cta-vehicle.jpg';
+    return ALL_BANNER_IMAGE;
 });
 
 /* ---------------- sidebar sections (collapsible) ---------------- */
