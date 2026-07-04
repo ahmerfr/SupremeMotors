@@ -16,6 +16,7 @@ class SwapToCdn extends Command
         'https://img.linemedia.com' => 'https://sm-linemedia.b-cdn.net',
         'https://image.made-in-china.com' => 'https://sm-madeinchina.b-cdn.net',
         'https://www.tc-v.com' => 'https://sm-tcv.b-cdn.net',
+        'https://marketplace.china-crunch.com' => 'https://sm-chinacrunch.b-cdn.net',
     ];
 
     public function handle(): int
