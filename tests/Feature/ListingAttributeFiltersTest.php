@@ -91,4 +91,39 @@ class ListingAttributeFiltersTest extends TestCase
         $response->assertOk();
         $this->assertCount(2, $response->json('data'));
     }
+
+    public function test_body_style_accepts_comma_list(): void
+    {
+        $this->makeProduct(['title' => 'Sedan A', 'body_style' => 'Sedan']);
+        $this->makeProduct(['title' => 'SUV B', 'body_style' => 'SUV']);
+        $this->makeProduct(['title' => 'Bus C', 'body_style' => 'Bus']);
+
+        $response = $this->getJson('/inventory/listing?body_style=Sedan,SUV');
+
+        $response->assertOk();
+        $this->assertCount(2, $response->json('data'));
+    }
+
+    public function test_price_sort_sinks_enquire_rows(): void
+    {
+        $this->makeProduct(['title' => 'Enquire', 'price' => 0]);
+        // priced in the DB but the cards hide non-tcv prices -> must sink too
+        $this->makeProduct(['title' => 'Hidden price', 'price' => 100, 'website' => 'autoline']);
+        $this->makeProduct(['title' => 'Cheap', 'price' => 1000, 'website' => 'tcv']);
+        $this->makeProduct(['title' => 'Dear', 'price' => 9000, 'website' => 'tcv']);
+
+        $titles = collect($this->getJson('/inventory/listing?sort=price_asc')->json('data'))->pluck('title')->all();
+
+        $this->assertSame(['Cheap', 'Dear'], array_slice($titles, 0, 2));
+        $this->assertContains('Enquire', array_slice($titles, 2));
+        $this->assertContains('Hidden price', array_slice($titles, 2));
+    }
+
+    public function test_count_endpoint_matches_filters(): void
+    {
+        $this->makeProduct(['title' => 'Petrol A', 'fuel' => 'Petrol']);
+        $this->makeProduct(['title' => 'Diesel B', 'fuel' => 'Diesel']);
+
+        $this->getJson('/inventory/count?fuel=Petrol')->assertOk()->assertJson(['total' => 1]);
+    }
 }

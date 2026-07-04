@@ -17,7 +17,7 @@ class ShopController extends Controller
 {
     public function home()
     {
-        $data = Cache::flexible('shop_home_data', [1800, 86400], function () {
+        $data = Cache::flexible('shop_home_data_v2', [1800, 86400], function () {
             // Filter sidebar shows the 7 top-level categories; each count
             // rolls up the category's own products plus its subcategories'.
             $counts = Products::query()
@@ -41,15 +41,56 @@ class ShopController extends Controller
                 ->values()
                 ->toArray();
 
+            $makeCounts = Products::query()
+                ->whereNotNull('make_id')
+                ->groupBy('make_id')
+                ->selectRaw('make_id, COUNT(*) as c')
+                ->pluck('c', 'make_id');
+
             $makes = Categories::where('type', 'make')
-                ->orderBy('created_at', 'desc')
                 ->select('id', 'cat_title', 'image')
                 ->get()
+                ->map(fn ($m) => [
+                    'id' => $m->id,
+                    'cat_title' => $m->cat_title,
+                    'image' => $m->image,
+                    'products_count' => $makeCounts[$m->id] ?? 0,
+                ])
+                ->filter(fn ($m) => $m['products_count'] > 0)
+                ->sortByDesc('products_count')
+                ->values()
                 ->toArray();
+
+            // Facets: distinct values (+counts) for every list filter the
+            // listing endpoint supports, so the filter UI is data-driven.
+            $facet = fn (string $column) => Products::query()
+                ->whereNotNull($column)
+                ->where($column, '!=', '')
+                ->groupBy($column)
+                ->selectRaw("`{$column}` as value, COUNT(*) as count")
+                ->orderByDesc('count')
+                ->get()
+                ->toArray();
+
+            $facets = [
+                'countries' => $facet('country'),
+                'body_styles' => $facet('body_style'),
+                'fuels' => $facet('fuel'),
+                'transmissions' => $facet('transmission'),
+                'conditions' => $facet('condition'),
+                'steerings' => $facet('steering'),
+                'drive_types' => $facet('drive_type'),
+                'emission_standards' => $facet('emission_standard'),
+                'year_bounds' => [
+                    'min' => (int) Products::whereNotNull('year')->where('year', '>', 1950)->min('year'),
+                    'max' => (int) Products::whereNotNull('year')->max('year'),
+                ],
+            ];
 
             return [
                 'categories' => $categories,
                 'makes' => $makes,
+                'facets' => $facets,
             ];
         });
 
@@ -59,105 +100,97 @@ class ShopController extends Controller
             'products' => $products,
             'categories' => $data['categories'],
             'makes' => $data['makes'],
+            'facets' => $data['facets'],
+            // Echo the applied filters so chips/drawer hydrate from the URL.
+            'filters' => request()->except(['page']),
         ]);
+    }
+
+    /**
+     * One filter vocabulary for every caller (hero, chips, drawer, count):
+     * comma lists for category/make/country/body_style and the attribute
+     * lists, price_min/price_max ranges, plus applyAttributeFilters().
+     */
+    private function buildListingQuery(array $data)
+    {
+        $query = Products::query();
+
+        $csv = fn (?string $v) => ($v !== null && $v !== '') ? array_map('trim', explode(',', $v)) : [];
+
+        $categoryFilters = $csv($data['category'] ?? null);
+        // A top-level category also matches products filed under its subcategories.
+        if (! empty($categoryFilters)) {
+            $categoryFilters = Categories::expandWithChildren($categoryFilters);
+        }
+
+        $makeFilters = $csv($data['make'] ?? null);
+        $countryFilters = $csv($data['country'] ?? null);
+        $bodyStyles = $csv($data['body_style'] ?? null);
+        $search = $data['search'] ?? null;
+
+        $query->when($search, fn ($q) => $q->search($search))
+            ->when(! empty($categoryFilters), fn ($q) => $q->whereIn('category_id', $categoryFilters))
+            ->when(! empty($makeFilters), fn ($q) => $q->whereIn('make_id', $makeFilters))
+            ->when(! empty($bodyStyles), fn ($q) => $q->whereIn('body_style', $bodyStyles))
+            ->when(! empty($countryFilters), fn ($q) => $q->whereIn('country', $countryFilters));
+
+        $priceMin = $data['price_min'] ?? null;
+        $priceMax = $data['price_max'] ?? null;
+        if ($priceMin !== null && $priceMin !== '' && $priceMax !== null && $priceMax !== '') {
+            $query->whereBetween('price', [(int) $priceMin, (int) $priceMax]);
+        } elseif ($priceMin !== null && $priceMin !== '') {
+            $query->where('price', '>=', (int) $priceMin);
+        } elseif ($priceMax !== null && $priceMax !== '') {
+            $query->where('price', '<=', (int) $priceMax);
+        }
+
+        $this->applyAttributeFilters($query, $data);
+
+        return $query;
+    }
+
+    /**
+     * Whitelisted sort orders. Price sorts sink rows whose price the cards
+     * don't display (Enquire): 0/null prices AND sources whose prices are
+     * hidden by the frontend business rule (only tcv/suprememotors/
+     * electricvehicles show numbers) — otherwise a price sort surfaces a
+     * wall of "Enquire" cards.
+     */
+    private const PRICE_VISIBLE_SITES = "'tcv','suprememotors','electricvehicles'";
+
+    private function applySort($query, ?string $sort): void
+    {
+        $enquire = '(price IS NULL OR price = 0 OR website NOT IN (' . self::PRICE_VISIBLE_SITES . ')) asc';
+        match ($sort) {
+            'price_asc' => $query->orderByRaw($enquire)->orderBy('price'),
+            'price_desc' => $query->orderByRaw($enquire)->orderByDesc('price'),
+            'year_desc' => $query->orderByRaw('year IS NULL asc')->orderByDesc('year'),
+            'mileage_asc' => $query->orderByRaw('mileage_km IS NULL asc')->orderBy('mileage_km'),
+            default => $query->orderByDesc('created_at'),
+        };
+    }
+
+    /** Staged-drawer live count: same query, cached total only. */
+    public function count(Request $request)
+    {
+        $query = $this->buildListingQuery($request->all());
+        $countKey = 'listing_count_' . md5(json_encode(collect($request->except(['page', 'sort']))->sortKeys()->all()));
+        $total = Cache::flexible($countKey, [300, 3600], fn () => $query->toBase()->getCountForPagination());
+
+        return response()->json(['total' => $total]);
     }
 
     public function listing()
     {
         $request = request();
-        $query = Products::with(['category:id,cat_title', 'make:id,cat_title']);
+        $query = $this->buildListingQuery($request->all())
+            ->with(['category:id,cat_title', 'make:id,cat_title']);
 
-        $type = $request->input('type') ?? null;
-
-        if ($type == 'search') {
-            // Get all request data
-            $filter_data = $request->all();
-
-            // Basic filters
-            $search = $filter_data['search'] ?? null;
-            $makeId = $filter_data['make'] ?? null;
-            $bodyStyle = $filter_data['body_style'] ?? null;
-
-            // Apply search filter
-            if ($search) {
-                $query->search($search);
-            }
-
-            // Apply make filter
-            if ($makeId) {
-                $query->where('make_id', $makeId);
-            }
-
-            // Apply body style filter
-            if ($bodyStyle) {
-                $query->where('body_style', $bodyStyle);
-            }
-
-            // Apply price range filter if applicable
-            $priceMin = $filter_data['price_min'] ?? null;
-            $priceMax = $filter_data['price_max'] ?? null;
-
-            if ($priceMin && $priceMax) {
-                $query->whereBetween('price', [(int)$priceMin, (int)$priceMax]);
-            } elseif ($priceMin) {
-                $query->where('price', '>=', (int)$priceMin);
-            } elseif ($priceMax) {
-                $query->where('price', '<=', (int)$priceMax);
-            }
-
-            $this->applyAttributeFilters($query, $filter_data);
-        } else {
-            // Original approach for non-search type requests
-            $categoryFilters = $request->filled('category') ? explode(',', $request->input('category')) : [];
-            $makeFilters = $request->filled('make') ? explode(',', $request->input('make')) : [];
-            $countryFilters = $request->filled('country') ? explode(',', $request->input('country')) : [];
-            $priceFilter = $request->input('price');
-            $bodyStyle = $request->input('body_style');
-            $search = $request->input('search');
-
-            // A top-level category also matches products filed under its subcategories.
-            if (!empty($categoryFilters)) {
-                $categoryFilters = Categories::expandWithChildren($categoryFilters);
-            }
-
-            $query = $query->when($search, fn ($q) => $q->search($search))
-                ->when(!empty($categoryFilters), fn($q) => $q->whereIn('category_id', $categoryFilters))
-                ->when(!empty($makeFilters), fn($q) => $q->whereIn('make_id', $makeFilters))
-                ->when($bodyStyle, fn($q) => $q->where('body_style', $bodyStyle))
-                ->when(!empty($countryFilters), fn($q) => $q->whereIn('country', $countryFilters))
-                ->when($priceFilter, function ($q) use ($priceFilter) {
-                    switch ($priceFilter) {
-                        case 'under-500':
-                            $q->where('price', '<', 500);
-                            break;
-                        case '500-1000':
-                            $q->whereBetween('price', [500, 1000]);
-                            break;
-                        case '1000-2000':
-                            $q->whereBetween('price', [1000, 2000]);
-                            break;
-                        case '2000-5000':
-                            $q->whereBetween('price', [2000, 5000]);
-                            break;
-                        case '5000-10000':
-                            $q->whereBetween('price', [5000, 10000]);
-                            break;
-                        case '10000-20000':
-                            $q->whereBetween('price', [10000, 20000]);
-                            break;
-                        case 'over-20000':
-                            $q->where('price', '>', 20000);
-                            break;
-                    }
-                });
-
-            $this->applyAttributeFilters($query, $request->all());
-        }
         // paginate()'s COUNT(*) costs ~100-200ms on 453K rows even warm;
         // totals per filter signature barely change, so cache them briefly.
-        $query->orderByDesc('created_at');
+        $this->applySort($query, $request->input('sort'));
         $page = max(1, (int) $request->input('page', 1));
-        $countKey = 'listing_count_' . md5(json_encode(collect($request->except('page'))->sortKeys()->all()));
+        $countKey = 'listing_count_' . md5(json_encode(collect($request->except(['page', 'sort']))->sortKeys()->all()));
         $total = Cache::flexible($countKey, [300, 3600], fn () => $query->toBase()->getCountForPagination());
 
         $results = new \Illuminate\Pagination\LengthAwarePaginator(
