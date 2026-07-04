@@ -22,7 +22,7 @@ const hour = new Date().getHours();
 const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
 const imageUrl = (path: string) =>
-    path && path.includes('product_images') ? `/storage/${path}` : path;
+    path && path.startsWith('product_images') ? `/storage/${path}` : path;
 
 const metrics = computed(() => [
     { title: 'Your listings', value: props.stats.own_products, accent: true },

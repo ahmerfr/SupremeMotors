@@ -31,7 +31,7 @@ defineProps({
                 :buyer-images="[...(featured_products_china || []), ...(featured_products_japan || [])]
                     .filter(p => p.front_image)
                     .slice(0, 10)
-                    .map(p => p.front_image.includes('product_images') ? '/storage/' + p.front_image : p.front_image)"
+                    .map(p => p.front_image.startsWith('product_images') ? '/storage/' + p.front_image : p.front_image)"
             />
             <ExploreCategories :categories="categories" />
             <SectionDivider />

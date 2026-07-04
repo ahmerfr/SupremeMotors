@@ -25,11 +25,11 @@ const truncatedTitle = computed(() => {
 const imageSrc = computed(() => {
     if (activeImageIndex.value === -1 || !props.product_detail.other_images?.length) {
       const front = props.product_detail.front_image;
-      return front.includes('product_images') ? '/storage/' + front : front;
+      return front.startsWith('product_images') ? '/storage/' + front : front;
     }
 
     const other = props.product_detail.other_images[activeImageIndex.value];
-    return other?.includes('product_images') ? '/storage/' + other : other;
+    return other?.startsWith('product_images') ? '/storage/' + other : other;
   }
 );
 
@@ -66,14 +66,15 @@ onMounted(() => {
   if (props.product_detail?.other_images?.length) {
     props.product_detail.other_images.forEach(img => {
       const image = new Image();
-      image.src = `/storage/${img}`;
+      image.src = img.startsWith('http') ? img : `/storage/${img}`;
     });
   }
 
   // Preload front image
   if (props.product_detail?.front_image) {
+    const front = props.product_detail.front_image;
     const frontImg = new Image();
-    frontImg.src = `/storage/${props.product_detail.front_image}`;
+    frontImg.src = front.startsWith('http') ? front : `/storage/${front}`;
   }
 });
 </script>
@@ -185,7 +186,7 @@ onMounted(() => {
                     :class="activeImageIndex === -1 ? 'border-[#8a2527] shadow-md' : 'border-transparent hover:border-gray-300'"
                     @click="changeImage(-1)">
                     <img  v-if="product_detail.front_image || product_detail.other_images.length"
-                    :src="(product_detail.front_image).includes('product_images') ? '/storage/' + product_detail.front_image : product_detail.front_image"
+                    :src="(product_detail.front_image).startsWith('product_images') ? '/storage/' + product_detail.front_image : product_detail.front_image"
                      :alt="product_detail.title"
                       class="w-full h-full object-cover object-center" />
                   </div>
@@ -194,7 +195,7 @@ onMounted(() => {
                     :class="activeImageIndex === index ? 'border-[#8a2527] shadow-md' : 'border-transparent hover:border-gray-300'"
                     @click="changeImage(index)">
                     <img  
-                    :src="(image).includes('product_images') ? '/storage/' + image : image"
+                    :src="(image).startsWith('product_images') ? '/storage/' + image : image"
                     :alt="`${product_detail.title} - Image ${index + 1}`"
                       class="w-full h-full object-cover object-center" />
                   </div>
@@ -281,7 +282,7 @@ onMounted(() => {
               <div v-for="sp in similar_products" :key="sp.id"
                 class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
                 <div class="aspect-video bg-gray-100 overflow-hidden relative">
-                  <img v-if="sp.front_image || sp.other_images.length" :src="(sp.front_image).includes('product_images') ? '/storage/' + sp.front_image : sp.front_image"
+                  <img v-if="sp.front_image || sp.other_images.length" :src="(sp.front_image).startsWith('product_images') ? '/storage/' + sp.front_image : sp.front_image"
                     alt="Product Image"
                     class="w-full h-full object-cover object-center transition-transform hover:scale-105" />
 

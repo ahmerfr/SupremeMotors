@@ -14,7 +14,7 @@ const onImgError = () => {
     imgFailed.value = true;
     emit('img-error');
 };
-const imageUrl = p.front_image && p.front_image.includes('product_images') ? `/storage/${p.front_image}` : p.front_image;
+const imageUrl = p.front_image && p.front_image.startsWith('product_images') ? `/storage/${p.front_image}` : p.front_image;
 const brand = p.make?.cat_title || p.category?.cat_title || 'Vehicle';
 const km = p.mileage_km ? `${Number(p.mileage_km).toLocaleString()} KM` : '—';
 const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].some((s) => (p.website || '').includes(s));

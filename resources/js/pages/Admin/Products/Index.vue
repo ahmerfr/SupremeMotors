@@ -19,7 +19,7 @@ const search = () => {
 };
 
 const imageUrl = (path) =>
-    path && path.includes('product_images') ? `/storage/${path}` : path;
+    path && path.startsWith('product_images') ? `/storage/${path}` : path;
 
 const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p.mileage_km).toLocaleString()} km` : null].filter(Boolean);
 </script>

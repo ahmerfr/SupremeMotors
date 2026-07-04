@@ -68,10 +68,11 @@ const attributeFields = [
     { key: 'color', label: 'Color', type: 'text' },
 ];
 
-// Initialize image previews with full URLs
-const frontImagePreview = ref(props.product.front_image ? `${STORAGE_BASE_URL}${props.product.front_image}` : null);
+// Initialize image previews with full URLs (absolute CDN URLs pass through)
+const toPreviewUrl = (url) => (url.startsWith('http') ? url : `${STORAGE_BASE_URL}${url}`);
+const frontImagePreview = ref(props.product.front_image ? toPreviewUrl(props.product.front_image) : null);
 const otherImagesPreview = ref(
-    props.product.other_images ? props.product.other_images.map(url => `${STORAGE_BASE_URL}${url}`) : []
+    props.product.other_images ? props.product.other_images.map(toPreviewUrl) : []
 );
 const removedImages = ref([]); // Track removed images
 

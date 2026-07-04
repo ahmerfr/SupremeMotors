@@ -429,7 +429,7 @@ function toggleFilters() {
                     class="group bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
                     <!-- Product Image with Overlay -->
                     <div class="relative h-52 w-full bg-gray-200 overflow-hidden">
-                      <img loading="lazy" :src="(product.front_image).includes('product_images') ? '/storage/' + product.front_image : product.front_image" :alt="product.title" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
+                      <img loading="lazy" :src="(product.front_image).startsWith('product_images') ? '/storage/' + product.front_image : product.front_image" :alt="product.title" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105">
                       <!-- Category Badge -->
                       <div class="absolute bottom-4 right-4 z-10 bg-black bg-opacity-80 p-2 rounded-md shadow-md">
                         <img loading="lazy" src="/assets/images/site-logo.png" alt="Logo" class="h-8 w-auto" />
@@ -496,7 +496,7 @@ function toggleFilters() {
                     class="group bg-white rounded-lg shadow-md overflow-hidden flex flex-col md:flex-row transition-all duration-300 hover:shadow-xl border border-transparent hover:border-blue-100">
                     <!-- Product Image -->
                     <div class="relative h-56 md:h-auto md:w-1/3 bg-gray-200 overflow-hidden">
-                      <img loading="lazy" :src="(product.front_image).includes('product_images') ? '/storage/' + product.front_image : product.front_image" :alt="product.title"
+                      <img loading="lazy" :src="(product.front_image).startsWith('product_images') ? '/storage/' + product.front_image : product.front_image" :alt="product.title"
                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         style="aspect-ratio: 2 / 1;">
                       <!-- Overlay with badges -->
@@ -687,7 +687,7 @@ function toggleFilters() {
               <div v-for="fp in featured_products"
                 class="group bg-white rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-xl">
                 <div class="relative">
-                  <img loading="lazy" :src="(fp.front_image).includes('product_images') ? '/storage/' + fp.front_image : fp.front_image" alt="Vehicle image"
+                  <img loading="lazy" :src="(fp.front_image).startsWith('product_images') ? '/storage/' + fp.front_image : fp.front_image" alt="Vehicle image"
                     class="w-full h-64 object-cover transition-transform duration-700 group-hover:scale-105">
                   <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end">
                     <div class="absolute top-4 left-4 flex flex-wrap gap-2">
