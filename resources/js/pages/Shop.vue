@@ -202,7 +202,7 @@ const BANNER_IMAGES = {
     'Heavy Machinery': '/storage/cat_images/heavy-machinery-banner.png',
     'Equipment': '/storage/cat_images/equipment-banner.png',
 };
-const ALL_BANNER_IMAGE = '/storage/cat_images/cars.png';
+const ALL_BANNER_IMAGE = '/storage/cat_images/all-vehicles-banner.png';
 
 const headImage = computed(() => {
     if (selectedCategoryNames.value.length === 1) {
