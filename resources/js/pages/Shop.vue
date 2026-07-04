@@ -390,7 +390,7 @@ watch(drawerOpen, (open) => {
                             style="position: absolute; right: 52px; top: 50%; transform: translateY(-50%); height: 92%; max-width: 46%; object-fit: contain; filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.45))"
                         />
 
-                        <div class="sm-invbanner" style="position: relative; padding: 52px 56px">
+                        <div class="sm-invbanner" style="position: relative; padding: 52px 56px; min-height: 430px; display: flex; flex-direction: column; justify-content: center">
                             <div style="display: inline-flex; align-items: center; gap: 8px; color: #cdd8e8; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
                                 <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
                             </div>
