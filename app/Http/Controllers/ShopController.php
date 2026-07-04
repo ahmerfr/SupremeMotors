@@ -259,7 +259,7 @@ class ShopController extends Controller
 
     public function product_detail($id)
     {
-        $product_detail = Products::with('category')
+        $product_detail = Products::with(['category', 'make:id,cat_title'])
             ->when(
                 ctype_digit((string) $id),
                 fn ($q) => $q->where('id', $id),
@@ -271,8 +271,8 @@ class ShopController extends Controller
             abort(404);
         }
 
-        // Default to China for similar products
-        $similar_products = $this->randomSimilarProducts($product_detail->category_id, 'China', $product_detail->id);
+        // Similar stock from the same category and origin as this unit
+        $similar_products = $this->randomSimilarProducts($product_detail->category_id, $product_detail->country ?? 'China', $product_detail->id);
 
         return Inertia::render('ProductDetail', [
             "product_detail" => $product_detail,

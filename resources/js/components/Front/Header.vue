@@ -247,7 +247,7 @@ const pageLinks = [
 
         <!-- Category strip: distinct white surface, active tab = navy block -->
         <div style="background: #fff; border-bottom: 1px solid #f1f3f7">
-            <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: stretch; gap: 0px">
+            <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: stretch; gap: 15px">
                 <Link
                     v-for="c in catTabs"
                     :key="c.id"
