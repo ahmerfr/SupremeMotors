@@ -113,7 +113,9 @@ class ShopController extends Controller
      */
     private function buildListingQuery(array $data)
     {
-        $query = Products::query();
+        // Products whose front image died since the last purge are flagged by
+        // the daily verify/warm passes; hide them until rescued or deleted.
+        $query = Products::query()->whereNull('front_image_dead_at');
 
         $csv = fn (?string $v) => ($v !== null && $v !== '') ? array_map('trim', explode(',', $v)) : [];
 
@@ -311,6 +313,7 @@ class ShopController extends Controller
             ->where('category_id', $categoryId)
             ->where('country', $country)
             ->where('id', '!=', $excludeId)
+            ->whereNull('front_image_dead_at')
             ->inRandomOrder()
             ->limit($limit)
             ->pluck('id');

@@ -99,11 +99,13 @@ const specRows = computed(() => {
 
 /* ---------------- dark-card accordions ---------------- */
 
-const sections = [
-    {
-        title: 'Shipping information',
-        body: 'We ship worldwide, RoRo or in containers — consolidated loads welcome. Typically 2–6 weeks from Japan, 2–5 from China and 2–4 from Europe once the vessel departs. You receive the booking and bill of lading at loading, so you can track the vessel yourself.',
-    },
+const hasDescription = computed(() => {
+    const text = (p.product_details || '').replace(/<[^>]*>/g, '').trim();
+    return text.length > 10;
+});
+
+const sections = computed(() => [
+    ...(hasDescription.value ? [{ title: 'Product description', html: p.product_details }] : []),
     {
         title: 'Payment',
         body: 'Payment is by bank transfer to our registered Hong Kong business account — the exact details are on our Bank Details page and on every invoice. Details never change outside a re-issued invoice.',
@@ -112,19 +114,9 @@ const sections = [
         title: 'Documents you receive',
         body: 'Commercial invoice, bill of lading, export certificate or deregistration document, and the inspection sheet where applicable — plus certified translations where your customs authority requires them.',
     },
-    {
-        title: 'Inspection & condition',
-        body: 'Listings carry the source inspection data. On request we provide auction sheets, extra photos, cold-start videos or an independent third-party inspection before you commit.',
-    },
-];
+]);
 const openSection = ref(0);
 const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 : i);
-
-/* description html present? */
-const hasDescription = computed(() => {
-    const text = (p.product_details || '').replace(/<[^>]*>/g, '').trim();
-    return text.length > 10;
-});
 </script>
 
 <template>
@@ -268,7 +260,8 @@ const hasDescription = computed(() => {
                                     </button>
                                     <div :style="{ display: 'grid', gridTemplateRows: openSection === i ? '1fr' : '0fr', transition: 'grid-template-rows 0.3s cubic-bezier(0.32, 0.72, 0, 1)' }">
                                         <div style="overflow: hidden">
-                                            <p style="font-size: 13.5px; line-height: 1.65; color: #a9b7cc; font-weight: 500; padding-bottom: 14px; margin: 0">{{ s.body }}</p>
+                                            <div v-if="s.html" class="sm-pdhtml-dark" style="padding-bottom: 14px; max-height: 340px; overflow-y: auto" v-html="s.html"></div>
+                                            <p v-else style="font-size: 13.5px; line-height: 1.65; color: #a9b7cc; font-weight: 500; padding-bottom: 14px; margin: 0">{{ s.body }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -294,13 +287,6 @@ const hasDescription = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Description -->
-                    <div v-if="hasDescription" style="margin-top: 40px">
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
-                            <span style="width: 22px; height: 2px; background: #e01f26"></span>DESCRIPTION
-                        </div>
-                        <div class="sm-pdhtml" style="margin-top: 16px" v-html="p.product_details"></div>
-                    </div>
                 </div>
             </section>
 
@@ -337,6 +323,41 @@ const hasDescription = computed(() => {
 </template>
 
 <style scoped>
+/* description inside the dark summary card */
+.sm-pdhtml-dark :deep(p) {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #a9b7cc;
+    font-weight: 500;
+    margin: 0 0 10px;
+}
+.sm-pdhtml-dark :deep(ul),
+.sm-pdhtml-dark :deep(ol) {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+.sm-pdhtml-dark :deep(li) {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #cdd8e8;
+    font-weight: 500;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sm-pdhtml-dark :deep(strong) {
+    color: #8ea0bc;
+    font-weight: 700;
+    font-size: 12px;
+}
+.sm-pdhtml-dark::-webkit-scrollbar {
+    width: 5px;
+}
+.sm-pdhtml-dark::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
 .sm-pdhtml :deep(p) {
     font-size: 15px;
     line-height: 1.75;

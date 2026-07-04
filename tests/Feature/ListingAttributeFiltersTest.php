@@ -126,4 +126,15 @@ class ListingAttributeFiltersTest extends TestCase
 
         $this->getJson('/inventory/count?fuel=Petrol')->assertOk()->assertJson(['total' => 1]);
     }
+
+    public function test_dead_front_products_are_hidden_from_listing(): void
+    {
+        $this->makeProduct(['title' => 'Alive']);
+        $this->makeProduct(['title' => 'Flagged dead', 'front_image_dead_at' => now()]);
+
+        $data = $this->getJson('/inventory/listing')->json('data');
+
+        $this->assertCount(1, $data);
+        $this->assertSame('Alive', $data[0]['title']);
+    }
 }
