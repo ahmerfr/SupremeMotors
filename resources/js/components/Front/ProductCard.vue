@@ -1,6 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     product: { type: Object, required: true },
@@ -9,15 +9,29 @@ const props = defineProps({
 const emit = defineEmits(['img-error']);
 
 const p = props.product;
-const imgFailed = ref(false);
-const onImgError = () => {
-    imgFailed.value = true;
-    emit('img-error');
-};
-const imageUrl = p.front_image && p.front_image.startsWith('product_images') ? `/storage/${p.front_image}` : p.front_image;
 const brand = p.make?.cat_title || p.category?.cat_title || 'Vehicle';
 const km = p.mileage_km ? `${Number(p.mileage_km).toLocaleString()} KM` : '—';
 const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].some((s) => (p.website || '').includes(s));
+
+/* mini slider: front + up to 3 gallery shots, dot-switchable */
+const resolve = (u) => (typeof u === 'string' && u.startsWith('product_images') ? `/storage/${u}` : u);
+const failed = ref(new Set());
+const images = computed(() => {
+    const list = [];
+    if (p.front_image) list.push(resolve(p.front_image));
+    for (const u of Array.isArray(p.other_images) ? p.other_images : []) {
+        if (typeof u === 'string' && list.length < 4) list.push(resolve(u));
+    }
+    return [...new Set(list)].filter((u) => !failed.value.has(u));
+});
+const idx = ref(0);
+const current = computed(() => images.value[Math.min(idx.value, images.value.length - 1)] ?? null);
+const onImgError = () => {
+    if (!current.value) return;
+    failed.value = new Set(failed.value).add(current.value);
+    if (!images.value.length) emit('img-error');
+};
+const setIdx = (i) => (idx.value = i);
 </script>
 
 <template>
@@ -26,10 +40,28 @@ const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].so
         class="scpd"
         style="display: block; background: #fff; border: 1px solid #eef1f6; border-radius: 18px; overflow: hidden; transition: 0.2s; text-decoration: none; box-shadow: rgba(11, 30, 59, 0.04) 0 4px 14px"
     >
-        <div style="position: relative; height: 280px; background: #f4f6f9; overflow: hidden">
-            <img v-if="!imgFailed" :src="imageUrl" :alt="p.title" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="onImgError" />
+        <div style="position: relative; height: 320px; background: #f4f6f9; overflow: hidden">
+            <img v-if="current" :src="current" :alt="p.title" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="onImgError" />
             <div v-else style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(150deg, #eef1f6, #f8fafc)">
                 <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#c3cdda" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5"/><path d="M2 16.5h20"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5"/></svg>
+            </div>
+
+            <!-- dot picture changer -->
+            <div v-if="images.length > 1" style="position: absolute; bottom: 12px; left: 0; right: 0; display: flex; justify-content: center; gap: 7px">
+                <button
+                    v-for="(img, i) in images"
+                    :key="img"
+                    type="button"
+                    :aria-label="`Photo ${i + 1}`"
+                    :style="{
+                        width: i === idx ? '22px' : '8px', height: '8px', borderRadius: '100px', border: 'none', cursor: 'pointer', padding: 0,
+                        background: i === idx ? '#fff' : 'rgba(255, 255, 255, 0.55)',
+                        boxShadow: 'rgba(11, 30, 59, 0.35) 0 1px 5px',
+                        transition: 'all 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+                    }"
+                    @click.prevent.stop="setIdx(i)"
+                    @mouseenter="setIdx(i)"
+                />
             </div>
         </div>
         <div style="padding: 20px 20px 22px">
