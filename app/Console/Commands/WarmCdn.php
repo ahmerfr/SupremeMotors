@@ -15,7 +15,9 @@ class WarmCdn extends Command
 
     protected $description = 'Request every CDN image once so Perma-Cache stores a permanent copy; resumable, outage-tolerant';
 
-    private const POOL = 40;
+    // HEADs mostly wait on Bunny's origin fetch (2-5s on a cache miss), so a
+    // wide pool is what sets throughput; 40 measured out to ~days for 2M images.
+    private const POOL = 160;
 
     /** Only these statuses prove the origin lost the file. Everything else is retryable. */
     private const DEAD_STATUSES = [404, 410];
