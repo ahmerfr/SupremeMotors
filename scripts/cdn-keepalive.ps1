@@ -11,13 +11,14 @@ $state = Join-Path $project 'storage\app\cdn'
 $logDir = Join-Path $project 'storage\logs'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 
-# shard table: name / min id / max id / pool (A = warmed+tcv sweep, B = madeinchina,
-# C+D = the linemedia block split in half)
+# Gallery-scope shard table: name / min id / max id / pool / scope.
+# ga = tcv sweep (galleries mostly warmed already), gb = madeinchina at a
+# crawl (their limiter is hour-scale), gc+gd = the linemedia block halves.
 $shards = @(
-    @{ name = 'a'; min = 0;      max = 176298; pool = 60 },
-    @{ name = 'b'; min = 176298; max = 232420; pool = 60 },
-    @{ name = 'c'; min = 232420; max = 345000; pool = 50 },
-    @{ name = 'd'; min = 345000; max = 453376; pool = 50 }
+    @{ name = 'ga'; min = 0;      max = 176298; pool = 50; scope = 'all' },
+    @{ name = 'gb'; min = 176298; max = 232420; pool = 6;  scope = 'all' },
+    @{ name = 'gc'; min = 232420; max = 345000; pool = 50; scope = 'all' },
+    @{ name = 'gd'; min = 345000; max = 453376; pool = 50; scope = 'all' }
 )
 
 if (Test-Path (Join-Path $state 'warm.done')) {
@@ -48,7 +49,7 @@ foreach ($s in $shards) {
         $stamp = Get-Date -Format 'HHmmss'
         $log = Join-Path $logDir ("warm-shard-" + $s.name + "-$stamp.log")
         Start-Process -FilePath 'php' -ArgumentList @(
-            'artisan', 'products:warm-cdn', '--scope=fronts',
+            'artisan', 'products:warm-cdn', ('--scope=' + $s.scope),
             ('--shard=' + $s.name), ('--min-id=' + $s.min), ('--max-id=' + $s.max), ('--pool=' + $s.pool)
         ) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput $log
     }
