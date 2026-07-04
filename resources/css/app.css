@@ -571,6 +571,7 @@ html {
 @media (max-width: 900px) {
     .sm-invbanner { padding: 38px 26px !important; }
     .sm-invbanner h1 { font-size: 34px !important; }
+    .sm-invcutout { display: none; }
 }
 @media (max-width: 1080px) {
     .sm-invgrid { grid-template-columns: 1fr 1fr !important; }

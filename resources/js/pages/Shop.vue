@@ -191,18 +191,18 @@ const headTitle = computed(() => {
     }
     return 'Browse Our Entire Range';
 });
-// Real photo on the banner's right, one per category, all served from our
-// own CDN stock (Perma-Cache keeps them even if the products sell).
+// Transparent cutout art per category (user-supplied), floated on the
+// banner's right like a showroom podium.
 const BANNER_IMAGES = {
-    'Cars': 'https://sm-tcv.b-cdn.net/cdn/trade/img06/cars/3147874/36848863/2009+audi+a4/01.jpg',
-    'Trucks': 'https://sm-madeinchina.b-cdn.net/202f0j00rNBTZQEMJKgY/Euro-II-LHD-Rhd-30m3-HOWO-8X4-Oil-Tanker-Fuel-Tank-Truck.jpg',
-    'Buses': 'https://sm-linemedia.b-cdn.net/img/s/double-decker-bus-Setra-S-431-DT---1750339333154543141_big--25061916221305967200.jpg',
-    'Electric Vehicles': 'https://sm-chinacrunch.b-cdn.net/cdn/shop/files/xpeng_g9_evmarketplace_chinacrunch_06.png',
-    'Tractors': 'https://sm-linemedia.b-cdn.net/img/s/wheel-tractor-Claas-Xerion-3800---1716902853714514154_big--24052816260390817100.jpg',
-    'Heavy Machinery': 'https://sm-linemedia.b-cdn.net/img/s/construction-equipment-compact-track-loader-AGT-YSRT14---1710613113456158748_big--24031619012843811300.jpg',
-    'Equipment': 'https://sm-linemedia.b-cdn.net/img/s/side-loader-B-P-Battioni-e-Pagani-HT5EL---1734687685360945607_big--24122011412504474600.jpg',
+    'Cars': '/storage/cat_images/cars.png',
+    'Trucks': '/storage/cat_images/trucks.png',
+    'Buses': '/storage/cat_images/buses.png',
+    'Electric Vehicles': '/storage/cat_images/electric-car.png',
+    'Tractors': '/storage/cat_images/wheel-tractor-logo.png',
+    'Heavy Machinery': '/storage/cat_images/heavy-machinery-banner.png',
+    'Equipment': '/storage/cat_images/fork-lift.png',
 };
-const ALL_BANNER_IMAGE = 'https://sm-tcv.b-cdn.net/cdn/trade/img06/cars/683103/39625706/2018+honda+legend/01.jpg';
+const ALL_BANNER_IMAGE = '/storage/cat_images/cars.png';
 
 const headImage = computed(() => {
     if (selectedCategoryNames.value.length === 1) {
@@ -376,15 +376,19 @@ watch(drawerOpen, (open) => {
             <!-- Page banner: navy card like the other pages, text left, photo right -->
             <section class="sm-body" style="padding: 60px 24px 0">
                 <div style="max-width: 1280px; margin: 0 auto">
-                    <div style="position: relative; overflow: hidden; border-radius: 28px; background: #081730">
+                    <div style="position: relative; overflow: hidden; border-radius: 28px; background: linear-gradient(150deg, #12284a, #0b1e3b 55%, #081730)">
+                        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5" style="position: absolute; top: -70px; left: -70px; width: 220px; height: 220px">
+                            <circle cx="100" cy="100" r="50" /><circle cx="100" cy="100" r="72" /><circle cx="100" cy="100" r="94" />
+                        </svg>
+                        <div style="position: absolute; top: -120px; right: 6%; width: 400px; height: 400px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.18), transparent 70%)"></div>
                         <img
+                            :key="headImage"
                             :src="headImage"
                             alt=""
                             aria-hidden="true"
-                            style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 78% 55%"
+                            class="sm-invcutout"
+                            style="position: absolute; right: 52px; top: 50%; transform: translateY(-50%); height: 72%; max-width: 38%; object-fit: contain; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.45))"
                         />
-                        <div style="position: absolute; inset: 0; background: linear-gradient(92deg, rgba(8, 23, 48, 0.98) 30%, rgba(8, 23, 48, 0.88) 52%, rgba(8, 23, 48, 0.35))"></div>
-                        <div style="position: absolute; top: -120px; right: 8%; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.14), transparent 70%)"></div>
 
                         <div class="sm-invbanner" style="position: relative; padding: 52px 56px">
                             <div style="display: inline-flex; align-items: center; gap: 8px; color: #cdd8e8; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
