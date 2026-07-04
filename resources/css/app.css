@@ -569,8 +569,8 @@ html {
    only exists for mobile, where the sidebar is hidden. */
 .sm-drawer-mainsections { display: none; }
 @media (max-width: 900px) {
-    .sm-invstat { display: none; }
-    .sm-invhead h1 { font-size: 40px !important; }
+    .sm-invbanner { padding: 38px 26px !important; }
+    .sm-invbanner h1 { font-size: 34px !important; }
 }
 @media (max-width: 1080px) {
     .sm-invgrid { grid-template-columns: 1fr 1fr !important; }

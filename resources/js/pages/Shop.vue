@@ -181,23 +181,23 @@ const advancedCount = computed(() => {
 /* ---------------- dynamic page head ---------------- */
 
 const selectedCategoryNames = computed(() => applied.value.category.map(categoryName));
-const headTitle = computed(() =>
-    selectedCategoryNames.value.length === 1
-        ? `Browse our range of ${selectedCategoryNames.value[0]}`
-        : 'Browse Our Entire Range',
-);
-// Big line-art silhouette on the right, matched to the selected category.
-const headIcon = computed(() => {
-    const map = {
-        'Cars': 'Sedan',
-        'Trucks': 'Truck',
-        'Buses': 'Bus',
-        'Electric Vehicles': 'Hatchback',
-        'Tractors': 'Truck',
-        'Heavy Machinery': 'Truck',
-        'Equipment': 'Van / Minivan',
-    };
-    return selectedCategoryNames.value.length === 1 ? (map[selectedCategoryNames.value[0]] ?? 'SUV') : 'SUV';
+const headTitle = computed(() => {
+    if (selectedCategoryNames.value.length === 1) {
+        const name = selectedCategoryNames.value[0];
+        // only trust resolvable names — an unknown id must never end up in the h1
+        if (props.categories.some((c) => c.cat_title === name)) {
+            return `Browse our range of ${name}`;
+        }
+    }
+    return 'Browse Our Entire Range';
+});
+// Real photo on the banner's right, matched to the selected category.
+const headImage = computed(() => {
+    const truckish = ['Trucks', 'Buses', 'Tractors', 'Heavy Machinery', 'Equipment'];
+    if (selectedCategoryNames.value.length === 1 && truckish.includes(selectedCategoryNames.value[0])) {
+        return '/assets/images/hero-truck.jpg';
+    }
+    return '/assets/images/cta-vehicle.jpg';
 });
 
 /* ---------------- sidebar sections (collapsible) ---------------- */
@@ -362,29 +362,35 @@ watch(drawerOpen, (open) => {
 
     <div class="flex flex-col min-h-screen">
         <FrontLayout>
-            <!-- Page head -->
+            <!-- Page banner: navy card like the other pages, text left, photo right -->
             <section class="sm-body" style="padding: 60px 24px 0">
-                <div class="sm-invhead" style="max-width: 1280px; margin: 0 auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px">
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
-                            <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
+                <div style="max-width: 1280px; margin: 0 auto">
+                    <div style="position: relative; overflow: hidden; border-radius: 28px; background: #081730">
+                        <img
+                            :src="headImage"
+                            alt=""
+                            aria-hidden="true"
+                            style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 78% 55%"
+                        />
+                        <div style="position: absolute; inset: 0; background: linear-gradient(92deg, rgba(8, 23, 48, 0.98) 30%, rgba(8, 23, 48, 0.88) 52%, rgba(8, 23, 48, 0.35))"></div>
+                        <div style="position: absolute; top: -120px; right: 8%; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 31, 38, 0.14), transparent 70%)"></div>
+
+                        <div class="sm-invbanner" style="position: relative; padding: 52px 56px">
+                            <div style="display: inline-flex; align-items: center; gap: 8px; color: #cdd8e8; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em">
+                                <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
+                            </div>
+                            <h1 style="font-family: Archivo; font-weight: 800; font-size: 46px; letter-spacing: -0.025em; color: #fff; margin-top: 14px; line-height: 1.08; max-width: 640px">
+                                {{ headTitle }}<span style="color: #e01f26">.</span>
+                            </h1>
+                            <p style="font-size: 16px; line-height: 1.65; color: #a9b7cc; font-weight: 500; margin-top: 12px; max-width: 480px">
+                                Sourced from Japan, China and Europe — updated daily.
+                            </p>
+                            <div style="display: flex; align-items: center; gap: 9px; margin-top: 20px">
+                                <span class="sm-livedot"></span>
+                                <span style="font-family: Archivo; font-weight: 800; font-size: 21px; color: #fff">{{ stockTotal.toLocaleString() }}</span>
+                                <span style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8ea0bc">VEHICLES LIVE RIGHT NOW</span>
+                            </div>
                         </div>
-                        <h1 style="font-family: Archivo; font-weight: 800; font-size: 54px; letter-spacing: -0.03em; color: #0b1e3b; margin-top: 12px; line-height: 1.04">
-                            {{ headTitle }}<span style="color: #e01f26">.</span>
-                        </h1>
-                        <p style="font-size: 16.5px; line-height: 1.65; color: #5b6b82; font-weight: 500; margin-top: 12px">
-                            Sourced from Japan, China and Europe — updated daily.
-                        </p>
-                    </div>
-                    <div class="sm-invstat" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end">
-                        <div style="color: #c6d0de; margin-bottom: -6px" aria-hidden="true">
-                            <BodyTypeIcon :key="headIcon" :type="headIcon" :size="190" />
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px">
-                            <span class="sm-livedot"></span>
-                            <span style="font-family: Archivo; font-weight: 800; font-size: 30px; letter-spacing: -0.02em; color: #0b1e3b; line-height: 1">{{ stockTotal.toLocaleString() }}</span>
-                        </div>
-                        <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin-top: 5px">VEHICLES LIVE RIGHT NOW</div>
                     </div>
                 </div>
             </section>
