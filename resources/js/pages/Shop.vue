@@ -318,22 +318,14 @@ const goPage = (p) => {
     go({ ...currentParams(), page: p });
 };
 
-/* ---------------- sticky offset + lifecycle ---------------- */
-
-const sideTop = ref(0);
-const measureHeader = () => {
-    sideTop.value = (document.querySelector('header')?.offsetHeight ?? 0) + 20;
-};
+/* ---------------- lifecycle ---------------- */
 
 onMounted(() => {
-    measureHeader();
-    window.addEventListener('resize', measureHeader, { passive: true });
     window.addEventListener('keydown', onKeydown);
     offStart = router.on('start', () => (loading.value = true));
     offFinish = router.on('finish', () => (loading.value = false));
 });
 onBeforeUnmount(() => {
-    window.removeEventListener('resize', measureHeader);
     window.removeEventListener('keydown', onKeydown);
     offStart?.(); offFinish?.();
 });
@@ -376,7 +368,7 @@ watch(drawerOpen, (open) => {
             <section class="sm-body" style="padding: 30px 24px 60px">
                 <div class="sm-shopgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 228px 1fr; gap: 36px; align-items: start">
                     <!-- Sidebar -->
-                    <aside class="sm-sidebar" :style="{ position: 'sticky', top: sideTop + 'px' }">
+                    <aside class="sm-sidebar">
                         <!-- Category -->
                         <div class="sm-ssec">
                             <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.category" @click="sideOpen.category = !sideOpen.category">
