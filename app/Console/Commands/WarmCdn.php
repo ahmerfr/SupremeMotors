@@ -230,6 +230,42 @@ class WarmCdn extends Command
             }
         };
 
+        // Rolling window in production: keep the pool full continuously —
+        // chunked pools idle 60-80% of the time waiting on each chunk's
+        // slowest member. Tests keep the Http::fake-able chunked path.
+        if (! app()->runningUnitTests()) {
+            $client = new \GuzzleHttp\Client([
+                'connect_timeout' => 10,
+                'timeout' => $this->timeoutSeconds,
+                'http_errors' => false,
+            ]);
+            $requests = function () use ($jobs) {
+                foreach ($jobs as $k => $url) {
+                    yield (string) $k => new \GuzzleHttp\Psr7\Request('HEAD', $url);
+                }
+            };
+            $guzzlePool = new \GuzzleHttp\Pool($client, $requests(), [
+                'concurrency' => $this->pool,
+                'fulfilled' => function ($resp, $k) use (&$dead, &$retryable, &$warmed, $jobs) {
+                    $code = $resp->getStatusCode();
+                    if ($code >= 200 && $code < 300) {
+                        $warmed++;
+                    } elseif (in_array($code, self::DEAD_STATUSES, true)) {
+                        $dead[$k] = true;
+                    } else {
+                        $retryable[$k] = $jobs[$k];
+                    }
+                },
+                'rejected' => function ($e, $k) use (&$retryable, &$connFailures, $jobs) {
+                    $retryable[$k] = $jobs[$k];
+                    $connFailures++;
+                },
+            ]);
+            $guzzlePool->promise()->wait();
+
+            return [$dead, $retryable, $warmed, $connFailures];
+        }
+
         $classify($jobs, $fastTimeout, $this->timeoutSeconds > $fastTimeout);
         if ($stragglers !== []) {
             $classify($stragglers, $this->timeoutSeconds, false);
