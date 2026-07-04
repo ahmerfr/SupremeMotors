@@ -42,7 +42,7 @@ class WarmCdn extends Command
         $minId = (int) $this->option('min-id');
         $maxId = $this->option('max-id') !== null ? (int) $this->option('max-id') : null;
         $this->pool = (int) ($this->option('pool') ?: self::POOL);
-        $this->timeoutSeconds = max(45, (int) $this->option('timeout'));
+        $this->timeoutSeconds = max(15, (int) $this->option('timeout'));
 
         @mkdir(config('cdn.state_dir', storage_path('app/cdn')), 0777, true);
         $suffix = ($frontsOnly ? '-fronts' : '') . ($shard !== '' ? "-{$shard}" : '');
