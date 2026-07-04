@@ -387,7 +387,7 @@ watch(drawerOpen, (open) => {
                             alt=""
                             aria-hidden="true"
                             class="sm-invcutout"
-                            style="position: absolute; right: 52px; top: 50%; transform: translateY(-50%); height: 72%; max-width: 38%; object-fit: contain; filter: drop-shadow(0 22px 30px rgba(0, 0, 0, 0.45))"
+                            style="position: absolute; right: 52px; top: 50%; transform: translateY(-50%); height: 92%; max-width: 46%; object-fit: contain; filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.45))"
                         />
 
                         <div class="sm-invbanner" style="position: relative; padding: 52px 56px">
