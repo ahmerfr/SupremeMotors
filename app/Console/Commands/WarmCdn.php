@@ -16,6 +16,7 @@ class WarmCdn extends Command
         {--min-id=0 : Shard range start (inclusive lower bound)}
         {--max-id= : Shard range end (exclusive upper bound)}
         {--pool= : concurrent HEADs (default 100)}
+        {--timeout=45 : per-request timeout seconds (raise when the origin is throttled)}
         {--max-outage-retries=-1 : Give up after this many consecutive same-batch retries (-1 = never)}';
 
     protected $description = 'Request every CDN image once so Perma-Cache stores a permanent copy; resumable, outage-tolerant';
@@ -32,6 +33,8 @@ class WarmCdn extends Command
 
     private int $pool = self::POOL;
 
+    private int $timeoutSeconds = 45;
+
     public function handle(): int
     {
         $frontsOnly = $this->option('scope') === 'fronts';
@@ -39,6 +42,7 @@ class WarmCdn extends Command
         $minId = (int) $this->option('min-id');
         $maxId = $this->option('max-id') !== null ? (int) $this->option('max-id') : null;
         $this->pool = (int) ($this->option('pool') ?: self::POOL);
+        $this->timeoutSeconds = max(45, (int) $this->option('timeout'));
 
         @mkdir(config('cdn.state_dir', storage_path('app/cdn')), 0777, true);
         $suffix = ($frontsOnly ? '-fronts' : '') . ($shard !== '' ? "-{$shard}" : '');
@@ -196,7 +200,7 @@ class WarmCdn extends Command
 
         foreach (collect($jobs)->chunk($this->pool) as $chunk) {
             $responses = Http::pool(fn ($pool) => $chunk->map(
-                fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout(45)->head($url)
+                fn ($url, $k) => $pool->as((string) $k)->connectTimeout(10)->timeout($this->timeoutSeconds)->head($url)
             )->all());
             foreach ($chunk as $k => $url) {
                 $resp = $responses[(string) $k] ?? null;

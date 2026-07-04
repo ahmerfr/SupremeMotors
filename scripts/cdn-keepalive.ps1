@@ -14,11 +14,14 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Ou
 # Gallery-scope shard table: name / min id / max id / pool / scope.
 # ga = tcv sweep (galleries mostly warmed already), gb = madeinchina at a
 # crawl (their limiter is hour-scale), gc+gd = the linemedia block halves.
+# linemedia now throttles Bunny's origin fetches: fetches complete in 60-120s
+# under throttle, so wide pools just churn 45s timeouts. Small pools + long
+# timeouts trickle steadily instead.
 $shards = @(
-    @{ name = 'ga'; min = 0;      max = 176298; pool = 50; scope = 'all' },
-    @{ name = 'gb'; min = 176298; max = 232420; pool = 6;  scope = 'all' },
-    @{ name = 'gc'; min = 232420; max = 345000; pool = 50; scope = 'all' },
-    @{ name = 'gd'; min = 345000; max = 453376; pool = 50; scope = 'all' }
+    @{ name = 'ga'; min = 0;      max = 176298; pool = 40; timeout = 45;  scope = 'all' },
+    @{ name = 'gb'; min = 176298; max = 232420; pool = 6;  timeout = 120; scope = 'all' },
+    @{ name = 'gc'; min = 232420; max = 345000; pool = 12; timeout = 120; scope = 'all' },
+    @{ name = 'gd'; min = 345000; max = 453376; pool = 12; timeout = 120; scope = 'all' }
 )
 
 if (Test-Path (Join-Path $state 'warm.done')) {
@@ -50,7 +53,8 @@ foreach ($s in $shards) {
         $log = Join-Path $logDir ("warm-shard-" + $s.name + "-$stamp.log")
         Start-Process -FilePath 'php' -ArgumentList @(
             'artisan', 'products:warm-cdn', ('--scope=' + $s.scope),
-            ('--shard=' + $s.name), ('--min-id=' + $s.min), ('--max-id=' + $s.max), ('--pool=' + $s.pool)
+            ('--shard=' + $s.name), ('--min-id=' + $s.min), ('--max-id=' + $s.max),
+            ('--pool=' + $s.pool), ('--timeout=' + $s.timeout)
         ) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput $log
     }
 }
