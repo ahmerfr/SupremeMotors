@@ -579,7 +579,7 @@ watch(drawerOpen, (open) => {
                         <div
                             v-if="products?.data?.length"
                             class="sm-invgrid"
-                            :style="{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginTop: '22px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
+                            :style="{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginTop: '22px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
                         >
                             <ProductCard v-for="p in products.data" :key="p.id" :product="p" />
                         </div>

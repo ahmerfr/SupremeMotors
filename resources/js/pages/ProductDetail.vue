@@ -330,7 +330,7 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
                             View all {{ p.category.cat_title }} →
                         </Link>
                     </div>
-                    <div class="sm-invgrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 26px">
+                    <div class="sm-invgrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 26px">
                         <ProductCard v-for="sp in similar_products" :key="sp.id" :product="sp" />
                     </div>
                 </div>

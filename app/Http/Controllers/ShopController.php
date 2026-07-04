@@ -303,7 +303,7 @@ class ShopController extends Controller
      * the (category_id, country) covering index, then hydrate — avoids
      * ORDER BY RAND() over full rows.
      */
-    private function randomSimilarProducts(?int $categoryId, string $country, int $excludeId, int $limit = 4)
+    private function randomSimilarProducts(?int $categoryId, string $country, int $excludeId, int $limit = 3)
     {
         if ($categoryId === null) {
             return collect();
