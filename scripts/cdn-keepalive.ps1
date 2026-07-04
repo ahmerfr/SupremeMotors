@@ -56,7 +56,8 @@ foreach ($s in $shards) {
     $doneMarker = Join-Path $state ("warm-" + $s.name + ".done")
     if (Test-Path $doneMarker) { continue }
     $allDone = $false
-    $running = $phps | Where-Object { $_.CommandLine -like ('*--shard=' + $s.name + '*') }
+    # word boundary: '--shard=gc ' must not match gc2/gc3/gc4
+    $running = $phps | Where-Object { $_.CommandLine -like ('*--shard=' + $s.name + ' *') }
     if (-not $running) {
         $stamp = Get-Date -Format 'HHmmss'
         $log = Join-Path $logDir ("warm-shard-" + $s.name + "-$stamp.log")
