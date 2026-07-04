@@ -26,7 +26,7 @@ const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles'].so
         class="scpd"
         style="display: block; background: #fff; border: 1px solid #eef1f6; border-radius: 18px; overflow: hidden; transition: 0.2s; text-decoration: none; box-shadow: rgba(11, 30, 59, 0.04) 0 4px 14px"
     >
-        <div style="position: relative; height: 255px; background: #f4f6f9; overflow: hidden">
+        <div style="position: relative; height: 280px; background: #f4f6f9; overflow: hidden">
             <img v-if="!imgFailed" :src="imageUrl" :alt="p.title" loading="lazy" style="width: 100%; height: 100%; object-fit: cover" @error="onImgError" />
             <div v-else style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(150deg, #eef1f6, #f8fafc)">
                 <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#c3cdda" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5"/><path d="M2 16.5h20"/><circle cx="6.5" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5"/></svg>
