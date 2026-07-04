@@ -350,50 +350,47 @@ html {
     .sm-abstats > div { border-left: none !important; padding-left: 0 !important; }
 }
 
-/* Inventory: sticky filter bar, dimension chips, filter drawer */
-.sm-invbar {
-    position: sticky;
-    z-index: 40;
-    background: #fff;
-    border-bottom: 1px solid #eef1f6;
-}
-.sm-chip {
-    display: inline-flex;
+/* Inventory: filter sidebar, applied chips, advanced drawer */
+.sm-ssec { padding: 18px 0; border-bottom: 1px solid #eef1f6; }
+.sm-sidebar > .sm-ssec:first-child { padding-top: 0; }
+.sm-ssec-head {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-    height: 40px;
-    padding: 0 16px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid #e3e8f0;
-    font-family: Manrope, sans-serif;
+    justify-content: space-between;
+    font-family: Archivo, sans-serif;
     font-weight: 700;
-    font-size: 13.5px;
-    color: #33445e;
+    font-size: 15px;
+    color: #0b1e3b;
+    margin-bottom: 8px;
+}
+.sm-sreset {
+    border: none;
+    background: none;
+    font-family: Manrope, sans-serif;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #e01f26;
     cursor: pointer;
-    transition: border-color 0.18s, background 0.18s;
+    padding: 0;
 }
-.sm-chip:hover { border-color: #0b1e3b; }
-.sm-chip.is-on { background: #0b1e3b; border-color: #0b1e3b; color: #fff; }
-.sm-chipx {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.14);
+.sm-smore {
+    border: none;
+    background: none;
+    color: #e01f26;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 8px 0 0;
 }
-.sm-chipx:hover { background: rgba(255, 255, 255, 0.3); }
-.sm-allfilters {
+.sm-advbtn {
     position: relative;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    flex: 0 0 auto;
-    height: 40px;
-    padding: 0 18px;
+    width: 100%;
+    height: 44px;
+    margin-top: 18px;
     border: none;
     border-radius: 13px;
     background: linear-gradient(150deg, #12284a, #0b1e3b);
@@ -405,6 +402,23 @@ html {
     cursor: pointer;
     transition: transform 0.18s;
 }
+.sm-achip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 13px;
+    border-radius: 999px;
+    background: #0b1e3b;
+    border: 1px solid #0b1e3b;
+    font-family: Manrope, sans-serif;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.sm-achip:hover { background: #13294c; }
 .sm-allfilters-badge {
     position: absolute;
     top: -6px;
@@ -420,9 +434,6 @@ html {
     align-items: center;
     justify-content: center;
 }
-.sm-chiprow { scrollbar-width: none; }
-.sm-chiprow::-webkit-scrollbar { display: none; }
-
 .sm-drawer {
     position: fixed;
     top: 0;
@@ -546,16 +557,21 @@ html {
 .sm-pagebtn.is-on { background: #0b1e3b; border-color: #0b1e3b; color: #fff; }
 .sm-pagebtn.is-gap { border: none; cursor: default; }
 .sm-pagebtn:disabled { opacity: 0.4; cursor: default; }
+/* Desktop: the sidebar owns category/make; the drawer's duplicate section
+   only exists for mobile, where the sidebar is hidden. */
+.sm-drawer-mainsections { display: none; }
 @media (max-width: 1080px) {
     .sm-invgrid { grid-template-columns: 1fr 1fr !important; }
+    .sm-shopgrid { grid-template-columns: 1fr !important; }
+    .sm-sidebar { display: none; }
+    .sm-advbtn-mobile { display: inline-flex !important; width: auto; margin-top: 0; padding: 0 16px; height: 38px; flex: 0 0 auto; }
+    .sm-drawer-mainsections { display: block; }
 }
 @media (max-width: 700px) {
-    .sm-invbar-in { flex-wrap: wrap; }
-    .sm-invsearch { flex: 1 1 100% !important; order: 1; }
-    .sm-allfilters { order: 2; }
-    .sm-chiprow { order: 3; flex: 1 1 100%; }
     .sm-drawer { width: 100vw; }
     .sm-ftiles { grid-template-columns: repeat(2, 1fr); }
+    .sm-reshead { flex-wrap: wrap; }
+    .sm-ressearch { width: 100% !important; order: 3; }
 }
 @media (max-width: 560px) {
     .sm-invgrid { grid-template-columns: 1fr !important; }

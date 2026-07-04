@@ -83,102 +83,149 @@ const go = (params, { replace = false } = {}) => {
     });
 };
 
-const applyNow = (mutate, opts = {}) => {
-    const next = JSON.parse(JSON.stringify(applied.value));
-    mutate(next);
-    applied.value = next;
-    go(toParams(next, sort.value ? { sort: sort.value } : {}), opts);
+const currentParams = () => toParams(applied.value, sort.value ? { sort: sort.value } : {});
+
+/* Sidebar controls apply instantly; rapid ticks batch through a short debounce. */
+let sideTimer = null;
+const sideApply = () => {
+    clearTimeout(sideTimer);
+    sideTimer = setTimeout(() => go(currentParams()), 250);
 };
 
-/* search: instant, debounced, history-replacing */
+const toggleApplied = (arr, value) => {
+    const i = arr.indexOf(value);
+    i === -1 ? arr.push(value) : arr.splice(i, 1);
+    sideApply();
+};
+
+const resetKeys = (...keys) => {
+    for (const k of keys) {
+        applied.value[k] = Array.isArray(applied.value[k]) ? [] : '';
+    }
+    sideApply();
+};
+
 let searchTimer = null;
 const onSearchInput = () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => applyNow(() => {}, { replace: true }), 400);
+    searchTimer = setTimeout(() => go(currentParams(), { replace: true }), 400);
 };
 
-const onSortChange = () => {
-    go(toParams(applied.value, sort.value ? { sort: sort.value } : {}));
-};
+const onSortChange = () => go(currentParams());
 
-/* ---------------- chips ---------------- */
+/* ---------------- applied chips (results header, reference style) ---------------- */
 
 const kFmt = (n) => (n >= 1000 ? `$${(n / 1000).toLocaleString()}k` : `$${Number(n).toLocaleString()}`);
 const makeName = (id) => props.makes.find((m) => String(m.id) === String(id))?.cat_title ?? id;
+const categoryName = (id) => props.categories.find((c) => String(c.id) === String(id))?.cat_title ?? id;
 
-const plusN = (arr, label) => (arr.length > 1 ? `${label} +${arr.length - 1}` : label);
-
-const chips = computed(() => {
+const appliedChips = computed(() => {
     const a = applied.value;
-    return [
-        {
-            key: 'make', label: 'Make', section: 'make',
-            active: a.make.length > 0,
-            text: a.make.length ? `Make: ${plusN(a.make, makeName(a.make[0]))}` : 'Make',
-        },
-        {
-            key: 'price', label: 'Price', section: 'price',
-            active: a.price_min !== '' || a.price_max !== '',
-            text: a.price_min !== '' && a.price_max !== ''
-                ? `Price: ${kFmt(+a.price_min)} – ${kFmt(+a.price_max)}`
-                : a.price_min !== '' ? `Price: ${kFmt(+a.price_min)}+`
-                : a.price_max !== '' ? `Price: Under ${kFmt(+a.price_max)}` : 'Price',
-        },
-        {
-            key: 'body', label: 'Body type', section: 'body',
-            active: a.body_style.length > 0,
-            text: a.body_style.length ? `Body: ${plusN(a.body_style, a.body_style[0])}` : 'Body type',
-        },
-        {
-            key: 'year', label: 'Year', section: 'year',
-            active: a.year_from !== '' || a.year_to !== '',
-            text: a.year_from !== '' && a.year_to !== '' ? `Year: ${a.year_from} – ${a.year_to}`
-                : a.year_from !== '' ? `Year: ${a.year_from}+`
-                : a.year_to !== '' ? `Year: up to ${a.year_to}` : 'Year',
-        },
-        {
-            key: 'mileage', label: 'Mileage', section: 'mileage',
-            active: a.mileage_min !== '' || a.mileage_max !== '',
-            text: a.mileage_min !== '' && a.mileage_max !== ''
-                ? `${(+a.mileage_min / 1000)}k – ${(+a.mileage_max / 1000)}k km`
-                : a.mileage_min !== '' ? `${(+a.mileage_min / 1000)}k+ km`
-                : a.mileage_max !== '' ? `Under ${(+a.mileage_max / 1000)}k km` : 'Mileage',
-        },
-        {
-            key: 'origin', label: 'Origin', section: 'origin',
-            active: a.country.length > 0,
-            text: a.country.length ? `Origin: ${plusN(a.country, a.country[0])}` : 'Origin',
-        },
-    ];
+    const chips = [];
+    const listChip = (key, values, labelFn = (v) => v) => {
+        for (const v of values) {
+            chips.push({ id: `${key}:${v}`, text: labelFn(v), clear: () => toggleApplied(a[key], v) });
+        }
+    };
+
+    listChip('category', a.category, categoryName);
+    listChip('make', a.make, makeName);
+    listChip('body_style', a.body_style);
+    listChip('country', a.country);
+    listChip('fuel', a.fuel);
+    listChip('transmission', a.transmission);
+    listChip('drive_type', a.drive_type);
+    listChip('steering', a.steering);
+    listChip('condition', a.condition);
+    listChip('emission_standard', a.emission_standard);
+
+    const range = (id, min, max, fmt, keys) => {
+        if (min === '' && max === '') return;
+        const text = min !== '' && max !== '' ? `${fmt(min)} – ${fmt(max)}`
+            : min !== '' ? `${fmt(min)}+` : `Under ${fmt(max)}`;
+        chips.push({ id, text, clear: () => resetKeys(...keys) });
+    };
+    range('price', a.price_min, a.price_max, (v) => kFmt(+v), ['price_min', 'price_max']);
+    range('year', a.year_from, a.year_to, (v) => v, ['year_from', 'year_to']);
+    range('mileage', a.mileage_min, a.mileage_max, (v) => `${(+v).toLocaleString()} km`, ['mileage_min', 'mileage_max']);
+    range('engine', a.engine_min, a.engine_max, (v) => `${v}cc`, ['engine_min', 'engine_max']);
+    range('power', a.power_min, a.power_max, (v) => `${v}hp`, ['power_min', 'power_max']);
+    range('load', a.load_min, a.load_max, (v) => `${(+v).toLocaleString()}kg`, ['load_min', 'load_max']);
+    range('hours', a.hours_min, a.hours_max, (v) => `${(+v).toLocaleString()}h`, ['hours_min', 'hours_max']);
+
+    for (const [key, label] of [['seats', 'seats'], ['doors', 'doors'], ['axles', 'axles']]) {
+        if (a[key] !== '') chips.push({ id: key, text: `${a[key]} ${label}`, clear: () => resetKeys(key) });
+    }
+
+    return chips;
 });
 
-const clearChip = (key) => {
-    applyNow((s) => {
-        if (key === 'make') s.make = [];
-        if (key === 'price') { s.price_min = ''; s.price_max = ''; }
-        if (key === 'body') s.body_style = [];
-        if (key === 'year') { s.year_from = ''; s.year_to = ''; }
-        if (key === 'mileage') { s.mileage_min = ''; s.mileage_max = ''; }
-        if (key === 'origin') s.country = [];
-    });
+const clearAllApplied = () => {
+    const s = emptyState();
+    applied.value = s;
+    go(toParams(s, sort.value ? { sort: sort.value } : {}));
 };
 
-/* filters that live only in the drawer (badge on the All-filters button) */
-const drawerOnlyCount = computed(() => {
+/* filters that only live in the drawer (badge on the Advanced button) */
+const advancedCount = computed(() => {
     const a = applied.value;
-    let n = a.category.length + a.fuel.length + a.transmission.length + a.drive_type.length
-        + a.steering.length + a.condition.length + a.emission_standard.length;
-    for (const k of ['seats', 'doors', 'axles', 'engine_min', 'engine_max', 'power_min', 'power_max', 'load_min', 'load_max', 'hours_min', 'hours_max']) {
+    let n = a.fuel.length + a.transmission.length + a.drive_type.length + a.steering.length
+        + a.condition.length + a.emission_standard.length;
+    for (const k of ['seats', 'doors', 'axles', 'year_from', 'year_to', 'mileage_min', 'mileage_max',
+        'engine_min', 'engine_max', 'power_min', 'power_max', 'load_min', 'load_max', 'hours_min', 'hours_max']) {
         if (a[k] !== '') n++;
     }
     return n;
 });
 
-/* ---------------- drawer ---------------- */
+/* ---------------- sidebar option lists ---------------- */
+
+const makeSearch = ref('');
+const showAllMakes = ref(false);
+const sidebarMakes = computed(() => {
+    let list = props.makes;
+    if (makeSearch.value.trim()) {
+        const q = makeSearch.value.trim().toLowerCase();
+        list = list.filter((m) => m.cat_title.toLowerCase().includes(q));
+    }
+    return showAllMakes.value || makeSearch.value ? list : list.slice(0, 8);
+});
+
+const showAllBodies = ref(false);
+const sidebarBodies = computed(() => {
+    const list = props.facets.body_styles ?? [];
+    return showAllBodies.value ? list : list.slice(0, 8);
+});
+
+const priceSteps = [500, 1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000, 50000, 75000, 100000, 150000, 200000];
+const mileageSteps = [10000, 20000, 30000, 50000, 75000, 100000, 150000, 200000, 250000];
+const engineSteps = [660, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 8000, 10000, 13000];
+const powerSteps = [50, 100, 150, 200, 300, 400, 500, 700];
+const loadSteps = [1000, 3000, 5000, 10000, 20000, 30000];
+const hoursSteps = [500, 1000, 2000, 5000, 10000, 20000];
+
+const yearOptions = computed(() => {
+    const max = props.facets.year_bounds?.max || new Date().getFullYear();
+    const min = Math.max(props.facets.year_bounds?.min || 1970, 1970);
+    const list = [];
+    for (let y = max; y >= min; y--) list.push(y);
+    return list;
+});
+
+const specGroups = computed(() => [
+    { key: 'fuel', label: 'FUEL', options: props.facets.fuels ?? [] },
+    { key: 'transmission', label: 'TRANSMISSION', options: props.facets.transmissions ?? [] },
+    { key: 'drive_type', label: 'DRIVE TYPE', options: props.facets.drive_types ?? [] },
+    { key: 'steering', label: 'STEERING', options: props.facets.steerings ?? [] },
+    { key: 'condition', label: 'CONDITION', options: props.facets.conditions ?? [] },
+    { key: 'emission_standard', label: 'EMISSION STANDARD', options: props.facets.emission_standards ?? [] },
+].filter((g) => g.options.length > 0));
+
+/* ---------------- advanced drawer (staged) ---------------- */
 
 const drawerOpen = ref(false);
 const staged = ref(emptyState());
-const openSections = reactive({ category: true, make: true, body: true, price: true, year: false, mileage: false, origin: false, spec: false, commercial: false });
+const openSections = reactive({ body: true, year: true, mileage: true, spec: false, commercial: false });
 const sectionEls = {};
 const bindSection = (name) => (el) => { if (el) sectionEls[name] = el; };
 
@@ -197,7 +244,7 @@ const onKeydown = (e) => { if (e.key === 'Escape') closeDrawer(); };
 const applyDrawer = () => {
     applied.value = JSON.parse(JSON.stringify(staged.value));
     drawerOpen.value = false;
-    go(toParams(applied.value, sort.value ? { sort: sort.value } : {}));
+    go(currentParams());
 };
 
 const clearAllStaged = () => {
@@ -206,11 +253,6 @@ const clearAllStaged = () => {
     staged.value.search = keepSearch;
 };
 
-const clearAllApplied = () => {
-    applyNow((s) => Object.assign(s, emptyState()));
-};
-
-/* staged live count (debounced) */
 const stagedTotal = ref(null);
 const counting = ref(false);
 let countTimer = null;
@@ -233,52 +275,11 @@ const toggleIn = (arr, value) => {
     i === -1 ? arr.push(value) : arr.splice(i, 1);
 };
 
-/* makes list in drawer */
-const makeSearch = ref('');
-const showAllMakes = ref(false);
-const drawerMakes = computed(() => {
-    let list = props.makes;
-    if (makeSearch.value.trim()) {
-        const q = makeSearch.value.trim().toLowerCase();
-        list = list.filter((m) => m.cat_title.toLowerCase().includes(q));
-    }
-    return showAllMakes.value || makeSearch.value ? list : list.slice(0, 10);
-});
-
-/* commercial section only makes sense for working vehicles */
 const commercialCategoryNames = ['Trucks', 'Buses', 'Heavy Machinery', 'Tractors', 'Equipment'];
 const showCommercial = computed(() => {
     if (!staged.value.category.length) return false;
     return props.categories.some((c) => staged.value.category.includes(String(c.id)) && commercialCategoryNames.includes(c.cat_title));
 });
-
-/* ---------------- option lists ---------------- */
-
-const priceSteps = [500, 1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000, 50000, 75000, 100000, 150000, 200000];
-const mileageSteps = [10000, 20000, 30000, 50000, 75000, 100000, 150000, 200000, 250000];
-const engineSteps = [660, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 8000, 10000, 13000];
-const powerSteps = [50, 100, 150, 200, 300, 400, 500, 700];
-const loadSteps = [1000, 3000, 5000, 10000, 20000, 30000];
-const hoursSteps = [500, 1000, 2000, 5000, 10000, 20000];
-
-const yearOptions = computed(() => {
-    const max = props.facets.year_bounds?.max || new Date().getFullYear();
-    const min = Math.max(props.facets.year_bounds?.min || 1970, 1970);
-    const list = [];
-    for (let y = max; y >= min; y--) list.push(y);
-    return list;
-});
-
-const bodyStyleFacets = computed(() => (props.facets.body_styles ?? []).slice(0, 18));
-
-const specGroups = computed(() => [
-    { key: 'fuel', label: 'FUEL', options: props.facets.fuels ?? [] },
-    { key: 'transmission', label: 'TRANSMISSION', options: props.facets.transmissions ?? [] },
-    { key: 'drive_type', label: 'DRIVE TYPE', options: props.facets.drive_types ?? [] },
-    { key: 'steering', label: 'STEERING', options: props.facets.steerings ?? [] },
-    { key: 'condition', label: 'CONDITION', options: props.facets.conditions ?? [] },
-    { key: 'emission_standard', label: 'EMISSION STANDARD', options: props.facets.emission_standards ?? [] },
-].filter((g) => g.options.length > 0));
 
 /* ---------------- pagination ---------------- */
 
@@ -286,29 +287,28 @@ const pages = computed(() => {
     const current = props.products?.current_page ?? 1;
     const last = props.products?.last_page ?? 1;
     const items = [];
-    const push = (v) => items.push(v);
     if (last <= 7) {
-        for (let i = 1; i <= last; i++) push(i);
+        for (let i = 1; i <= last; i++) items.push(i);
     } else {
-        push(1);
-        if (current > 3) push('…');
-        for (let i = Math.max(2, current - 1); i <= Math.min(last - 1, current + 1); i++) push(i);
-        if (current < last - 2) push('…');
-        push(last);
+        items.push(1);
+        if (current > 3) items.push('…');
+        for (let i = Math.max(2, current - 1); i <= Math.min(last - 1, current + 1); i++) items.push(i);
+        if (current < last - 2) items.push('…');
+        items.push(last);
     }
     return items;
 });
 
 const goPage = (p) => {
     if (p === '…' || p === (props.products?.current_page ?? 1)) return;
-    go(toParams(applied.value, { ...(sort.value ? { sort: sort.value } : {}), page: p }));
+    go({ ...currentParams(), page: p });
 };
 
 /* ---------------- sticky offset + lifecycle ---------------- */
 
-const barTop = ref(0);
+const sideTop = ref(0);
 const measureHeader = () => {
-    barTop.value = document.querySelector('header')?.offsetHeight ?? 0;
+    sideTop.value = (document.querySelector('header')?.offsetHeight ?? 0) + 20;
 };
 
 onMounted(() => {
@@ -335,7 +335,7 @@ watch(drawerOpen, (open) => {
     <div class="flex flex-col min-h-screen">
         <FrontLayout>
             <!-- Page head -->
-            <section class="sm-body" style="padding: 60px 24px 28px">
+            <section class="sm-body" style="padding: 60px 24px 0">
                 <div style="max-width: 1280px; margin: 0 auto">
                     <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; color: #8895ab">
                         <span style="width: 22px; height: 2px; background: #e01f26"></span>INVENTORY
@@ -349,191 +349,232 @@ watch(drawerOpen, (open) => {
                 </div>
             </section>
 
-            <!-- Sticky filter bar -->
-            <div class="sm-invbar" :style="{ top: barTop + 'px' }">
-                <div class="sm-invbar-in" style="max-width: 1280px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 10px">
-                    <div class="sm-invsearch" style="position: relative; flex: 0 0 280px">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%)"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                        <input
-                            v-model="applied.search"
-                            type="text"
-                            placeholder="Search make, model, keyword…"
-                            style="width: 100%; height: 40px; border-radius: 12px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 14px 0 38px; font-size: 14px; font-weight: 600; color: #0b1e3b; outline: none"
-                            @input="onSearchInput"
-                        />
-                    </div>
-
-                    <div class="sm-chiprow" style="display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; overflow-x: auto">
-                        <button
-                            v-for="c in chips"
-                            :key="c.key"
-                            type="button"
-                            class="sm-chip"
-                            :class="{ 'is-on': c.active }"
-                            @click="openDrawer(c.section)"
-                        >
-                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px">{{ c.text }}</span>
-                            <svg v-if="!c.active" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6" /></svg>
-                            <span v-else class="sm-chipx" role="button" :aria-label="`Clear ${c.label}`" @click.stop="clearChip(c.key)">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                            </span>
-                        </button>
-                    </div>
-
-                    <button type="button" class="scp2 sm-allfilters" @click="openDrawer()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
-                        All filters
-                        <span v-if="drawerOnlyCount > 0" class="sm-allfilters-badge">{{ drawerOnlyCount }}</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Results -->
-            <section class="sm-body" style="padding: 0 24px 60px">
-                <div style="max-width: 1280px; margin: 0 auto">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 36px; padding-bottom: 16px; border-bottom: 1px solid #eef1f6">
-                        <div :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '18px', color: '#0b1e3b', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }">
-                            {{ (products?.total ?? 0).toLocaleString() }} vehicles
+            <!-- Sidebar + results -->
+            <section class="sm-body" style="padding: 34px 24px 60px">
+                <div class="sm-shopgrid" style="max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 264px 1fr; gap: 40px; align-items: start">
+                    <!-- Sidebar -->
+                    <aside class="sm-sidebar" :style="{ position: 'sticky', top: sideTop + 'px' }">
+                        <!-- Category -->
+                        <div class="sm-ssec">
+                            <div class="sm-ssec-head">
+                                <span>Category</span>
+                                <button v-if="applied.category.length" type="button" class="sm-sreset" @click="resetKeys('category')">Reset</button>
+                            </div>
+                            <label v-for="c in categories" :key="c.id" class="sm-frow">
+                                <input type="checkbox" class="sm-fcheck" :checked="applied.category.includes(String(c.id))" @change="toggleApplied(applied.category, String(c.id))" />
+                                <span style="flex: 1">{{ c.cat_title }}</span>
+                                <span class="sm-fcount">{{ Number(c.products_count).toLocaleString() }}</span>
+                            </label>
                         </div>
-                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #8494ab">
-                            Sort
-                            <select v-model="sort" style="border: none; background: transparent; font-family: Manrope, sans-serif; font-weight: 700; font-size: 14px; color: #0b1e3b; cursor: pointer; outline: none" @change="onSortChange">
-                                <option value="">Newest listed</option>
-                                <option value="price_asc">Price: low to high</option>
-                                <option value="price_desc">Price: high to low</option>
-                                <option value="year_desc">Year: newest first</option>
-                                <option value="mileage_asc">Mileage: lowest first</option>
-                            </select>
-                        </label>
-                    </div>
 
-                    <!-- Grid -->
-                    <div
-                        v-if="products?.data?.length"
-                        class="sm-invgrid"
-                        :style="{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginTop: '24px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
-                    >
-                        <ProductCard v-for="p in products.data" :key="p.id" :product="p" />
-                    </div>
-
-                    <!-- Empty state -->
-                    <div v-else-if="!loading" style="text-align: center; padding: 60px 24px">
-                        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#0b1e3b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5" /><path d="M2 16.5h20" /><circle cx="6.5" cy="18.5" r="1.8" /><circle cx="17.5" cy="18.5" r="1.8" /><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5" /></svg>
-                        <div style="font-family: Archivo; font-weight: 700; font-size: 20px; color: #0b1e3b; margin-top: 18px">No vehicles match these filters</div>
-                        <p style="font-size: 15px; color: #5b6b82; font-weight: 500; margin-top: 8px">Try removing one:</p>
-                        <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 14px">
-                            <button v-for="c in chips.filter((x) => x.active)" :key="c.key" type="button" class="sm-chip is-on" @click="clearChip(c.key)">
-                                {{ c.text }}
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                        <!-- Body type -->
+                        <div class="sm-ssec">
+                            <div class="sm-ssec-head">
+                                <span>Body type</span>
+                                <button v-if="applied.body_style.length" type="button" class="sm-sreset" @click="resetKeys('body_style')">Reset</button>
+                            </div>
+                            <label v-for="b in sidebarBodies" :key="b.value" class="sm-frow">
+                                <input type="checkbox" class="sm-fcheck" :checked="applied.body_style.includes(b.value)" @change="toggleApplied(applied.body_style, b.value)" />
+                                <span style="flex: 1">{{ b.value }}</span>
+                                <span class="sm-fcount">{{ Number(b.count).toLocaleString() }}</span>
+                            </label>
+                            <button v-if="(facets.body_styles ?? []).length > 8" type="button" class="sm-smore" @click="showAllBodies = !showAllBodies">
+                                {{ showAllBodies ? 'Show fewer' : `Show all ${(facets.body_styles ?? []).length}` }}
                             </button>
                         </div>
-                        <button
-                            type="button"
-                            class="scp2"
-                            style="display: inline-flex; align-items: center; gap: 9px; margin-top: 22px; font-size: 14.5px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); padding: 13px 26px; border-radius: 13px; box-shadow: rgba(224, 31, 38, 0.35) 0 10px 24px; border: none; cursor: pointer; transition: transform 0.18s"
-                            @click="clearAllApplied"
-                        >
-                            Clear all filters
-                        </button>
-                    </div>
 
-                    <!-- Pagination -->
-                    <div v-if="(products?.last_page ?? 1) > 1" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 44px">
-                        <button type="button" class="sm-pagebtn" :disabled="(products?.current_page ?? 1) <= 1" aria-label="Previous page" @click="goPage((products?.current_page ?? 1) - 1)">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                        <!-- Make -->
+                        <div class="sm-ssec">
+                            <div class="sm-ssec-head">
+                                <span>Make</span>
+                                <button v-if="applied.make.length" type="button" class="sm-sreset" @click="resetKeys('make')">Reset</button>
+                            </div>
+                            <input
+                                v-model="makeSearch"
+                                type="text"
+                                placeholder="Search makes…"
+                                style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
+                            />
+                            <label v-for="m in sidebarMakes" :key="m.id" class="sm-frow">
+                                <input type="checkbox" class="sm-fcheck" :checked="applied.make.includes(String(m.id))" @change="toggleApplied(applied.make, String(m.id))" />
+                                <span style="flex: 1">{{ m.cat_title }}</span>
+                                <span class="sm-fcount">{{ Number(m.products_count).toLocaleString() }}</span>
+                            </label>
+                            <button v-if="!showAllMakes && !makeSearch && makes.length > 8" type="button" class="sm-smore" @click="showAllMakes = true">
+                                Show all {{ makes.length }} makes
+                            </button>
+                        </div>
+
+                        <!-- Price -->
+                        <div class="sm-ssec">
+                            <div class="sm-ssec-head">
+                                <span>Price</span>
+                                <button v-if="applied.price_min !== '' || applied.price_max !== ''" type="button" class="sm-sreset" @click="resetKeys('price_min', 'price_max')">Reset</button>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+                                <select v-model="applied.price_min" class="sm-fselect" style="height: 38px" @change="sideApply">
+                                    <option value="">No min</option>
+                                    <option v-for="p in priceSteps" :key="'spmin' + p" :value="p">{{ kFmt(p) }}</option>
+                                </select>
+                                <select v-model="applied.price_max" class="sm-fselect" style="height: 38px" @change="sideApply">
+                                    <option value="">No max</option>
+                                    <option v-for="p in priceSteps" :key="'spmax' + p" :value="p">{{ kFmt(p) }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Origin -->
+                        <div class="sm-ssec">
+                            <div class="sm-ssec-head">
+                                <span>Origin</span>
+                                <button v-if="applied.country.length" type="button" class="sm-sreset" @click="resetKeys('country')">Reset</button>
+                            </div>
+                            <label v-for="c in facets.countries ?? []" :key="c.value" class="sm-frow">
+                                <input type="checkbox" class="sm-fcheck" :checked="applied.country.includes(c.value)" @change="toggleApplied(applied.country, c.value)" />
+                                <span style="flex: 1">{{ c.value }}</span>
+                                <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
+                            </label>
+                        </div>
+
+                        <button type="button" class="scp2 sm-advbtn" @click="openDrawer()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                            Advanced filters
+                            <span v-if="advancedCount > 0" class="sm-allfilters-badge">{{ advancedCount }}</span>
                         </button>
-                        <button
-                            v-for="(p, i) in pages"
-                            :key="`${p}-${i}`"
-                            type="button"
-                            class="sm-pagebtn"
-                            :class="{ 'is-on': p === (products?.current_page ?? 1), 'is-gap': p === '…' }"
-                            @click="goPage(p)"
+                    </aside>
+
+                    <!-- Results column -->
+                    <div style="min-width: 0">
+                        <!-- Applied chips -->
+                        <div v-if="appliedChips.length" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px">
+                            <button v-for="chip in appliedChips" :key="chip.id" type="button" class="sm-achip" @click="chip.clear()">
+                                {{ chip.text }}
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                            </button>
+                            <button type="button" style="border: none; background: none; font-size: 13px; font-weight: 800; color: #e01f26; cursor: pointer; text-decoration: underline; text-underline-offset: 3px" @click="clearAllApplied">
+                                Clear all
+                            </button>
+                        </div>
+
+                        <!-- Count | search + sort -->
+                        <div class="sm-reshead" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid #eef1f6">
+                            <div :style="{ fontFamily: 'Archivo', fontWeight: 700, fontSize: '18px', color: '#0b1e3b', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s', flex: '0 0 auto' }">
+                                {{ (products?.total ?? 0).toLocaleString() }} vehicles
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 14px; min-width: 0">
+                                <button type="button" class="sm-advbtn sm-advbtn-mobile scp2" style="display: none" @click="openDrawer()">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                                    Filters
+                                    <span v-if="advancedCount + appliedChips.length > 0" class="sm-allfilters-badge">{{ advancedCount + appliedChips.length }}</span>
+                                </button>
+                                <div class="sm-ressearch" style="position: relative; width: 240px">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%)"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                                    <input
+                                        v-model="applied.search"
+                                        type="text"
+                                        placeholder="Search within results…"
+                                        style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px 0 34px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none"
+                                        @input="onSearchInput"
+                                    />
+                                </div>
+                                <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #8494ab; flex: 0 0 auto">
+                                    Sort
+                                    <select v-model="sort" style="border: none; background: transparent; font-family: Manrope, sans-serif; font-weight: 700; font-size: 14px; color: #0b1e3b; cursor: pointer; outline: none" @change="onSortChange">
+                                        <option value="">Newest listed</option>
+                                        <option value="price_asc">Price: low to high</option>
+                                        <option value="price_desc">Price: high to low</option>
+                                        <option value="year_desc">Year: newest first</option>
+                                        <option value="mileage_asc">Mileage: lowest first</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Grid -->
+                        <div
+                            v-if="products?.data?.length"
+                            class="sm-invgrid"
+                            :style="{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginTop: '22px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.2s' }"
                         >
-                            {{ p }}
-                        </button>
-                        <button type="button" class="sm-pagebtn" :disabled="(products?.current_page ?? 1) >= (products?.last_page ?? 1)" aria-label="Next page" @click="goPage((products?.current_page ?? 1) + 1)">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-                        </button>
+                            <ProductCard v-for="p in products.data" :key="p.id" :product="p" />
+                        </div>
+
+                        <!-- Empty state -->
+                        <div v-else-if="!loading" style="text-align: center; padding: 60px 24px">
+                            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#0b1e3b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto"><path d="M14 16.5V14a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2.5" /><path d="M2 16.5h20" /><circle cx="6.5" cy="18.5" r="1.8" /><circle cx="17.5" cy="18.5" r="1.8" /><path d="M14 12V8a2 2 0 0 1 2-2h2.6L22 10v6.5" /></svg>
+                            <div style="font-family: Archivo; font-weight: 700; font-size: 20px; color: #0b1e3b; margin-top: 18px">No vehicles match these filters</div>
+                            <p style="font-size: 15px; color: #5b6b82; font-weight: 500; margin-top: 8px">Try removing one:</p>
+                            <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 14px">
+                                <button v-for="chip in appliedChips" :key="chip.id" type="button" class="sm-achip" @click="chip.clear()">
+                                    {{ chip.text }}
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                class="scp2"
+                                style="display: inline-flex; align-items: center; gap: 9px; margin-top: 22px; font-size: 14.5px; font-weight: 800; color: #fff; background: linear-gradient(150deg, #e5262d, #c8151c); padding: 13px 26px; border-radius: 13px; box-shadow: rgba(224, 31, 38, 0.35) 0 10px 24px; border: none; cursor: pointer; transition: transform 0.18s"
+                                @click="clearAllApplied"
+                            >
+                                Clear all filters
+                            </button>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div v-if="(products?.last_page ?? 1) > 1" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 40px">
+                            <button type="button" class="sm-pagebtn" :disabled="(products?.current_page ?? 1) <= 1" aria-label="Previous page" @click="goPage((products?.current_page ?? 1) - 1)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                            </button>
+                            <button
+                                v-for="(p, i) in pages"
+                                :key="`${p}-${i}`"
+                                type="button"
+                                class="sm-pagebtn"
+                                :class="{ 'is-on': p === (products?.current_page ?? 1), 'is-gap': p === '…' }"
+                                @click="goPage(p)"
+                            >
+                                {{ p }}
+                            </button>
+                            <button type="button" class="sm-pagebtn" :disabled="(products?.current_page ?? 1) >= (products?.last_page ?? 1)" aria-label="Next page" @click="goPage((products?.current_page ?? 1) + 1)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Drawer -->
+            <!-- Advanced drawer -->
             <Transition name="sm-scrim">
                 <div v-if="drawerOpen" style="position: fixed; inset: 0; background: rgba(11, 30, 59, 0.45); z-index: 80" @click="closeDrawer"></div>
             </Transition>
             <Transition name="sm-drawer">
-                <aside v-if="drawerOpen" class="sm-drawer" role="dialog" aria-label="Filter vehicles">
-                    <!-- Header -->
+                <aside v-if="drawerOpen" class="sm-drawer" role="dialog" aria-label="Advanced filters">
                     <div style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 72px; border-bottom: 1px solid #eef1f6">
-                        <div style="font-family: Archivo; font-weight: 800; font-size: 22px; color: #0b1e3b">Filter vehicles</div>
+                        <div style="font-family: Archivo; font-weight: 800; font-size: 22px; color: #0b1e3b">Advanced filters</div>
                         <button type="button" class="sm-carbtn" aria-label="Close filters" @click="closeDrawer">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                         </button>
                     </div>
 
-                    <!-- Body -->
                     <div style="flex: 1 1 auto; overflow-y: auto">
-                        <!-- Category -->
-                        <div :ref="bindSection('category')" class="sm-fsec">
-                            <button type="button" class="sm-fsec-head" @click="openSections.category = !openSections.category">
-                                <span>Category</span>
-                                <span style="display: inline-flex; align-items: center; gap: 10px">
-                                    <span v-if="!openSections.category && staged.category.length" class="sm-fsec-sum">{{ staged.category.length }} selected</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.category ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
-                                </span>
+                        <!-- Body type tiles (mobile also reaches category/make here via checkboxes below) -->
+                        <div :ref="bindSection('body')" class="sm-fsec sm-drawer-mainsections">
+                            <button type="button" class="sm-fsec-head" @click="openSections.body = !openSections.body">
+                                <span>Category, make &amp; body</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.body ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
                             </button>
-                            <div v-if="openSections.category" class="sm-fsec-body">
-                                <label v-for="c in categories" :key="c.id" class="sm-frow">
+                            <div v-if="openSections.body" class="sm-fsec-body">
+                                <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin-bottom: 6px">CATEGORY</div>
+                                <label v-for="c in categories" :key="'dc' + c.id" class="sm-frow">
                                     <input type="checkbox" class="sm-fcheck" :checked="staged.category.includes(String(c.id))" @change="toggleIn(staged.category, String(c.id))" />
                                     <span style="flex: 1">{{ c.cat_title }}</span>
                                     <span class="sm-fcount">{{ Number(c.products_count).toLocaleString() }}</span>
                                 </label>
-                            </div>
-                        </div>
-
-                        <!-- Make -->
-                        <div :ref="bindSection('make')" class="sm-fsec">
-                            <button type="button" class="sm-fsec-head" @click="openSections.make = !openSections.make">
-                                <span>Make</span>
-                                <span style="display: inline-flex; align-items: center; gap: 10px">
-                                    <span v-if="!openSections.make && staged.make.length" class="sm-fsec-sum">{{ plusN(staged.make, makeName(staged.make[0])) }}</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.make ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
-                                </span>
-                            </button>
-                            <div v-if="openSections.make" class="sm-fsec-body">
-                                <input
-                                    v-model="makeSearch"
-                                    type="text"
-                                    placeholder="Search makes…"
-                                    style="width: 100%; height: 40px; border-radius: 12px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 14px; font-size: 14px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 8px"
-                                />
-                                <label v-for="m in drawerMakes" :key="m.id" class="sm-frow">
-                                    <input type="checkbox" class="sm-fcheck" :checked="staged.make.includes(String(m.id))" @change="toggleIn(staged.make, String(m.id))" />
-                                    <span style="flex: 1">{{ m.cat_title }}</span>
-                                    <span class="sm-fcount">{{ Number(m.products_count).toLocaleString() }}</span>
-                                </label>
-                                <button v-if="!showAllMakes && !makeSearch && makes.length > 10" type="button" style="border: none; background: none; color: #e01f26; font-size: 13.5px; font-weight: 700; cursor: pointer; padding: 10px 0 0" @click="showAllMakes = true">
-                                    Show all {{ makes.length }} makes
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Body type -->
-                        <div :ref="bindSection('body')" class="sm-fsec">
-                            <button type="button" class="sm-fsec-head" @click="openSections.body = !openSections.body">
-                                <span>Body type</span>
-                                <span style="display: inline-flex; align-items: center; gap: 10px">
-                                    <span v-if="!openSections.body && staged.body_style.length" class="sm-fsec-sum">{{ plusN(staged.body_style, staged.body_style[0]) }}</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.body ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
-                                </span>
-                            </button>
-                            <div v-if="openSections.body" class="sm-fsec-body">
+                                <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin: 14px 0 6px">BODY TYPE</div>
                                 <div class="sm-ftiles">
                                     <button
-                                        v-for="b in bodyStyleFacets"
-                                        :key="b.value"
+                                        v-for="b in (facets.body_styles ?? []).slice(0, 18)"
+                                        :key="'db' + b.value"
                                         type="button"
                                         class="sm-ftile"
                                         :class="{ 'is-on': staged.body_style.includes(b.value) }"
@@ -544,27 +585,6 @@ watch(drawerOpen, (open) => {
                                         <div class="sm-ftile-count">{{ Number(b.count).toLocaleString() }}</div>
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Price -->
-                        <div :ref="bindSection('price')" class="sm-fsec">
-                            <button type="button" class="sm-fsec-head" @click="openSections.price = !openSections.price">
-                                <span>Price</span>
-                                <span style="display: inline-flex; align-items: center; gap: 10px">
-                                    <span v-if="!openSections.price && (staged.price_min !== '' || staged.price_max !== '')" class="sm-fsec-sum">set</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.price ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
-                                </span>
-                            </button>
-                            <div v-if="openSections.price" class="sm-fsec-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
-                                <select v-model="staged.price_min" class="sm-fselect">
-                                    <option value="">No min</option>
-                                    <option v-for="p in priceSteps" :key="'pmin' + p" :value="p">{{ kFmt(p) }}</option>
-                                </select>
-                                <select v-model="staged.price_max" class="sm-fselect">
-                                    <option value="">No max</option>
-                                    <option v-for="p in priceSteps" :key="'pmax' + p" :value="p">{{ kFmt(p) }}</option>
-                                </select>
                             </div>
                         </div>
 
@@ -610,24 +630,6 @@ watch(drawerOpen, (open) => {
                             </div>
                         </div>
 
-                        <!-- Origin -->
-                        <div :ref="bindSection('origin')" class="sm-fsec">
-                            <button type="button" class="sm-fsec-head" @click="openSections.origin = !openSections.origin">
-                                <span>Origin</span>
-                                <span style="display: inline-flex; align-items: center; gap: 10px">
-                                    <span v-if="!openSections.origin && staged.country.length" class="sm-fsec-sum">{{ staged.country.join(', ') }}</span>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.origin ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
-                                </span>
-                            </button>
-                            <div v-if="openSections.origin" class="sm-fsec-body">
-                                <label v-for="c in facets.countries ?? []" :key="c.value" class="sm-frow">
-                                    <input type="checkbox" class="sm-fcheck" :checked="staged.country.includes(c.value)" @change="toggleIn(staged.country, c.value)" />
-                                    <span style="flex: 1">{{ c.value }}</span>
-                                    <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
-                                </label>
-                            </div>
-                        </div>
-
                         <!-- Specification -->
                         <div :ref="bindSection('spec')" class="sm-fsec">
                             <button type="button" class="sm-fsec-head" @click="openSections.spec = !openSections.spec">
@@ -644,15 +646,13 @@ watch(drawerOpen, (open) => {
                                     </label>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
-                                    <label style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab">
-                                        SEATS
+                                    <label class="sm-flabel">SEATS
                                         <select v-model="staged.seats" class="sm-fselect" style="margin-top: 6px">
                                             <option value="">Any</option>
                                             <option v-for="n in [2, 3, 4, 5, 6, 7, 8, 9]" :key="'s' + n" :value="n">{{ n }}</option>
                                         </select>
                                     </label>
-                                    <label style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab">
-                                        DOORS
+                                    <label class="sm-flabel">DOORS
                                         <select v-model="staged.doors" class="sm-fselect" style="margin-top: 6px">
                                             <option value="">Any</option>
                                             <option v-for="n in [2, 3, 4, 5]" :key="'d' + n" :value="n">{{ n }}</option>
@@ -700,7 +700,6 @@ watch(drawerOpen, (open) => {
                         </div>
                     </div>
 
-                    <!-- Footer -->
                     <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-top: 1px solid #eef1f6; background: #fff">
                         <button type="button" style="border: none; background: none; font-size: 14px; font-weight: 700; color: #5b6b82; cursor: pointer" @click="clearAllStaged">Clear all</button>
                         <button
