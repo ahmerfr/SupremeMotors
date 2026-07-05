@@ -83,12 +83,12 @@ foreach ($b in $bands) {
     if (-not (Test-Path $doneMk)) { $allBandsDone = $false; if (-not $nextBand) { $nextBand = $b } }
 }
 
-$p1running = $phps | Where-Object { $_.CommandLine -like '*scrape:autotraderuk*' -and $_.CommandLine -notlike '*--enrich*' -and $_.CommandLine -notlike '*-plan*' }
-if (-not $allBandsDone -and -not $p1running -and $nextBand) {
-    $sargs = @('artisan','scrape:autotraderuk',('--shard=' + $nextBand.shard),('--pool=' + $phase1Pool),'--delay-ms=250')
-    if ($nextBand.min -ne $null) { $sargs += ('--min-price=' + [int]$nextBand.min); $sargs += ('--max-price=' + [int]$nextBand.max) }
-    Start-Process -FilePath $php -ArgumentList ($sargs -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir ('autotraderuk-' + $nextBand.shard + '.log')) -RedirectStandardError (Join-Path $logDir ('autotraderuk-' + $nextBand.shard + '.err.log'))
-    Log ('Phase-1 band launched: ' + $nextBand.shard)
+# Phase-1 runs as ONE persistent loop process (bands back-to-back, no per-tick
+# idle). Keep it alive until every band is done; it resumes from .done markers.
+$p1loop = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" | Where-Object { $_.CommandLine -like '*autotraderuk-phase1-loop*' }
+if (-not $allBandsDone -and -not $p1loop) {
+    Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $project 'scripts\autotraderuk-phase1-loop.ps1') -WindowStyle Hidden
+    Log 'Phase-1 band loop launched (bands back-to-back)'
 }
 
 # --- 2. Phase-2 enrich: ALWAYS running, in parallel with Phase-1 (pipelined) ---
