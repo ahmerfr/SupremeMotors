@@ -91,7 +91,7 @@ class ScrapeAutotraderTest extends TestCase
         $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0, '--usd-rate' => 0])
             ->assertSuccessful();
 
-        $this->assertGreaterThanOrEqual(25, Products::where('website', 'autotrader')->count());
+        $this->assertGreaterThanOrEqual(25, Products::where('website', 'autotraderza')->count());
 
         $product = Products::where('product_link', 'like', '%28520428')->first();
         $this->assertNotNull($product);
@@ -126,7 +126,7 @@ class ScrapeAutotraderTest extends TestCase
         $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--limit' => 2, '--deep' => true, '--delay-ms' => 0])
             ->assertSuccessful();
 
-        $product = Products::where('website', 'autotrader')->first();
+        $product = Products::where('website', 'autotraderza')->first();
         // detail fixture has 18 unique images -> 1 front + 17 others, richer than search's handful
         $this->assertCount(17, $product->other_images);
         $this->assertStringContainsString('Warranty distance', $product->product_details);
@@ -147,11 +147,11 @@ class ScrapeAutotraderTest extends TestCase
         $this->fakeSite();
 
         $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0])->assertSuccessful();
-        $count = Products::where('website', 'autotrader')->count();
+        $count = Products::where('website', 'autotraderza')->count();
 
         // rerun of the same page banks nothing new (all listings already exist)
         $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0, '--start-page' => 1])->assertSuccessful();
-        $this->assertSame($count, Products::where('website', 'autotrader')->count());
+        $this->assertSame($count, Products::where('website', 'autotraderza')->count());
     }
 
     public function test_dry_run_writes_report_but_no_products(): void
@@ -165,7 +165,7 @@ class ScrapeAutotraderTest extends TestCase
             '--dry-run' => true, '--report' => $report,
         ])->assertSuccessful();
 
-        $this->assertSame(0, Products::where('website', 'autotrader')->count());
+        $this->assertSame(0, Products::where('website', 'autotraderza')->count());
         $this->assertFileExists($report);
         $html = file_get_contents($report);
         $this->assertStringContainsString('sm-autotrader.b-cdn.net', $html);
@@ -272,7 +272,7 @@ class ScrapeAutotraderTest extends TestCase
             '--pool' => 5, '--proxy-file' => $proxyFile, '--delay-ms' => 0,
         ])->assertSuccessful();
 
-        $this->assertSame(2, Products::where('website', 'autotrader')->count());
+        $this->assertSame(2, Products::where('website', 'autotraderza')->count());
     }
 
     public function test_proxy_file_is_loaded_and_used(): void
@@ -289,6 +289,6 @@ class ScrapeAutotraderTest extends TestCase
         ])->assertSuccessful();
 
         // requests still land (fake ignores proxy option) and products bank
-        $this->assertSame(2, Products::where('website', 'autotrader')->count());
+        $this->assertSame(2, Products::where('website', 'autotraderza')->count());
     }
 }

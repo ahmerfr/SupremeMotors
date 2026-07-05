@@ -81,13 +81,13 @@ if ($needProxies -and -not $refreshing) {
 #    caught-up marker is stale (more cars coming) so we clear it and relaunch;
 #    the warm only truly finishes once all shards are done.
 $phps = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'"
-$warming = $phps | Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotrader*' }
+$warming = $phps | Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotraderza*' }
 if (-not $allShardsDone -and (Test-Path $warmMk)) {
     Remove-Item $warmMk -Force -ErrorAction SilentlyContinue   # caught up, but more cars are coming
 }
 if (-not $warming -and -not (Test-Path $warmMk)) {
     Start-Process -FilePath $php `
-        -ArgumentList (@('artisan','products:warm-cdn','--website=autotrader','--shard=atwarm','--pool=60','--timeout=30') -join ' ') `
+        -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderza','--shard=atwarm','--pool=60','--timeout=30') -join ' ') `
         -WorkingDirectory $project -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logDir 'scrape-imagewarm.log') `
         -RedirectStandardError  (Join-Path $logDir 'scrape-imagewarm.err.log')

@@ -60,7 +60,7 @@ onMounted(() => {
 /* ---------------- summary data ---------------- */
 
 const brand = computed(() => p.make?.cat_title || p.category?.cat_title || 'Vehicle');
-const showPrice = computed(() => p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles', 'autotrader'].some((s) => (p.website || '').includes(s)));
+const showPrice = computed(() => p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza'].some((s) => (p.website || '').includes(s)));
 
 const fmtNum = (v) => Number(v).toLocaleString();
 const keySpecs = computed(() => [

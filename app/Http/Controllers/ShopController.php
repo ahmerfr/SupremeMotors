@@ -158,7 +158,7 @@ class ShopController extends Controller
      * electricvehicles show numbers) — otherwise a price sort surfaces a
      * wall of "Enquire" cards.
      */
-    private const PRICE_VISIBLE_SITES = "'tcv','suprememotors','electricvehicles','autotrader'";
+    private const PRICE_VISIBLE_SITES = "'tcv','suprememotors','electricvehicles','autotraderza'";
 
     private function applySort($query, ?string $sort): void
     {

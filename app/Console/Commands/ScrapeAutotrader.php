@@ -404,7 +404,7 @@ class ScrapeAutotrader extends Command
             'make_id' => !empty($data['make']) ? $this->makeId($data['make']) : null,
             'price' => $price,
             'country' => $data['country'] ?? 'South Africa',
-            'website' => 'autotrader',
+            'website' => 'autotraderza',
             'body_style' => $data['body_style'] ?? null,
             'product_link' => $data['product_link'],
             'front_image' => $images[0] ?? null,
