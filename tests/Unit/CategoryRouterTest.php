@@ -50,6 +50,12 @@ class CategoryRouterTest extends TestCase
             'crew-bus-not-cab' => ['Buses', 'Crew bus', '2014 Mercedes Sprinter'],
             'coaster-bus' => ['Buses', null, '2010 Toyota Coaster'],
 
+            // body_style is authoritative — a known car body wins over any
+            // van/MPV-ish model name in the title (the 754-row bug)
+            'suv-title-noise-stays-cars' => ['Cars', 'SUV', 'Mitsubishi Delica SUV'],
+            'mpv-noah-stays-cars' => ['Cars', 'MPV', '2018 Toyota Noah'],
+            'sedan-stays-cars' => ['Cars', 'Sedan', '2016 Toyota Voxy something'],
+
             // default
             'unknown-defaults-cars' => ['Cars', null, '2012 Toyota Aqua'],
             'null-defaults-cars' => ['Cars', null, null],
