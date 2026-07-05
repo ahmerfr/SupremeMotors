@@ -29,8 +29,11 @@ $warmDone   = Join-Path $state 'warm-ukwarm.done'
 $allDone    = Join-Path $state 'autotraderuk.done'
 
 $phase1Pool = 3     # search shard worker (Phase-1)
-$enrichPool = 10    # detail worker while Phase-1 still competes for the IP
-$enrichPoolSolo = 16 # after all bands done, Phase-1 gone -> push detail concurrency
+# Detail enrich is REQUEST-RATE limited by Cloudflare per home IP: high
+# concurrency just gets throttled (most GETs fail), so NET throughput is worse.
+# A modest, sustainable pool gets more through than pool 16 did.
+$enrichPool = 6
+$enrichPoolSolo = 6
 
 function Log($msg) {
     Add-Content -Path (Join-Path $logDir 'autotraderuk-keepalive.log') -Value ((Get-Date -Format o) + "  " + $msg)
