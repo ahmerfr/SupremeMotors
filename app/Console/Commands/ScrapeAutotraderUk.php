@@ -32,9 +32,13 @@ use Illuminate\Support\Facades\Http;
  * Each shard owns its own cursor/done/progress files (--shard), so shards never
  * collide and the whole thing resumes after a crash.
  *
- * SINGLE-THREADED by design: one request every 2-3s (jittered), no proxies, no
- * concurrency — Cloudflare bans concurrency from one IP. Images are rewritten
- * onto the sm-autotraderuk Bunny pull zone with originals kept in *_source.
+ * TRANSPORT: every live request shells out to the Windows curl.exe (Schannel
+ * TLS). PHP's own libcurl is OpenSSL-built and its TLS fingerprint is flagged by
+ * Cloudflare Bot Management -> 403 on every call; curl.exe's Schannel
+ * fingerprint passes. Concurrency (a pool of curl.exe processes) is tolerated
+ * from one home IP with the __cf_bm cookie; batching (~10 search-ops per gateway
+ * POST) cuts the request count. Images are rewritten onto the sm-autotraderuk
+ * Bunny pull zone with originals kept in *_source.
  *
  * Prices are GBP (stored verbatim); mileage is MILES stored in the mileage_km
  * column (the unit is noted in specifications).
@@ -56,6 +60,7 @@ class ScrapeAutotraderUk extends Command
         {--enrich-limit=0 : PHASE 2 — stop after enriching this many products (0 = all)}
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
+        {--curl-bin= : Override the Schannel curl.exe path (default C:\Windows\System32\curl.exe)}
         {--delay-ms=2500 : Base pause between gateway rounds (jittered 1x..1.4x)}';
 
     protected $description = 'Scrape autotrader.co.uk into products with Bunny CDN images (two-phase: batched+concurrent search, then concurrent detail-HTML enrich; resumable, sharded)';
@@ -102,6 +107,16 @@ class ScrapeAutotraderUk extends Command
 
     private string $query = '';
 
+    /**
+     * Windows-curl.exe transport (Schannel TLS). PHP's own libcurl uses OpenSSL,
+     * whose TLS fingerprint Cloudflare Bot Management flags -> 403 on every call.
+     * curl.exe's Schannel fingerprint passes, so ALL live UK HTTP goes through it.
+     */
+    private ?\App\Services\SchannelCurl $curl = null;
+
+    /** curl cookie-jar FILE — holds __cf_bm across the handshake + gateway calls */
+    private string $jarFile = '';
+
     public function handle(AutotraderUkParser $parser, AutotraderUkDetailParser $detailParser): int
     {
         $this->parser = $parser;
@@ -120,6 +135,14 @@ class ScrapeAutotraderUk extends Command
 
         $stateDir = config('cdn.state_dir', storage_path('app/cdn'));
         @mkdir($stateDir, 0777, true);
+
+        // live transport: Schannel curl.exe + a per-run cookie jar file. Tests
+        // stay on Http::fake (usesCurl() is false under runningUnitTests()).
+        if ($this->usesCurl()) {
+            $this->curl = new \App\Services\SchannelCurl($this->curlBin(), $stateDir);
+            $this->jarFile = $stateDir . '/autotraderuk-cookies-' . getmypid() . '.jar';
+            @unlink($this->jarFile);
+        }
 
         $this->dryRun = (bool) $this->option('dry-run');
 
@@ -370,58 +393,46 @@ class ScrapeAutotraderUk extends Command
 
         $out = [];
         $pendingChunks = array_map('array_values', array_chunk($pages, $batch));
+        $headers = $this->gatewayHeaders();
 
         for ($round = 1; $round <= 5 && $pendingChunks !== []; $round++) {
-            $cookieHeader = $this->cookieHeader();
-            $client = new \GuzzleHttp\Client([
-                'connect_timeout' => 10,
-                'timeout' => 40,
-                'http_errors' => false,
-                'headers' => $this->gatewayHeaders() + ['Cookie' => $cookieHeader],
-            ]);
+            // one curl.exe wave: chunk index => a batched gateway POST
+            $requests = [];
+            foreach ($pendingChunks as $ci => $chunk) {
+                $requests[$ci] = [
+                    'method' => 'POST',
+                    'url' => self::GATEWAY_URL,
+                    'headers' => $headers,
+                    'body' => json_encode($this->buildBody($chunk)),
+                ];
+            }
+
+            $responses = $this->curl->parallel($requests, $this->jarFile, $pool, 40);
 
             $retry = [];
             $needsCookieRefresh = false;
+            foreach ($pendingChunks as $ci => $chunk) {
+                [$code, $bodyStr] = $responses[$ci] ?? [0, ''];
+                if ($code === 403 || $code === 429 || $code === 503 || $code === 0) {
+                    $needsCookieRefresh = $needsCookieRefresh || $code === 403 || $code === 0;
+                    $retry[] = $chunk;
 
-            $requests = function () use ($pendingChunks, $client) {
-                foreach ($pendingChunks as $ci => $chunk) {
-                    yield $ci => $client->postAsync(self::GATEWAY_URL, [
-                        'json' => $this->buildBody($chunk),
-                    ]);
+                    continue;
                 }
-            };
+                $json = json_decode($bodyStr, true);
+                if (!is_array($json)) {
+                    $retry[] = $chunk;
 
-            \GuzzleHttp\Promise\Each::ofLimit(
-                $requests(),
-                $pool,
-                function ($resp, $ci) use (&$out, &$retry, &$needsCookieRefresh, $pendingChunks) {
-                    $chunk = $pendingChunks[$ci];
-                    $code = $resp->getStatusCode();
-                    if ($code === 403 || $code === 429 || $code === 503) {
-                        $needsCookieRefresh = $needsCookieRefresh || $code === 403;
-                        $retry[] = $chunk;
-
-                        return;
-                    }
-                    $json = json_decode((string) $resp->getBody(), true);
-                    if (!is_array($json)) {
-                        $retry[] = $chunk;
-
-                        return;
-                    }
-                    foreach ($chunk as $i => $p) {
-                        $out[$p] = $json[$i] ?? null;
-                    }
-                },
-                function ($_e, $ci) use (&$retry, $pendingChunks) {
-                    $retry[] = $pendingChunks[$ci];
+                    continue;
                 }
-            )->wait();
+                foreach ($chunk as $i => $p) {
+                    $out[$p] = $json[$i] ?? null;
+                }
+            }
 
             $pendingChunks = $retry;
             if ($pendingChunks !== [] && $round < 5) {
                 if ($needsCookieRefresh) {
-                    $this->cookies = [];
                     $this->cookieMintedAt = 0;
                     $this->ensureSession(true);
                 }
@@ -469,8 +480,26 @@ class ScrapeAutotraderUk extends Command
      */
     private function ensureSession(bool $force = false): void
     {
+        $minted = $this->usesCurl() ? is_file($this->jarFile) : (bool) $this->cookies;
         $stale = (time() - $this->cookieMintedAt) > self::COOKIE_TTL;
-        if (!$force && $this->cookies && !$stale) {
+        if (!$force && $minted && !$stale) {
+            return;
+        }
+
+        // LIVE: mint/refresh __cf_bm by GETting the homepage through curl.exe;
+        // curl writes the cookie into the shared jar file (-c) for reuse.
+        if ($this->usesCurl()) {
+            [$status] = $this->curl->request('GET', self::HOME_URL, [
+                'User-Agent' => self::USER_AGENT,
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language' => 'en-GB,en;q=0.9',
+            ], null, $this->jarFile, 30);
+            // even a 403 challenge page still sets __cf_bm in the jar, which the
+            // gateway then accepts — so only the jar's existence gates us here
+            if (is_file($this->jarFile)) {
+                $this->cookieMintedAt = time();
+            }
+
             return;
         }
 
@@ -488,6 +517,20 @@ class ScrapeAutotraderUk extends Command
         } catch (\Throwable) {
             // leave cookies as-is; the gateway attempt will retry the handshake
         }
+    }
+
+    /** live runs use curl.exe (Schannel); tests stay on the fakeable Http client */
+    private function usesCurl(): bool
+    {
+        return !app()->runningUnitTests();
+    }
+
+    /** the Schannel curl binary (overridable via --curl-bin for odd installs) */
+    private function curlBin(): string
+    {
+        $opt = $this->option('curl-bin');
+
+        return is_string($opt) && $opt !== '' ? $opt : 'C:\\Windows\\System32\\curl.exe';
     }
 
     /** Guzzle cookie jar primed with whatever cookies we already hold */
@@ -691,6 +734,14 @@ class ScrapeAutotraderUk extends Command
             }
             $this->info("enrich round {$round}: filled {$filled}, still failing " . count($failed));
 
+            // dry-run persists nothing, so the specifications-NULL set never
+            // shrinks — do exactly one round and stop (never loop forever)
+            if ($this->dryRun) {
+                $this->info("[dry-run] enrich: {$filled} rows would be filled, " . count($failed) . ' would fail');
+
+                return self::SUCCESS;
+            }
+
             if ($filled === 0) {
                 // nothing came through — delete any genuinely withdrawn (404/410),
                 // then hand back so a fresh cookie/retry picks the rest up next run
@@ -727,52 +778,39 @@ class ScrapeAutotraderUk extends Command
         $this->ensureSession();
         $results = [];
         $pending = array_values($urls);
+        $headers = [
+            'User-Agent' => self::USER_AGENT,
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'en-GB,en;q=0.9',
+            'Referer' => AutotraderUkParser::BASE . '/car-search',
+        ];
 
         for ($round = 1; $round <= 5 && $pending !== []; $round++) {
-            $client = new \GuzzleHttp\Client([
-                'connect_timeout' => 10,
-                'timeout' => 40,
-                'http_errors' => false,
-                'headers' => [
-                    'User-Agent' => self::USER_AGENT,
-                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language' => 'en-GB,en;q=0.9',
-                    'Referer' => AutotraderUkParser::BASE . '/car-search',
-                    'Cookie' => $this->cookieHeader(),
-                ],
-            ]);
+            // one curl.exe wave of detail-page GETs, keyed by url
+            $requests = [];
+            foreach ($pending as $url) {
+                $requests[$url] = ['method' => 'GET', 'url' => $url, 'headers' => $headers];
+            }
+
+            $responses = $this->curl->parallel($requests, $this->jarFile, $pool, 40);
 
             $retry = [];
             $needsCookieRefresh = false;
-            $requests = function () use ($pending, $client) {
-                foreach ($pending as $url) {
-                    yield $url => $client->getAsync($url);
-                }
-            };
-
-            \GuzzleHttp\Promise\Each::ofLimit(
-                $requests(),
-                $pool,
-                function ($resp, $url) use (&$results, &$retry, &$needsCookieRefresh) {
-                    $code = $resp->getStatusCode();
-                    if ($code >= 200 && $code < 300) {
-                        $results[$url] = (string) $resp->getBody();
-                    } elseif (in_array($code, [404, 410], true)) {
-                        $results[$url] = null; // withdrawn
-                    } else {
-                        $needsCookieRefresh = $needsCookieRefresh || $code === 403;
-                        $retry[] = $url;
-                    }
-                },
-                function ($_e, $url) use (&$retry) {
+            foreach ($pending as $url) {
+                [$code, $bodyStr] = $responses[$url] ?? [0, ''];
+                if ($code >= 200 && $code < 300) {
+                    $results[$url] = $bodyStr;
+                } elseif (in_array($code, [404, 410], true)) {
+                    $results[$url] = null; // withdrawn
+                } else {
+                    $needsCookieRefresh = $needsCookieRefresh || $code === 403 || $code === 0;
                     $retry[] = $url;
                 }
-            )->wait();
+            }
 
             $pending = $retry;
             if ($pending !== [] && $round < 5) {
                 if ($needsCookieRefresh) {
-                    $this->cookies = [];
                     $this->cookieMintedAt = 0;
                     $this->ensureSession(true);
                 }
@@ -791,17 +829,24 @@ class ScrapeAutotraderUk extends Command
     /** polite single-detail fetch (test/degenerate path), with 404/410 -> null */
     private function fetchDetail(string $url): ?string
     {
+        $headers = [
+            'User-Agent' => self::USER_AGENT,
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'en-GB,en;q=0.9',
+            'Referer' => AutotraderUkParser::BASE . '/car-search',
+        ];
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             $this->ensureSession($attempt > 1);
             try {
-                $response = Http::withHeaders([
-                    'User-Agent' => self::USER_AGENT,
-                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language' => 'en-GB,en;q=0.9',
-                    'Referer' => AutotraderUkParser::BASE . '/car-search',
-                ])->withOptions(['cookies' => $this->cookieJar()])->timeout(40)->get($url);
+                if ($this->usesCurl()) {
+                    [$status, $body] = $this->curl->request('GET', $url, $headers, null, $this->jarFile, 40);
+                } else {
+                    $response = Http::withHeaders($headers)
+                        ->withOptions(['cookies' => $this->cookieJar()])->timeout(40)->get($url);
+                    $status = $response->status();
+                    $body = $response->body();
+                }
 
-                $status = $response->status();
                 if (in_array($status, [404, 410], true)) {
                     return null; // withdrawn — a fact, not an outage
                 }
@@ -815,8 +860,8 @@ class ScrapeAutotraderUk extends Command
 
                     continue;
                 }
-                if ($response->successful()) {
-                    return $response->body();
+                if ($status >= 200 && $status < 300) {
+                    return $body;
                 }
             } catch (\Throwable) {
                 if (app()->runningUnitTests()) {
@@ -836,8 +881,13 @@ class ScrapeAutotraderUk extends Command
     {
         foreach ($urls as $url) {
             try {
-                $code = Http::withHeaders(['User-Agent' => self::USER_AGENT])
-                    ->withOptions(['cookies' => $this->cookieJar()])->timeout(15)->get($url)->status();
+                if ($this->usesCurl()) {
+                    $this->ensureSession();
+                    [$code] = $this->curl->request('GET', $url, ['User-Agent' => self::USER_AGENT], null, $this->jarFile, 15);
+                } else {
+                    $code = Http::withHeaders(['User-Agent' => self::USER_AGENT])
+                        ->withOptions(['cookies' => $this->cookieJar()])->timeout(15)->get($url)->status();
+                }
                 if (in_array($code, [404, 410], true)) {
                     Products::where('product_link', $url)->delete();
                     $this->warn("enrich: deleted withdrawn listing {$url}");
