@@ -224,6 +224,8 @@ class AutotraderParser
             $images = [$this->stripImageSuffix($ld['image'])];
         }
 
+        $specs = $this->buildSpecifications($blob);
+
         return [
             'title' => $title,
             'make' => $ld['brand']['name'] ?? null,
@@ -239,6 +241,7 @@ class AutotraderParser
             'doors' => isset($ld['numberOfDoors']) ? (int) $ld['numberOfDoors'] : null,
             'drive_type' => $drive,
             'engine_cc' => $engineCc,
+            'power_hp' => $this->powerToHp($specs['Power maximum (detail)'] ?? $specs['Power maximum'] ?? null),
             'price' => $price,
             'country' => 'South Africa',
             'website' => 'autotrader',
@@ -247,8 +250,59 @@ class AutotraderParser
             'listing_id' => $blob['listingId'] ?? null,
             'images' => $images,
             'product_details' => $this->buildDetailsHtml($blob, $ld),
+            'specifications' => $specs ?: null,
             'dealer' => $blob['listingDealer']['name'] ?? null,
         ];
+    }
+
+    /**
+     * Flatten the full "detailed specifications" section into a clean
+     * name => value map — all categories plus the additional-information tiles.
+     * This is the entire spec sheet a source exposes (engine, power, torque,
+     * fuel economy, CO2, tyres, equipment flags, ...), captured structurally.
+     *
+     * @return array<string,string>
+     */
+    private function buildSpecifications(?array $blob): array
+    {
+        $out = [];
+        foreach ($blob['listingSpecifications']['specificationCategories'] ?? [] as $cat) {
+            foreach ($cat['categoryItems'] ?? [] as $item) {
+                $name = $this->clean($item['name'] ?? '');
+                $value = $this->clean($item['value'] ?? '');
+                if ($name !== '' && $value !== '') {
+                    $out[$name] = $value;
+                }
+            }
+        }
+        foreach ($blob['additionalInformation'] ?? [] as $item) {
+            $label = $this->clean($item['label'] ?? '');
+            $text = $this->clean($item['text'] ?? '');
+            if ($label !== '' && $text !== '' && ! isset($out[$label])) {
+                $out[$label] = $text;
+            }
+        }
+
+        return $out;
+    }
+
+    /** "125 kW" / "168 hp" / "180 bhp" -> integer horsepower (kW converted). */
+    private function powerToHp(?string $power): ?int
+    {
+        if (!$power || !preg_match('/([\d.,]+)\s*(kw|hp|bhp|ps)?/i', $power, $m)) {
+            return null;
+        }
+        $n = (float) str_replace([' ', ','], ['', '.'], $m[1]);
+        if ($n <= 0) {
+            return null;
+        }
+        $unit = strtolower($m[2] ?? 'kw');
+
+        return (int) round(match ($unit) {
+            'kw' => $n * 1.34102,   // kW -> hp
+            'ps' => $n * 0.98632,   // metric PS -> hp
+            default => $n,          // hp / bhp
+        });
     }
 
     /** balanced-brace extraction of a reactRender(...) state blob */

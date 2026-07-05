@@ -70,6 +70,17 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertCount(18, $data['images']); // 20 gallery entries, 18 unique ids (2 dupes dropped)
         $this->assertStringNotContainsString('/Crop', $data['images'][0]); // raw id, size suffix stripped
         $this->assertStringContainsString('Warranty distance', $data['product_details']);
+
+        // full detailed-specifications section captured structurally
+        $this->assertSame(168, $data['power_hp']); // 125 kW -> 168 hp
+        $this->assertIsArray($data['specifications']);
+        $this->assertSame('405 Nm', $data['specifications']['Torque maximum']);
+        $this->assertSame('7,7 l/100km', $data['specifications']['Fuel consumption (average)']);
+        $this->assertSame('202 g/km', $data['specifications']['CO2 emissions (average)']);
+        $this->assertSame('180 km/h', $data['specifications']['Maximum/top speed']);
+        $this->assertSame('Standard', $data['specifications']['Cruise control']);
+        $this->assertSame('Double cab', $data['specifications']['Body Type']); // from additionalInformation
+        $this->assertGreaterThanOrEqual(35, count($data['specifications']));
     }
 
     public function test_search_mode_upserts_products_with_cdn_images_and_is_rerunnable(): void
@@ -124,6 +135,10 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertSame(4, $product->doors);
         $this->assertSame(1996, $product->engine_cc);
         $this->assertSame('4x2', $product->drive_type);
+        $this->assertSame(168, $product->power_hp);
+        // the full spec set round-trips through the JSON column
+        $this->assertIsArray($product->specifications);
+        $this->assertSame('405 Nm', $product->specifications['Torque maximum']);
     }
 
     public function test_rerun_skips_existing_unless_refresh(): void

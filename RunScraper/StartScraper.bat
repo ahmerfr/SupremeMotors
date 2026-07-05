@@ -21,6 +21,10 @@ set KEEPALIVE=%PROJECT%\scripts\scrape-keepalive.ps1
 set STATUS=%PROJECT%\storage\app\cdn\autotrader-status.html
 
 echo.
+echo === Ensuring the database schema is current (adds spec columns/indexes) ===
+"C:\xampp\php\php.exe" "%PROJECT%\artisan" migrate --force
+
+echo.
 echo === Registering the auto-resume task (every 5 min, survives reboots) ===
 schtasks /create /tn "SupremeMotors-Scrape" /tr "powershell -NoProfile -ExecutionPolicy Bypass -File %KEEPALIVE%" /sc minute /mo 5 /rl HIGHEST /f
 

@@ -399,6 +399,7 @@ class ScrapeAutotrader extends Command
             'seats' => $data['seats'] ?? null,
             'doors' => $data['doors'] ?? null,
             'drive_type' => $data['drive_type'] ?? null,
+            'power_hp' => $data['power_hp'] ?? null,
             'category_id' => $this->carsCategoryId(),
             'make_id' => !empty($data['make']) ? $this->makeId($data['make']) : null,
             'price' => $price,
@@ -411,6 +412,7 @@ class ScrapeAutotrader extends Command
             'other_images' => array_slice($images, 1),
             'other_images_source' => json_encode(array_slice($sourceImages, 1)),
             'product_details' => $data['product_details'] ?? '',
+            'specifications' => $data['specifications'] ?? null,
         ];
     }
 

@@ -47,11 +47,13 @@ class Products extends Model
         'other_images',
         'other_images_source',
         'product_details',
+        'specifications',
     ];
 
     protected $casts = [
         'price' => 'float',
         'other_images' => 'array',
+        'specifications' => 'array',
     ];
 
     public function category()
