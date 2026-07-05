@@ -298,6 +298,29 @@ class ScrapeAutotraderUkTest extends TestCase
         $this->assertSame('ST-Line', $detail['specifications']['trim']);
     }
 
+    public function test_detail_parser_pulls_full_imagelist_isolated_from_related_cars(): void
+    {
+        // this live-captured page carries the car's full 20-image server-rendered
+        // imageList AND four related vehicles' imageLists (20 each = 80 hashes on
+        // the page). Anchoring on the URL's advertId must pull exactly this car's
+        // 20 — proving related-car isolation and that we no longer under-count by
+        // reading only the eagerly-rendered carousel.
+        $detail = (new AutotraderUkDetailParser)->parseDetail(
+            $this->fixture('detail-page-gallery.html'),
+            'https://www.autotrader.co.uk/car-details/202606153314591'
+        );
+
+        $this->assertNotNull($detail);
+        $this->assertCount(20, $detail['images']);
+        foreach ($detail['images'] as $img) {
+            $this->assertStringStartsWith('https://m.atcdn.co.uk/a/media/w800/', $img);
+        }
+        // all 20 hashes unique (size variants collapsed, no related-car dupes)
+        $hashes = array_map(fn ($u) => preg_replace('#.*/([0-9a-f]{32})\.jpg#', '$1', $u), $detail['images']);
+        $this->assertSame($hashes, array_values(array_unique($hashes)));
+        $this->assertSame('Audi A1', $detail['title']);
+    }
+
     public function test_detail_parser_returns_null_on_empty_html(): void
     {
         $this->assertNull((new AutotraderUkDetailParser)->parseDetail('', self::DETAIL_URL));

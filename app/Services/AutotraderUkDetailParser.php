@@ -53,7 +53,7 @@ class AutotraderUkDetailParser
         $advertId = $this->advertIdFromUrl($url);
         $ctx = $this->mainVehicleJson($html, $advertId);
         $panel = $this->keyFactsPanel($html);
-        $images = $this->galleryImages($html);
+        $images = $this->galleryImages($html, $advertId);
 
         // nothing structured AND no gallery => not a real detail page
         if ($ctx === null && $panel === [] && $images === []) {
@@ -247,25 +247,93 @@ class AutotraderUkDetailParser
     }
 
     /**
-     * The MAIN car's full gallery. Images are read only from the rendered
-     * `<section … data-testid="gallery" …>` carousel, so related-car rail images
-     * (which live in JSON imageLists, never in this section) are excluded by
-     * construction. Sized dupes (w340…w800 of one hash) collapse to one
-     * canonical-size URL, deduped by the 32-char media hash and kept in gallery
-     * order.
+     * The MAIN car's full gallery.
+     *
+     * PRIMARY source: the advertId-anchored `imageList` the page ships as JSON —
+     * this carries the car's full server-rendered set (~20 images), far more than
+     * the handful the gallery carousel renders eagerly. The page also ships an
+     * imageList for each *related* vehicle (in connectedVehicleCollection), so we
+     * anchor on the URL's advertId to pick this car's list and none other.
+     *
+     * FALLBACK: the rendered `<section data-testid="gallery">` carousel (only a
+     * few images) for any page whose JSON shape we can't anchor.
+     *
+     * Sized dupes (w340…w800 of one hash) collapse to one canonical-size URL,
+     * deduped by the 32-char media hash and kept in list order.
      *
      * @return string[]
      */
-    private function galleryImages(string $html): array
+    private function galleryImages(string $html, ?string $advertId): array
     {
+        $fromJson = $this->imageListImages($html, $advertId);
+        if ($fromJson !== []) {
+            return $fromJson;
+        }
+
         $section = $this->gallerySection($html);
         if ($section === null) {
             return [];
         }
 
+        return $this->hashUrls($section);
+    }
+
+    /**
+     * Extract the imageList array belonging to the entry whose advertId matches
+     * the URL's — the car being viewed. The JSON is embedded escaped inside a JS
+     * string (\"advertId\":\"…\",\"type\":\"used\",\"imageList\":[ … ]), so we
+     * match tolerantly and walk balanced brackets rather than JSON-decoding the
+     * whole (huge) blob.
+     *
+     * @return string[]
+     */
+    private function imageListImages(string $html, ?string $advertId): array
+    {
+        if ($advertId === null) {
+            return [];
+        }
+
+        // first spot where THIS advertId is followed (within a short span) by an
+        // imageList opener — that is its self-entry, not a related vehicle's
+        if (!preg_match('#' . preg_quote($advertId, '#') . '[^\[\]]{0,80}?imageList[^\[]{0,8}\[#s', $html, $m, PREG_OFFSET_CAPTURE)) {
+            return [];
+        }
+
+        $bracket = strpos($html, '[', $m[0][1] + strlen($m[0][0]) - 1);
+        if ($bracket === false) {
+            return [];
+        }
+
+        $depth = 0;
+        $len = strlen($html);
+        $end = $bracket;
+        for ($i = $bracket; $i < $len; $i++) {
+            $c = $html[$i];
+            if ($c === '[') {
+                $depth++;
+            } elseif ($c === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    $end = $i;
+                    break;
+                }
+            }
+        }
+
+        return $this->hashUrls(substr($html, $bracket, $end - $bracket + 1));
+    }
+
+    /**
+     * Pull every m.atcdn media hash out of a chunk, collapse size variants, and
+     * return one canonical-size URL per unique hash in first-seen order.
+     *
+     * @return string[]
+     */
+    private function hashUrls(string $chunk): array
+    {
         preg_match_all(
             '#https://' . preg_quote(self::IMAGE_HOST, '#') . '/a/media/(?:w\d+/)?([0-9a-f]{32})\.jpg#i',
-            $section,
+            $chunk,
             $m,
             PREG_SET_ORDER
         );

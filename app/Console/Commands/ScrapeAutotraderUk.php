@@ -574,6 +574,31 @@ class ScrapeAutotraderUk extends Command
     }
 
     /**
+     * Headers for a car-details HTML GET. Cloudflare challenges a bare GET (a
+     * bot tell) — a real browser navigation carries Sec-Fetch-* +
+     * Upgrade-Insecure-Requests + an html Accept, so we send the full set or the
+     * page 403s even with a valid __cf_bm.
+     *
+     * @return array<string,string>
+     */
+    private function detailHeaders(): array
+    {
+        return [
+            'User-Agent' => self::USER_AGENT,
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language' => 'en-GB,en;q=0.9',
+            'Upgrade-Insecure-Requests' => '1',
+            'Sec-Fetch-Site' => 'same-origin',
+            'Sec-Fetch-Mode' => 'navigate',
+            'Sec-Fetch-User' => '?1',
+            'Sec-Fetch-Dest' => 'document',
+            'sec-ch-ua-mobile' => '?0',
+            'sec-ch-ua-platform' => '"Windows"',
+            'Referer' => AutotraderUkParser::BASE . '/car-search',
+        ];
+    }
+
+    /**
      * The JSON-ARRAY gateway body for one or more pages. The gateway accepts a
      * BATCH of operations in one POST (proven ~10 ops safe), so each requested
      * page becomes one op — the whole array answers with one result per op.
@@ -778,12 +803,7 @@ class ScrapeAutotraderUk extends Command
         $this->ensureSession();
         $results = [];
         $pending = array_values($urls);
-        $headers = [
-            'User-Agent' => self::USER_AGENT,
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language' => 'en-GB,en;q=0.9',
-            'Referer' => AutotraderUkParser::BASE . '/car-search',
-        ];
+        $headers = $this->detailHeaders();
 
         for ($round = 1; $round <= 5 && $pending !== []; $round++) {
             // one curl.exe wave of detail-page GETs, keyed by url
@@ -829,12 +849,7 @@ class ScrapeAutotraderUk extends Command
     /** polite single-detail fetch (test/degenerate path), with 404/410 -> null */
     private function fetchDetail(string $url): ?string
     {
-        $headers = [
-            'User-Agent' => self::USER_AGENT,
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language' => 'en-GB,en;q=0.9',
-            'Referer' => AutotraderUkParser::BASE . '/car-search',
-        ];
+        $headers = $this->detailHeaders();
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             $this->ensureSession($attempt > 1);
             try {
