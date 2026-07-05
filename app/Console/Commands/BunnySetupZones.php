@@ -17,6 +17,7 @@ class BunnySetupZones extends Command
         'sm-madeinchina' => 'https://image.made-in-china.com',
         'sm-tcv' => 'https://www.tc-v.com',
         'sm-autotrader' => 'https://img.autotrader.co.za',
+        'sm-perfectmotors' => 'https://perfect-motors.com',
     ];
 
     public function handle(): int
