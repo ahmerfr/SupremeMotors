@@ -265,6 +265,18 @@ class AutotraderUkDetailParser
      */
     private function galleryImages(string $html, ?string $advertId): array
     {
+        // PRIMARY: the main advert's full gallery ships as {resize}-templated
+        // image URLs (…/media/{resize}/{hash}). Related/connected vehicles use
+        // pre-SIZED URLs (…/media/w600/{hash}) instead, so keying on the
+        // {resize} placeholder isolates THIS car's whole gallery — every photo,
+        // no related-car bleed — in one pass. Live Audi A1: 40 photos.
+        $full = $this->resizeGalleryImages($html);
+        if ($full !== []) {
+            return $full;
+        }
+
+        // FALLBACKS for the rare page that ships no {resize} gallery: the
+        // advertId-anchored imageList, then the eagerly-rendered carousel.
         $fromJson = $this->imageListImages($html, $advertId);
         if ($fromJson !== []) {
             return $fromJson;
@@ -276,6 +288,35 @@ class AutotraderUkDetailParser
         }
 
         return $this->hashUrls($section);
+    }
+
+    /**
+     * The full gallery as {resize}-templated CDN URLs, normalised to one
+     * canonical size and deduped by media hash in page order.
+     *
+     * @return string[]
+     */
+    private function resizeGalleryImages(string $html): array
+    {
+        preg_match_all(
+            '#https://' . preg_quote(self::IMAGE_HOST, '#') . '/a/media/\{resize\}/([0-9a-f]{32})#i',
+            $html,
+            $m,
+            PREG_SET_ORDER
+        );
+
+        $out = [];
+        $seen = [];
+        foreach ($m as $hit) {
+            $hash = strtolower($hit[1]);
+            if (isset($seen[$hash])) {
+                continue;
+            }
+            $seen[$hash] = true;
+            $out[] = 'https://' . self::IMAGE_HOST . '/a/media/' . self::CANON_SIZE . '/' . $hash . '.jpg';
+        }
+
+        return $out;
     }
 
     /**
