@@ -313,9 +313,11 @@ class ScrapeAutotrader extends Command
         $pending = array_values($urls);
 
         for ($round = 1; $round <= 6 && $pending !== []; $round++) {
+            // short connect timeout: free proxies die constantly, and a dead one
+            // must fail in ~4s (not 12) so the live proxies carry the throughput
             $client = new \GuzzleHttp\Client([
-                'connect_timeout' => 12,
-                'timeout' => 30,
+                'connect_timeout' => 4,
+                'timeout' => 20,
                 'http_errors' => false,
                 'headers' => [
                     'User-Agent' => self::USER_AGENT,
@@ -326,11 +328,13 @@ class ScrapeAutotrader extends Command
             ]);
 
             $retry = [];
-            $requests = function () use ($pending, $client) {
+            $usedProxy = []; // url => proxy, so a failure can evict the dead proxy
+            $requests = function () use ($pending, $client, &$usedProxy) {
                 foreach ($pending as $url) {
                     $opts = [];
                     if ($proxy = $this->currentProxy()) {
                         $opts['proxy'] = $proxy;
+                        $usedProxy[$url] = $proxy;
                     }
                     $this->proxyIdx++; // spread each request across the pool
                     yield $url => $client->getAsync($url, $opts);
@@ -350,8 +354,11 @@ class ScrapeAutotrader extends Command
                         $retry[] = $url; // 403/429/503 — try again on another proxy
                     }
                 },
-                function ($_e, $url) use (&$retry) {
-                    $retry[] = $url; // dead proxy / connection error
+                function ($_e, $url) use (&$retry, &$usedProxy) {
+                    $retry[] = $url;
+                    if (isset($usedProxy[$url])) {
+                        $this->evictProxy($usedProxy[$url]); // connection failed — drop this dead proxy
+                    }
                 }
             )->wait();
 
@@ -585,6 +592,20 @@ class ScrapeAutotrader extends Command
         $this->proxyIdx++;
 
         return true;
+    }
+
+    /**
+     * Drop a proxy that just failed to connect. Free proxies die constantly;
+     * evicting them keeps the pool converging on the live ones so retries stop
+     * landing on corpses. The keepalive's periodic refresh refills the pool.
+     */
+    private function evictProxy(string $proxy): void
+    {
+        $bare = str_starts_with($proxy, 'http://') ? substr($proxy, 7) : $proxy;
+        $this->proxies = array_values(array_filter(
+            $this->proxies,
+            fn ($p) => $p !== $bare && $p !== $proxy
+        ));
     }
 
     private function originAlive(): bool
