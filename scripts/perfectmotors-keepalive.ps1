@@ -18,13 +18,20 @@ $logDir  = Join-Path $project 'storage\logs'
 if (-not (Test-Path $state))  { New-Item -ItemType Directory -Force $state  | Out-Null }
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 
-$sweepDone = Join-Path $state 'perfectmotors-scrape.done'
-$fillDone  = Join-Path $state 'perfectmotors-fill.done'
-$warmDone  = Join-Path $state 'warm-pmwarm.done'
-$allDone   = Join-Path $state 'perfectmotors.done'
+$sweepDone   = Join-Path $state 'perfectmotors-scrape.done'
+$sweepStable = Join-Path $state 'perfectmotors-sweep-stable.done'
+$cursorFile  = Join-Path $state 'perfectmotors.cursor'
+$countFile   = Join-Path $state 'perfectmotors-lastcount.txt'
+$fillDone    = Join-Path $state 'perfectmotors-fill.done'
+$warmDone    = Join-Path $state 'warm-pmwarm.done'
+$allDone     = Join-Path $state 'perfectmotors.done'
 
 function Log($msg) {
     Add-Content -Path (Join-Path $logDir 'perfectmotors-keepalive.log') -Value ((Get-Date -Format o) + "  " + $msg)
+}
+
+function BankedCount() {
+    try { return [int](& 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -P 3307 -u root supreme_motors -N -e "SELECT COUNT(*) FROM products WHERE website='perfectmotors'" 2>$null) } catch { return 0 }
 }
 
 # MySQL up + big buffer pool (shared with the AutoTrader run)
@@ -42,22 +49,40 @@ if (-not $mysqld) {
 $phps = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'"
 
 # 4. everything done -> finish + self-destruct
-if ((Test-Path $sweepDone) -and (Test-Path $fillDone) -and (Test-Path $warmDone)) {
+if ((Test-Path $sweepStable) -and (Test-Path $fillDone) -and (Test-Path $warmDone)) {
     Set-Content -Path $allDone -Value (Get-Date -Format o)
     schtasks /delete /tn 'SupremeMotors-PerfectMotors' /f 2>$null
     Log 'sweep + fill + image warm complete - done, task removed'
     exit 0
 }
 
-# 1. sweep phase
-if (-not (Test-Path $sweepDone)) {
+# 1. sweep phase — LOOP UNTIL STABLE. A single pass drops cars that
+#    transiently failed to fetch under load; each extra pass re-fetches only
+#    the non-banked ids and recovers them. We stop when a full pass adds < 10
+#    new cars.
+if (-not (Test-Path $sweepStable)) {
     $running = $phps | Where-Object { $_.CommandLine -like '*scrape:perfectmotors*' -and $_.CommandLine -notlike '*--fill-incomplete*' }
-    if (-not $running) {
-        Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:perfectmotors','--min-id=64000','--max-id=71000','--pool=20') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'perfectmotors-sweep.log') -RedirectStandardError (Join-Path $logDir 'perfectmotors-sweep.err.log')
-        Log 'sweep worker launched (resume from cursor)'
+    if ($running) {
+        # a sweep pass is in progress — let it run
+    } elseif (-not (Test-Path $sweepDone)) {
+        Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:perfectmotors','--min-id=64000','--max-id=71000','--pool=12') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'perfectmotors-sweep.log') -RedirectStandardError (Join-Path $logDir 'perfectmotors-sweep.err.log')
+        Log 'sweep pass launched'
+    } else {
+        # a pass finished: did it recover new cars?
+        $now = BankedCount
+        $last = if (Test-Path $countFile) { [int](Get-Content $countFile -Raw) } else { 0 }
+        if (($now - $last) -ge 10) {
+            Set-Content -Path $countFile -Value $now
+            Remove-Item $cursorFile -Force -ErrorAction SilentlyContinue
+            Remove-Item $sweepDone -Force -ErrorAction SilentlyContinue
+            Log "sweep pass added $($now - $last) cars (now $now) - re-sweeping to recover stragglers"
+        } else {
+            Set-Content -Path $sweepStable -Value (Get-Date -Format o)
+            Log "sweep stable at $now cars"
+        }
     }
 }
-# 2. fill phase (sweep done, fill not)
+# 2. fill phase (sweep stable, fill not)
 elseif (-not (Test-Path $fillDone)) {
     $filling = $phps | Where-Object { $_.CommandLine -like '*scrape:perfectmotors*--fill-incomplete*' }
     if (-not $filling) {
@@ -76,7 +101,7 @@ elseif (-not (Test-Path $warmDone)) {
 
 # status page from the progress json
 $pf = Join-Path $state 'perfectmotors-progress.json'
-$phase = if (-not (Test-Path $sweepDone)) { 'sweeping' } elseif (-not (Test-Path $fillDone)) { 'filling' } elseif (-not (Test-Path $warmDone)) { 'warming images' } else { 'done' }
+$phase = if (-not (Test-Path $sweepStable)) { 'sweeping' } elseif (-not (Test-Path $fillDone)) { 'filling' } elseif (-not (Test-Path $warmDone)) { 'warming images' } else { 'done' }
 if (Test-Path $pf) {
     try {
         $p = Get-Content $pf -Raw | ConvertFrom-Json

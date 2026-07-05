@@ -297,7 +297,7 @@ class ScrapePerfectMotors extends Command
         $results = [];
         $pending = array_values($urls);
 
-        for ($round = 1; $round <= 4 && $pending !== []; $round++) {
+        for ($round = 1; $round <= 6 && $pending !== []; $round++) {
             $client = new \GuzzleHttp\Client([
                 'connect_timeout' => 8,
                 'timeout' => 25,
