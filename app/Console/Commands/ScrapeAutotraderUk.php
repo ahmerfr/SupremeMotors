@@ -56,6 +56,8 @@ class ScrapeAutotraderUk extends Command
         {--max-price= : Restrict to cars at/below this price (GBP) — price-band shard}
         {--shard= : Name this worker; gives it its own cursor + done marker + progress}
         {--enrich : PHASE 2 — fetch car-details HTML for every specifications-NULL row and fill full gallery + specs (ignores Phase-1 options)}
+        {--fast-enrich : PHASE 2 FAST — enrich via the batched /at-graphql advert query (50 cars/POST, un-throttled); no per-car HTML}
+        {--fast-pool=8 : Concurrent gateway POSTs for --fast-enrich}
         {--pool=8 : Concurrent requests per Guzzle Pool (Phase-1 batched POSTs / Phase-2 detail GETs); 8 is proven safe, 10-12 cautiously}
         {--batch=10 : Search pages per gateway POST (the gateway accepts ~10-15 ops; 10 is the safe ceiling)}
         {--enrich-limit=0 : PHASE 2 — stop after enriching this many products (0 = all)}
@@ -147,6 +149,11 @@ class ScrapeAutotraderUk extends Command
         }
 
         $this->dryRun = (bool) $this->option('dry-run');
+
+        // PHASE 2 FAST — enrich via the batched /at-graphql advert query
+        if ($this->option('fast-enrich')) {
+            return $this->fastEnrich($stateDir);
+        }
 
         // PHASE 2 — enrich the specifications-NULL rows with full detail data
         if ($this->option('enrich')) {
@@ -975,6 +982,251 @@ class ScrapeAutotraderUk extends Command
             'product_details' => $p->product_details,
             'images' => $searchImages,
         ], fn ($v) => $v !== null && $v !== '' && $v !== []);
+    }
+
+    /** batched advert-detail gateway (un-throttled, unlike the car-details HTML) */
+    private const AT_GRAPHQL = AutotraderUkParser::BASE . '/at-graphql?opname=Deep';
+
+    /** 4 aliased adverts/op × 10 ops/POST = 40 adverts per POST (5 aliases busts the 100 complexity cap; 10 ops is the array cap) */
+    private const FAST_ALIASES_PER_OP = 4;
+
+    private const FAST_OPS_PER_POST = 10;
+
+    /**
+     * PHASE 2 FAST — enrich every search-tier row via the batched /at-graphql
+     * `search{advert(advertId:){specification,imageList}}` query. This is the
+     * SAME un-throttled gateway the search uses, batched 50 adverts/POST and run
+     * concurrently, so 454k cars finish in ~an hour instead of the days that
+     * per-car car-details HTML fetches (rate-limited from one IP) would take.
+     *
+     * A row is only ever marked enriched after it was ACTUALLY answered by a
+     * 200 POST — a transient POST failure leaves it enriched=0 to retry, while a
+     * genuinely gone advert (200 but "Resource not found") is marked enriched so
+     * the run can complete.
+     */
+    private function fastEnrich(string $stateDir): int
+    {
+        $pool = max(1, (int) $this->option('fast-pool'));
+        $limit = (int) $this->option('enrich-limit');
+        $doneMarker = $stateDir . '/autotraderuk-fill.done';
+        @unlink($doneMarker);
+        $this->info(($this->dryRun ? '[dry-run] ' : '') . "autotraderuk FAST enrich starting (batched /at-graphql, pool={$pool})");
+
+        $perPost = self::FAST_ALIASES_PER_OP * self::FAST_OPS_PER_POST;
+
+        for ($round = 1; ; $round++) {
+            $remaining = Products::where('website', 'autotraderuk')->where('enriched', false)->count();
+            file_put_contents($stateDir . '/autotraderuk-fill-progress.json', json_encode([
+                'source' => 'autotraderuk', 'mode' => 'fast', 'incomplete_remaining' => $remaining,
+                'enriched' => $this->upserted, 'updated_at' => date('c'),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            if ($remaining === 0) {
+                if (!$this->dryRun) {
+                    file_put_contents($doneMarker, now()->toDateTimeString() . "\n");
+                }
+                $this->info('fast-enrich: every autotraderuk product has full detail');
+
+                return self::SUCCESS;
+            }
+            if ($limit > 0 && $this->upserted >= $limit) {
+                $this->info("fast-enrich: hit --enrich-limit={$limit}, stopping");
+
+                return self::SUCCESS;
+            }
+
+            $take = $limit > 0 ? min(2000, $limit - $this->upserted) : 2000;
+            $rows = Products::where('website', 'autotraderuk')->where('enriched', false)
+                ->limit($take)->get(['id', 'product_link'])->all();
+
+            // advertId -> product_link
+            $urlByAdvert = [];
+            foreach ($rows as $p) {
+                if (preg_match('#/car-details/(\d+)#', $p->product_link, $m)) {
+                    $urlByAdvert[$m[1]] = $p->product_link;
+                }
+            }
+            $advertIds = array_keys($urlByAdvert);
+
+            // one curl POST per 50 adverts (10 ops × 5 aliases), run concurrently
+            $requests = [];
+            foreach (array_chunk($advertIds, $perPost) as $ci => $postIds) {
+                $ops = [];
+                foreach (array_chunk($postIds, self::FAST_ALIASES_PER_OP) as $opIds) {
+                    $ops[] = ['operationName' => 'Deep', 'variables' => new \stdClass(), 'query' => $this->buildDeepQuery($opIds)];
+                }
+                $requests[$ci] = ['method' => 'POST', 'url' => self::AT_GRAPHQL, 'headers' => $this->graphqlHeaders(), 'body' => json_encode($ops)];
+            }
+
+            $this->ensureSession();
+            $responses = $this->curl->parallel($requests, $this->jarFile, $pool, 40);
+
+            // gather adverts from 200 responses; track which advertIds were actually answered
+            $adverts = [];
+            $answered = [];
+            foreach (array_chunk($advertIds, $perPost) as $ci => $postIds) {
+                [$code, $bodyStr] = $responses[$ci] ?? [0, ''];
+                if ($code !== 200) {
+                    continue; // transient — leave these enriched=0 to retry
+                }
+                foreach ($postIds as $id) {
+                    $answered[$id] = true;
+                }
+                $j = json_decode($bodyStr, true);
+                if (!is_array($j)) {
+                    continue;
+                }
+                foreach ($j as $op) {
+                    foreach (($op['data'] ?? []) as $node) {
+                        $a = $node['advert'] ?? null;
+                        if (is_array($a) && !empty($a['id'])) {
+                            $adverts[(string) $a['id']] = $a;
+                        }
+                    }
+                }
+            }
+
+            $filled = 0;
+            $gone = 0;
+            $retry = 0;
+            foreach ($urlByAdvert as $aid => $url) {
+                if (empty($answered[$aid])) {
+                    $retry++;
+
+                    continue; // its POST failed — try again next round
+                }
+                $a = $adverts[$aid] ?? null;
+                if ($a === null) {
+                    // answered but no advert => expired/withdrawn; keep search-tier, stop retrying
+                    if (!$this->dryRun) {
+                        Products::where('product_link', $url)->update(['enriched' => true]);
+                    }
+                    $gone++;
+
+                    continue;
+                }
+                $detail = $this->advertToDetail($a, $url);
+                if (!$this->dryRun) {
+                    $existing = Products::where('product_link', $url)->first();
+                    $existingData = $existing ? $this->existingAsData($existing) : [];
+                    if (isset($detail['price'])) {
+                        $detail['price'] = $this->toUsd($detail['price']);
+                    }
+                    $merged = array_merge($existingData, $detail);
+                    $di = $detail['images'] ?? [];
+                    $ei = $existingData['images'] ?? [];
+                    $merged['images'] = count($di) >= count($ei) ? $di : $ei;
+                    Products::where('product_link', $url)->update($this->mapToProduct($merged) + ['enriched' => true]);
+                    $this->imagesScraped += count($merged['images']);
+                }
+                $filled++;
+                $this->upserted++;
+            }
+            $this->info("fast-enrich round {$round}: {$remaining} left — filled {$filled}, expired {$gone}, retry {$retry}");
+
+            if ($this->dryRun) {
+                return self::SUCCESS;
+            }
+            if ($filled === 0 && $gone === 0) {
+                // a whole round with zero progress (all POSTs failing) — brief backoff + re-mint
+                $this->cookieMintedAt = 0;
+                $this->ensureSession(true);
+                sleep(min(30, 5 * $round));
+            }
+        }
+    }
+
+    /** one operation's GraphQL: N aliased advert lookups sharing the deep selection */
+    private function buildDeepQuery(array $advertIds): string
+    {
+        $sel = '{ id year price colour specification { bodyType fuel transmission make model derivative doors seats driveTrain emissionClass trim } imageList { images { url } } }';
+        $q = 'query Deep {';
+        foreach (array_values($advertIds) as $i => $id) {
+            $q .= ' x' . $i . ': search { advert(advertId: "' . $id . '") ' . $sel . ' }';
+        }
+
+        return $q . ' }';
+    }
+
+    /** @return array<string,string> headers for the /at-graphql FPA endpoint */
+    private function graphqlHeaders(): array
+    {
+        return [
+            'User-Agent' => self::USER_AGENT,
+            'Content-Type' => 'application/json',
+            'Accept' => '*/*',
+            'Accept-Language' => 'en-GB,en;q=0.9',
+            'Origin' => AutotraderUkParser::BASE,
+            'Referer' => AutotraderUkParser::BASE . '/',
+            'x-sauron-app-name' => 'product-page-web',
+            'x-sauron-app-version' => '1.0.0',
+        ];
+    }
+
+    /**
+     * Map one /at-graphql advert node into the detail-shape array mapToProduct
+     * consumes (same keys parseDetail returns). engine_cc/power stay from the
+     * search subtitle (this query doesn't carry them); specifications.source is
+     * 'detail' so the row counts as fully enriched.
+     *
+     * @param  array<string,mixed>  $a
+     * @return array<string,mixed>
+     */
+    private function advertToDetail(array $a, string $url): array
+    {
+        $sp = $a['specification'] ?? [];
+        $images = [];
+        foreach ($a['imageList']['images'] ?? [] as $img) {
+            if (preg_match('#/media/(?:\{resize\}|w\d+)/([0-9a-f]{32})#i', (string) ($img['url'] ?? ''), $m)) {
+                $hash = strtolower($m[1]);
+                $images[$hash] = 'https://' . AutotraderUkParser::IMAGE_HOST . '/a/media/w800/' . $hash . '.jpg';
+            }
+        }
+        $make = $sp['make'] ?? null;
+        $model = $sp['model'] ?? null;
+
+        return array_filter([
+            'title' => trim((string) ($make ?? '') . ' ' . (string) ($model ?? '')) ?: null,
+            'make' => $make,
+            'model' => $model,
+            'year' => isset($a['year']) ? (int) $a['year'] : null,
+            'price' => isset($a['price']) ? (float) $a['price'] : null,
+            'body_style' => $sp['bodyType'] ?? null,
+            'fuel' => $sp['fuel'] ?? null,
+            'transmission' => $sp['transmission'] ?? null,
+            'doors' => $this->clampSmallInt($sp['doors'] ?? null, 1, 15),
+            'seats' => $this->clampSmallInt($sp['seats'] ?? null, 1, 99),
+            'drive_type' => $sp['driveTrain'] ?? null,
+            'color' => $a['colour'] ?? null,
+            'steering' => 'Right',
+            'country' => 'United Kingdom',
+            'website' => 'autotraderuk',
+            'product_link' => $url,
+            'images' => array_values($images),
+            'specifications' => array_filter([
+                'source' => 'detail',
+                'bodyType' => $sp['bodyType'] ?? null,
+                'transmission' => $sp['transmission'] ?? null,
+                'fuel' => $sp['fuel'] ?? null,
+                'derivative' => $sp['derivative'] ?? null,
+                'driveTrain' => $sp['driveTrain'] ?? null,
+                'emissionClass' => $sp['emissionClass'] ?? null,
+                'trim' => $sp['trim'] ?? null,
+                'doors' => $sp['doors'] ?? null,
+                'seats' => $sp['seats'] ?? null,
+            ], fn ($v) => $v !== null && $v !== ''),
+        ], fn ($v) => $v !== null && $v !== [] && $v !== '');
+    }
+
+    /** clamp a small int to a plausible range (mis-parses -> null), tinyint-safe */
+    private function clampSmallInt($n, int $min, int $max): ?int
+    {
+        if ($n === null || $n === '') {
+            return null;
+        }
+        $n = (int) $n;
+
+        return $n >= $min && $n <= $max ? $n : null;
     }
 
     /**
