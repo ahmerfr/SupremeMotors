@@ -446,6 +446,9 @@ class ScrapePerfectMotors extends Command
 
     private function makeId(string $name): ?int
     {
+        // collapse spelling variants so a brand is never split across duplicates
+        $name = app(\App\Services\MakeNormalizer::class)->canonical($name) ?? $name;
+
         // dry-run must not persist: look up existing makes only, never create
         if ($this->dryRun) {
             return $this->makeIds[$name] ??= Categories::where('cat_title', $name)->where('type', 'make')->value('id');
