@@ -56,6 +56,32 @@ class Products extends Model
         'specifications' => 'array',
     ];
 
+    /** expose the computed price-visibility flag to the frontend as a boolean */
+    protected $appends = ['show_price'];
+
+    /** sources whose prices are trustworthy enough to display (rest show "Enquire") */
+    public const PRICE_VISIBLE_SITES = ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza'];
+
+    /**
+     * Whether the card/detail page should show the numeric price. Keeps the
+     * source-name logic in the backend so no website value lives in the JS.
+     */
+    public function getShowPriceAttribute(): bool
+    {
+        if (($this->price ?? 0) <= 0) {
+            return false;
+        }
+        $site = $this->website ?? '';
+
+        foreach (self::PRICE_VISIBLE_SITES as $visible) {
+            if (str_contains($site, $visible)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function category()
     {
         return $this->belongsTo(Categories::class, 'category_id');

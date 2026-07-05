@@ -60,7 +60,7 @@ onMounted(() => {
 /* ---------------- summary data ---------------- */
 
 const brand = computed(() => p.make?.cat_title || p.category?.cat_title || 'Vehicle');
-const showPrice = computed(() => p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza'].some((s) => (p.website || '').includes(s)));
+const showPrice = computed(() => !!p.show_price);
 
 const fmtNum = (v) => Number(v).toLocaleString();
 const keySpecs = computed(() => [
@@ -227,6 +227,10 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
                             </h1>
 
                             <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap">
+                                <span v-if="p.condition" style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; color: #bfe6cf; background: rgba(31, 143, 87, 0.18); border: 1px solid rgba(31, 143, 87, 0.4); padding: 4px 11px; border-radius: 100px">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ecb86" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                                    {{ p.condition }}
+                                </span>
                                 <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #a9b7cc">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a9b7cc" stroke-width="2.4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
                                     {{ p.country }}

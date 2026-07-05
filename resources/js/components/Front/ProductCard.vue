@@ -11,7 +11,7 @@ const emit = defineEmits(['img-error']);
 const p = props.product;
 const brand = p.make?.cat_title || p.category?.cat_title || 'Vehicle';
 const km = p.mileage_km ? `${Number(p.mileage_km).toLocaleString()} KM` : '—';
-const showPrice = p.price > 0 && ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza'].some((s) => (p.website || '').includes(s));
+const showPrice = !!p.show_price;
 
 /* mini slider: front + up to 3 gallery shots, dot-switchable */
 const resolve = (u) => (typeof u === 'string' && u.startsWith('product_images') ? `/storage/${u}` : u);
