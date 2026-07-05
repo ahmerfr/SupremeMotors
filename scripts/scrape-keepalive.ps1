@@ -39,15 +39,38 @@ function Log($msg) {
     Add-Content -Path (Join-Path $logDir 'scrape-keepalive.log') -Value ((Get-Date -Format o) + "  $msg")
 }
 
-# 1. all shards done -> finish + self-destruct
+# 1. all shards done -> warm the AutoTrader images into Bunny, THEN finish.
+#    The warm requests every image URL through the pull zone so Bunny
+#    Perma-Caches a permanent copy in the storage zone — the photos then
+#    survive even if AutoTrader later deletes the originals.
 $allDone = $true
 foreach ($s in $shards) {
     if (-not (Test-Path (Join-Path $state ("autotrader-scrape-" + $s.name + ".done")))) { $allDone = $false }
 }
 if ($allDone) {
-    Set-Content -Path $done -Value (Get-Date -Format o)
-    schtasks /delete /tn 'SupremeMotors-Scrape' /f 2>$null
-    Log 'all shards complete — scrape done, task removed'
+    $warmDone = Join-Path $state 'autotrader-warm.done'
+    if (Test-Path $warmDone) {
+        Set-Content -Path $done -Value (Get-Date -Format o)
+        schtasks /delete /tn 'SupremeMotors-Scrape' /f 2>$null
+        Log 'scrape + image warm complete — done, task removed'
+        exit 0
+    }
+    # relaunch the warm if it is not running (it is resumable from its cursor)
+    $warming = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" |
+        Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotrader*' -or $_.CommandLine -like '*--website=autotrader*warm-cdn*' }
+    if (-not $warming) {
+        Start-Process -FilePath $php `
+            -ArgumentList (@('artisan','products:warm-cdn','--website=autotrader','--shard=atwarm','--pool=60','--timeout=30') -join ' ') `
+            -WorkingDirectory $project -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $logDir 'scrape-imagewarm.log') `
+            -RedirectStandardError  (Join-Path $logDir 'scrape-imagewarm.err.log')
+        Log 'all shards done — launched AutoTrader image warm (Perma-Cache into Bunny)'
+    }
+    # the warm shard writes warm-atwarm.done; mirror it to our marker
+    if (Test-Path (Join-Path $state 'warm-atwarm.done')) {
+        Set-Content -Path $warmDone -Value (Get-Date -Format o)
+        Log 'AutoTrader image warm complete'
+    }
     exit 0
 }
 

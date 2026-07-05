@@ -15,6 +15,7 @@ class WarmCdn extends Command
         {--shard= : Named id-range worker; writes warm-<shard>.done instead of warm.done}
         {--min-id=0 : Shard range start (inclusive lower bound)}
         {--max-id= : Shard range end (exclusive upper bound)}
+        {--website= : Warm only products from this source (e.g. autotrader)}
         {--pool= : concurrent HEADs (default 100)}
         {--timeout=45 : per-request timeout seconds (raise when the origin is throttled)}
         {--max-outage-retries=-1 : Give up after this many consecutive same-batch retries (-1 = never)}';
@@ -41,6 +42,7 @@ class WarmCdn extends Command
         $shard = (string) $this->option('shard');
         $minId = (int) $this->option('min-id');
         $maxId = $this->option('max-id') !== null ? (int) $this->option('max-id') : null;
+        $website = $this->option('website') ?: null;
         $this->pool = (int) ($this->option('pool') ?: self::POOL);
         $this->timeoutSeconds = max(15, (int) $this->option('timeout'));
 
@@ -62,6 +64,7 @@ class WarmCdn extends Command
             $rows = DB::table('products')
                 ->where('id', '>', $cursor)
                 ->when($maxId !== null, fn ($q) => $q->where('id', '<', $maxId))
+                ->when($website !== null, fn ($q) => $q->where('website', $website))
                 ->whereNull('front_image_dead_at')
                 ->where(fn ($q) => $q
                     ->where('front_image', 'like', '%.b-cdn.net%')

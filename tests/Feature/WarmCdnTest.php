@@ -17,15 +17,35 @@ class WarmCdnTest extends TestCase
         config(['cdn.state_dir' => sys_get_temp_dir() . '/warmcdn-test-' . uniqid()]);
     }
 
-    private function makeProduct(string $front, array $gallery): int
+    private function makeProduct(string $front, array $gallery, ?string $website = null): int
     {
         return DB::table('products')->insertGetId([
             'title' => 'Unit',
             'front_image' => $front,
             'other_images' => json_encode($gallery),
+            'website' => $website,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    public function test_website_filter_warms_only_that_source(): void
+    {
+        $at = $this->makeProduct('https://sm-autotrader.b-cdn.net/1', [], 'autotrader');
+        $tcv = $this->makeProduct('https://sm-tcv.b-cdn.net/9', [], 'tcv');
+
+        $hit = [];
+        Http::fake(function ($request) use (&$hit) {
+            $hit[] = (string) $request->url();
+
+            return Http::response('', 200);
+        });
+
+        $this->artisan('products:warm-cdn', ['--website' => 'autotrader'])->assertSuccessful();
+
+        // only the autotrader image was requested; the tcv one was skipped
+        $this->assertContains('https://sm-autotrader.b-cdn.net/1', $hit);
+        $this->assertNotContains('https://sm-tcv.b-cdn.net/9', $hit);
     }
 
     public function test_404_marks_dead_but_5xx_and_2xx_do_not(): void
