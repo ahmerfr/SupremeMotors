@@ -92,11 +92,34 @@ if (-not $allShardsDone) {
     }
 }
 
-# 5. finish: scraping done AND warm caught up
-if ($allShardsDone -and (Test-Path $warmMk)) {
+# 5. after shards finish: drain every partial car to FULL detail (no partial
+#    data is ever the final state), then force one last warm pass so the
+#    galleries added by the fill also get cached.
+$fillDone  = Join-Path $state 'autotrader-fill.done'
+$warmReset = Join-Path $state 'autotrader-warm-reset.flag'
+
+if ($allShardsDone -and -not (Test-Path $fillDone)) {
+    $filling = $phps | Where-Object { $_.CommandLine -like '*scrape:autotrader*--fill-incomplete*' }
+    if (-not $filling) {
+        Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:autotrader','--fill-incomplete','--pool=40',"--proxy-file=$proxies") -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'scrape-fill.log') -RedirectStandardError (Join-Path $logDir 'scrape-fill.err.log')
+        Log 'fill-incomplete worker launched (draining partials to full)'
+    }
+}
+
+# fill finished -> reset the warm once so its final pass caches fill-added images
+if ($allShardsDone -and (Test-Path $fillDone) -and -not (Test-Path $warmReset)) {
+    Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" | Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotraderza*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Remove-Item (Join-Path $state 'warm-atwarm.cursor') -Force -ErrorAction SilentlyContinue
+    Remove-Item $warmMk -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType File $warmReset -Force | Out-Null
+    Log 'fill complete - reset warm for a final full image pass'
+}
+
+# finish: shards done AND every car full AND the post-fill warm pass done
+if ($allShardsDone -and (Test-Path $fillDone) -and (Test-Path $warmReset) -and (Test-Path $warmMk)) {
     Set-Content -Path $done -Value (Get-Date -Format o)
     schtasks /delete /tn 'SupremeMotors-Scrape' /f 2>$null
-    Log 'scrape + parallel image warm complete - done, task removed'
+    Log 'scrape + full-detail fill + image warm complete - done, task removed'
     exit 0
 }
 

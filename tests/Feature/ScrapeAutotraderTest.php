@@ -257,6 +257,37 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertFileExists(config('cdn.state_dir') . '/autotrader-scrape-sX.done');
     }
 
+    public function test_fill_incomplete_completes_partial_products(): void
+    {
+        $this->seedCategories();
+
+        // a partial product: banked from the search tile, detail never fetched,
+        // so specifications is NULL (the incomplete marker)
+        $id = Products::create([
+            'title' => 'Partial car', 'website' => 'autotraderza', 'specifications' => null,
+            'product_link' => 'https://www.autotrader.co.za/car-for-sale/vw/amarok/2.0/28618358',
+            'front_image' => 'https://sm-autotrader.b-cdn.net/1',
+        ])->id;
+        $this->assertNull(Products::find($id)->specifications);
+
+        Http::fake([
+            'www.autotrader.co.za/car-for-sale/*' => Http::response($this->fixture('detail-page.html')),
+        ]);
+
+        $this->artisan('scrape:autotrader', ['--fill-incomplete' => true, '--delay-ms' => 0])->assertSuccessful();
+
+        $p = Products::find($id);
+        $this->assertIsArray($p->specifications);       // detail now fetched
+        $this->assertSame('405 Nm', $p->specifications['Torque maximum']);
+        $this->assertSame(5, $p->seats);                // full detail applied in place
+        $this->assertSame(168, $p->power_hp);
+        $this->assertGreaterThan(10, count($p->other_images)); // full gallery, not search-tier
+        $this->assertFileExists(config('cdn.state_dir') . '/autotrader-fill.done');
+
+        // nothing left incomplete
+        $this->assertSame(0, Products::where('website', 'autotraderza')->whereNull('specifications')->count());
+    }
+
     public function test_pool_option_with_proxies_is_accepted(): void
     {
         $this->seedCategories();

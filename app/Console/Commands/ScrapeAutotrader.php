@@ -37,6 +37,7 @@ class ScrapeAutotrader extends Command
         {--min-page=1 : First search page this shard owns}
         {--max-page=0 : Last search page this shard owns (0 = to the end)}
         {--deep : Fetch each detail page for the full gallery, seats/doors, engine + spec sheet (accurate mode)}
+        {--fill-incomplete : Skip crawling; re-fetch detail for any autotraderza product missing it, until none remain}
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--refresh : Re-scrape listings that already exist in the database}
@@ -92,6 +93,10 @@ class ScrapeAutotrader extends Command
 
         $stateDir = config('cdn.state_dir', storage_path('app/cdn'));
         @mkdir($stateDir, 0777, true);
+
+        if ($this->option('fill-incomplete')) {
+            return $this->fillIncomplete($stateDir);
+        }
 
         // shard scoping: each parallel worker owns a page range with its own
         // cursor, done marker, and progress file so shards never collide
@@ -240,6 +245,84 @@ class ScrapeAutotrader extends Command
             . " products={$this->upserted} images={$this->imagesScraped}"
             . ($etaMin !== null ? " eta~{$etaMin}min" : '') . "\n"
         );
+    }
+
+    /**
+     * Guarantee full data: re-fetch the detail page for every autotraderza
+     * product whose specifications is still NULL (its detail never came through
+     * during the crawl), updating it in place with the complete gallery + specs,
+     * and loop until none remain. Genuinely-withdrawn listings (404/410) are
+     * deleted since they can never be completed. Writes autotrader-fill.done
+     * only when zero incomplete products remain — the keepalive gates on it.
+     */
+    private function fillIncomplete(string $stateDir): int
+    {
+        $doneMarker = $stateDir . '/autotrader-fill.done';
+        @unlink($doneMarker);
+
+        for ($round = 1; ; $round++) {
+            $this->reloadProxiesIfChanged();
+
+            $remaining = Products::where('website', 'autotraderza')->whereNull('specifications')->count();
+            file_put_contents(
+                $stateDir . '/autotrader-fill-progress.json',
+                json_encode(['incomplete_remaining' => $remaining, 'updated_at' => date('c')], JSON_PRETTY_PRINT)
+            );
+
+            if ($remaining === 0) {
+                file_put_contents($doneMarker, now()->toDateTimeString() . "\n");
+                $this->info('fill-incomplete: every autotraderza product has full detail');
+
+                return self::SUCCESS;
+            }
+
+            $links = Products::where('website', 'autotraderza')->whereNull('specifications')
+                ->limit(300)->pluck('product_link')->all();
+            $this->info("fill-incomplete round {$round}: {$remaining} missing detail — fetching " . count($links));
+
+            $details = $this->fetchDetailBatch($links);
+            $filled = 0;
+            $failed = [];
+            foreach ($links as $url) {
+                $html = $details[$url] ?? null;
+                $detail = $html !== null ? $this->parser->parseDetailPage($html, $url) : null;
+                if ($detail !== null && !empty($detail['images'])) {
+                    Products::where('product_link', $url)->update($this->mapToProduct($detail));
+                    $filled++;
+                } else {
+                    $failed[] = $url;
+                }
+            }
+            $this->info("fill-incomplete round {$round}: filled {$filled}, still failing " . count($failed));
+
+            if ($filled === 0) {
+                // nothing came through this round — delete any that are genuinely
+                // withdrawn (404/410), then hand back so the keepalive retries the
+                // rest with a fresher proxy pool
+                $this->pruneWithdrawn(array_slice($failed, 0, 25));
+
+                return self::SUCCESS;
+            }
+            // loop continues: remaining shrank, so it terminates when it hits 0
+        }
+    }
+
+    /** delete products whose listing is gone from AutoTrader (404/410) */
+    private function pruneWithdrawn(array $urls): void
+    {
+        foreach ($urls as $url) {
+            try {
+                $code = Http::withHeaders(['User-Agent' => self::USER_AGENT])->timeout(15)->get($url)->status();
+                if (in_array($code, [404, 410], true)) {
+                    Products::where('product_link', $url)->delete();
+                    $this->warn("fill-incomplete: deleted withdrawn listing {$url}");
+                }
+            } catch (\Throwable) {
+            }
+            if (! app()->runningUnitTests()) {
+                usleep(400000); // gentle on the home IP
+            }
+        }
     }
 
     /**

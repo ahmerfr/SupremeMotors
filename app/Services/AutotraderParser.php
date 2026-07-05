@@ -250,7 +250,10 @@ class AutotraderParser
             'listing_id' => $blob['listingId'] ?? null,
             'images' => $images,
             'product_details' => $this->buildDetailsHtml($blob, $ld),
-            'specifications' => $specs ?: null,
+            // always an array when the detail page was fetched (even if the car
+            // has no spec section) — so specifications IS NULL cleanly means
+            // "detail not fetched yet" and drives the fill-incomplete pass
+            'specifications' => $specs,
             'dealer' => $blob['listingDealer']['name'] ?? null,
         ];
     }
