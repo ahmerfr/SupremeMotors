@@ -42,8 +42,10 @@ class Products extends Model
         'body_style',
         'product_link',
         'front_image',
+        'front_image_source',
         'front_image_dead_at',
         'other_images',
+        'other_images_source',
         'product_details',
     ];
 

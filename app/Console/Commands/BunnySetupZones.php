@@ -16,6 +16,7 @@ class BunnySetupZones extends Command
         'sm-linemedia' => 'https://img.linemedia.com',
         'sm-madeinchina' => 'https://image.made-in-china.com',
         'sm-tcv' => 'https://www.tc-v.com',
+        'sm-autotrader' => 'https://img.autotrader.co.za',
     ];
 
     public function handle(): int
