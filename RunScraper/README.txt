@@ -23,12 +23,13 @@ What "everything-proof" means
   - Free proxies die       -> pool auto-refreshes, picked up live
   Nothing already scraped is ever re-fetched.
 
-After scraping finishes (automatic)
------------------------------------
-  Once all cars are scraped, it automatically warms every image into
-  Bunny CDN: each photo is requested through the CDN so Bunny stores a
+Image permanence (runs in PARALLEL, automatic)
+----------------------------------------------
+  As each car is scraped, its images are warmed into Bunny CDN at the
+  same time: every photo is requested through the CDN so Bunny stores a
   PERMANENT copy. Your images then survive even if AutoTrader later
-  deletes the originals. Only after that does it mark fully done.
+  deletes the originals. Because it runs alongside the scrape (not after),
+  the whole job finishes in roughly the scrape time, not double.
 
 Notes
 -----
