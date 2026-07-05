@@ -15,6 +15,17 @@ $logDir  = Join-Path $project 'storage\logs'
 $shardsFile = Join-Path $state 'autotraderuk-shards.json'
 if (-not (Test-Path $shardsFile)) { exit 0 }
 
+# single-instance lock: if another loop is already alive, exit (prevents the
+# keepalive + a manual start from racing two loops over the same bands)
+$lock = Join-Path $state 'autotraderuk-phase1.lock'
+if (Test-Path $lock) {
+    $otherPid = (Get-Content $lock -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($otherPid -and (Get-Process -Id ([int]$otherPid) -ErrorAction SilentlyContinue)) { exit 0 }
+}
+Set-Content -Path $lock -Value $PID
+$cleanup = { Remove-Item $lock -Force -ErrorAction SilentlyContinue }
+Register-EngineEvent PowerShell.Exiting -Action $cleanup | Out-Null
+
 # run from the project root so `artisan` resolves (the & call operator does not
 # take -WorkingDirectory, so use the absolute artisan path)
 Set-Location $project
@@ -31,3 +42,5 @@ foreach ($b in $plan.bands) {
     # blocking run — one band, then straight on to the next
     & $php @sargs *> (Join-Path $logDir ('autotraderuk-' + $b.shard + '.log'))
 }
+
+Remove-Item $lock -Force -ErrorAction SilentlyContinue
