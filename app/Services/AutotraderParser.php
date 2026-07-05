@@ -212,13 +212,16 @@ class AutotraderParser
         $drive = $ld['driveWheelConfiguration'] ?? null;
         $drive = $drive ? ltrim($drive, '_') : null;
 
+        // capture the ENTIRE gallery — 7, 20, or 100 images, whatever the listing has
         $images = collect($blob['gallery']['galleryImages'] ?? [])
             ->pluck('imageUrl')
-            ->filter(fn ($u) => is_string($u) && str_contains($u, 'img.autotrader.co.za'))
+            ->filter(fn ($u) => is_string($u) && str_contains($u, self::IMAGE_HOST))
+            ->map(fn ($u) => $this->stripImageSuffix($u)) // store raw ids, not sized crops
+            ->unique()
             ->values()
             ->all();
         if (!$images && isset($ld['image'])) {
-            $images = [$ld['image']];
+            $images = [$this->stripImageSuffix($ld['image'])];
         }
 
         return [

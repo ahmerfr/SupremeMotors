@@ -53,6 +53,12 @@ class ScrapeAutotrader extends Command
 
     private int $upserted = 0;
 
+    private int $imagesScraped = 0;
+
+    private int $failures = 0;
+
+    private int $startTs = 0;
+
     private array $reportRows = [];
 
     private ?int $carsCategoryId = null;
@@ -72,6 +78,9 @@ class ScrapeAutotrader extends Command
     {
         $this->parser = $parser;
         $this->upserted = 0;
+        $this->imagesScraped = 0;
+        $this->failures = 0;
+        $this->startTs = time();
         $this->reportRows = [];
         $this->carsCategoryId = null;
         $this->makeIds = [];
@@ -137,11 +146,16 @@ class ScrapeAutotrader extends Command
                 file_put_contents($cursorFile, (string) $page);
             }
             $pagesDone++;
+            $this->writeProgress($stateDir, $page, $search['last_page'], $search['total'], false);
             $this->info("page {$page}/" . ($search['last_page'] ?? '?')
                 . ' done — ' . $this->upserted . ' products banked'
                 . ($search['total'] ? ' (of ~' . number_format($search['total']) . ')' : ''));
 
             if ($search['last_page'] !== null && $page >= $search['last_page']) {
+                $this->writeProgress($stateDir, $page, $search['last_page'], $search['total'], true);
+                if (!$dryRun) {
+                    file_put_contents($stateDir . '/autotrader-scrape.done', now()->toDateTimeString() . "\n");
+                }
                 break;
             }
             if ($maxPages > 0 && $pagesDone >= $maxPages) {
@@ -158,6 +172,50 @@ class ScrapeAutotrader extends Command
         $this->info("finished — {$this->upserted} products " . ($dryRun ? 'mapped (nothing written)' : 'upserted'));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Write a machine + human readable progress snapshot every page. The
+     * keepalive task and any status page read this; it's how the run reports
+     * itself while unattended. Also drops a plain-text heartbeat line.
+     */
+    private function writeProgress(string $stateDir, int $page, ?int $lastPage, ?int $total, bool $done): void
+    {
+        $elapsed = max(1, time() - $this->startTs);
+        $ratePerMin = round($this->upserted / $elapsed * 60, 1);
+        $pagesLeft = $lastPage ? max(0, $lastPage - $page) : null;
+        // ~25 products/page; ETA from the observed product rate
+        $etaMin = ($pagesLeft !== null && $ratePerMin > 0)
+            ? (int) round($pagesLeft * 25 / $ratePerMin)
+            : null;
+
+        $snapshot = [
+            'mode' => $this->option('deep') ? 'deep' : 'search',
+            'done' => $done,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'percent' => $lastPage ? round($page / $lastPage * 100, 1) : null,
+            'products_scraped' => $this->upserted,
+            'products_total_estimate' => $total,
+            'images_scraped' => $this->imagesScraped,
+            'failures' => $this->failures,
+            'proxies_live' => count($this->proxies),
+            'rate_per_min' => $ratePerMin,
+            'eta_minutes' => $etaMin,
+            'started_at' => date('c', $this->startTs),
+            'updated_at' => date('c'),
+        ];
+
+        file_put_contents(
+            $stateDir . '/autotrader-progress.json',
+            json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        );
+        file_put_contents(
+            $stateDir . '/autotrader-heartbeat.txt',
+            date('c') . " page {$page}/" . ($lastPage ?? '?')
+            . " products={$this->upserted} images={$this->imagesScraped}"
+            . ($etaMin !== null ? " eta~{$etaMin}min" : '') . "\n"
+        );
     }
 
     /**
@@ -200,6 +258,7 @@ class ScrapeAutotrader extends Command
             }
         }
 
+        $this->imagesScraped += count($data['images'] ?? []);
         $this->upserted++;
     }
 
@@ -475,6 +534,7 @@ class ScrapeAutotrader extends Command
 
     private function logFailure(string $url, string $reason): void
     {
+        $this->failures++;
         $this->warn("skip {$url}: {$reason}");
         file_put_contents(
             config('cdn.state_dir') . '/autotrader-failures.log',

@@ -67,7 +67,8 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertSame('4x2', $data['drive_type']);
         $this->assertSame(1996, $data['engine_cc']);
         $this->assertSame('Double cab', $data['body_style']);
-        $this->assertCount(20, $data['images']);
+        $this->assertCount(18, $data['images']); // 20 gallery entries, 18 unique ids (2 dupes dropped)
+        $this->assertStringNotContainsString('/Crop', $data['images'][0]); // raw id, size suffix stripped
         $this->assertStringContainsString('Warranty distance', $data['product_details']);
     }
 
@@ -115,8 +116,8 @@ class ScrapeAutotraderTest extends TestCase
             ->assertSuccessful();
 
         $product = Products::where('website', 'autotrader')->first();
-        // detail fixture has 20 images -> 1 front + 19 others, richer than search's handful
-        $this->assertCount(19, $product->other_images);
+        // detail fixture has 18 unique images -> 1 front + 17 others, richer than search's handful
+        $this->assertCount(17, $product->other_images);
         $this->assertStringContainsString('Warranty distance', $product->product_details);
         // deep mode captures the specs the search page lacks
         $this->assertSame(5, $product->seats);
@@ -168,6 +169,25 @@ class ScrapeAutotraderTest extends TestCase
         $tucson = Products::where('product_link', 'like', '%28520428')->first();
         $this->assertSame(round(234990 * 0.055, 2), (float) $tucson->price); // 12924.45 USD
         $this->assertLessThan(50000, (float) $tucson->price);
+    }
+
+    public function test_writes_progress_snapshot_and_done_marker(): void
+    {
+        $this->seedCategories();
+        $this->fakeSite();
+
+        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0])->assertSuccessful();
+
+        $progressFile = config('cdn.state_dir') . '/autotrader-progress.json';
+        $this->assertFileExists($progressFile);
+        $p = json_decode(file_get_contents($progressFile), true);
+        $this->assertSame('search', $p['mode']);
+        $this->assertGreaterThanOrEqual(25, $p['products_scraped']);
+        $this->assertGreaterThan(0, $p['images_scraped']);
+        $this->assertSame(92807, $p['products_total_estimate']);
+        $this->assertArrayHasKey('eta_minutes', $p);
+        $this->assertArrayHasKey('updated_at', $p);
+        $this->assertFileExists(config('cdn.state_dir') . '/autotrader-heartbeat.txt');
     }
 
     public function test_pool_option_with_proxies_is_accepted(): void
