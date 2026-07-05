@@ -94,19 +94,11 @@ if (-not $allBandsDone -and -not $p1loop) {
     Log 'Phase-1 band loop launched (bands back-to-back)'
 }
 
-# --- 2. Phase-2 enrich: ALWAYS running, in parallel with Phase-1 (pipelined) ---
-$wantPool = if ($allBandsDone) { $enrichPoolSolo } else { $enrichPool }
-$enrich = $phps | Where-Object { $_.CommandLine -like '*scrape:autotraderuk*--enrich*' }
-if ($enrich) {
-    # bump the pool once Phase-1 frees the IP: kill the low-pool worker so the
-    # next tick relaunches it at the solo pool
-    if ($allBandsDone -and ($enrich.CommandLine -notlike ('*--pool=' + $enrichPoolSolo + '*'))) {
-        $enrich | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-        Log 'bands done - restarting enrich at solo pool'
-    }
-} else {
-    Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:autotraderuk','--enrich',('--pool=' + $wantPool),'--delay-ms=250') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-enrich.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-enrich.err.log')
-    Log ('Phase-2 enrich launched (pool ' + $wantPool + ')')
+# --- 2. Phase-2 FAST enrich: batched /at-graphql (un-throttled), always running ---
+$enrich = $phps | Where-Object { $_.CommandLine -like '*scrape:autotraderuk*--fast-enrich*' }
+if (-not $enrich) {
+    Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:autotraderuk','--fast-enrich','--fast-pool=10') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-enrich.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-enrich.err.log')
+    Log 'Phase-2 FAST enrich launched (batched /at-graphql, pool 10)'
 }
 
 # --- data complete: bands done AND no specifications-NULL rows remain ---
