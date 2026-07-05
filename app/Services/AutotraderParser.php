@@ -247,6 +247,10 @@ class AutotraderParser
             'website' => 'autotraderza',
             'body_style' => $bodyStyle,
             'product_link' => $url,
+            // schema.org availability — true unless the listing is explicitly
+            // sold/out-of-stock (AutoTrader usually just removes sold cars, so
+            // this is belt-and-suspenders for any it leaves up marked SoldOut)
+            'sold' => $this->isSold($ld['offers']['availability'] ?? null),
             'listing_id' => $blob['listingId'] ?? null,
             'images' => $images,
             'product_details' => $this->buildDetailsHtml($blob, $ld),
@@ -287,6 +291,19 @@ class AutotraderParser
         }
 
         return $out;
+    }
+
+    /** true only when availability explicitly marks the car sold/gone */
+    private function isSold(?string $availability): bool
+    {
+        if (!$availability) {
+            return false; // absent = treat as available (the usual case)
+        }
+        $a = strtolower($availability);
+
+        return str_contains($a, 'soldout')
+            || str_contains($a, 'outofstock')
+            || str_contains($a, 'discontinued');
     }
 
     /** "125 kW" / "168 hp" / "180 bhp" -> integer horsepower (kW converted). */

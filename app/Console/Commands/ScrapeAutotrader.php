@@ -62,6 +62,8 @@ class ScrapeAutotrader extends Command
 
     private int $failures = 0;
 
+    private int $soldSkipped = 0;
+
     private int $startTs = 0;
 
     private array $reportRows = [];
@@ -85,6 +87,7 @@ class ScrapeAutotrader extends Command
         $this->upserted = 0;
         $this->imagesScraped = 0;
         $this->failures = 0;
+        $this->soldSkipped = 0;
         $this->startTs = time();
         $this->reportRows = [];
         $this->carsCategoryId = null;
@@ -346,6 +349,17 @@ class ScrapeAutotrader extends Command
             } else {
                 $this->logFailure($url, 'detail unfetchable — kept search-tile data');
             }
+        }
+
+        // skip sold / out-of-stock listings — no use as available stock. Also
+        // remove any row we banked for it before it sold (staleness cleanup).
+        if (!empty($data['sold'])) {
+            $this->soldSkipped++;
+            if (!$dryRun) {
+                Products::where('product_link', $url)->delete();
+            }
+
+            return;
         }
 
         if (empty($data['images'])) {

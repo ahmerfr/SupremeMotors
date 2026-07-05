@@ -83,6 +83,31 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertGreaterThanOrEqual(35, count($data['specifications']));
     }
 
+    public function test_sold_listings_are_flagged_and_skipped(): void
+    {
+        $fixture = $this->fixture('detail-page.html');
+        $parser = new AutotraderParser;
+
+        // the fixture is InStock -> not sold
+        $inStock = $parser->parseDetailPage($fixture, 'https://x/1');
+        $this->assertFalse($inStock['sold']);
+
+        // an explicit SoldOut availability -> sold
+        $soldHtml = str_replace('schema.org/InStock', 'schema.org/SoldOut', $fixture);
+        $sold = $parser->parseDetailPage($soldHtml, 'https://x/1');
+        $this->assertTrue($sold['sold']);
+
+        // and the command skips a sold car (deep mode), banking nothing for it
+        $this->seedCategories();
+        Http::fake([
+            'www.autotrader.co.za/cars-for-sale*' => Http::response($this->fixture('search-page.html')),
+            'www.autotrader.co.za/car-for-sale/*' => Http::response($soldHtml),
+        ]);
+        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--limit' => 3, '--deep' => true, '--delay-ms' => 0])
+            ->assertSuccessful();
+        $this->assertSame(0, Products::where('website', 'autotraderza')->count());
+    }
+
     public function test_search_mode_upserts_products_with_cdn_images_and_is_rerunnable(): void
     {
         $this->seedCategories();
