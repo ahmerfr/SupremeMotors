@@ -69,7 +69,7 @@ class ScrapePerfectMotors extends Command
 
     private array $reportRows = [];
 
-    private ?int $carsCategoryId = null;
+    private array $categoryIds = [];
 
     private array $makeIds = [];
 
@@ -85,7 +85,7 @@ class ScrapePerfectMotors extends Command
         $this->failures = 0;
         $this->startTs = time();
         $this->reportRows = [];
-        $this->carsCategoryId = null;
+        $this->categoryIds = [];
         $this->makeIds = [];
 
         $stateDir = config('cdn.state_dir', storage_path('app/cdn'));
@@ -411,7 +411,7 @@ class ScrapePerfectMotors extends Command
             'doors' => $data['doors'] ?? null,
             'drive_type' => $data['drive_type'] ?? null,
             'power_hp' => $data['power_hp'] ?? null,
-            'category_id' => $this->carsCategoryId(),
+            'category_id' => $this->categoryIdFor($data['body_style'] ?? null, $data['title'] ?? null),
             'make_id' => !empty($data['make']) ? $this->makeId($data['make']) : null,
             'price' => $data['price'] ?? null, // already USD — stored verbatim
             'country' => $data['country'] ?? 'United Arab Emirates',
@@ -432,9 +432,16 @@ class ScrapePerfectMotors extends Command
         return str_replace('https://' . self::ORIGIN_HOST, 'https://' . self::CDN_HOST, $url);
     }
 
-    private function carsCategoryId(): ?int
+    /** route body_style + title into a real category (Cars fallback), cached */
+    private function categoryIdFor(?string $bodyStyle, ?string $title): ?int
     {
-        return $this->carsCategoryId ??= Categories::where('cat_title', 'Cars')->where('type', 'category')->value('id');
+        $name = app(\App\Services\CategoryRouter::class)->resolve($bodyStyle, $title);
+
+        return $this->categoryIds[$name] ??= (
+            Categories::where('cat_title', $name)->where('type', 'category')->value('id')
+            ?? $this->categoryIds['Cars']
+            ?? Categories::where('cat_title', 'Cars')->where('type', 'category')->value('id')
+        );
     }
 
     private function makeId(string $name): ?int
