@@ -66,6 +66,8 @@ class ScrapeAutotrader extends Command
 
     private int $proxyIdx = 0;
 
+    private int $proxyFileMtime = 0;
+
     public function handle(AutotraderParser $parser): int
     {
         $this->parser = $parser;
@@ -94,6 +96,7 @@ class ScrapeAutotrader extends Command
             . ($this->proxies ? ' via ' . count($this->proxies) . ' proxies' : ''));
 
         while (true) {
+            $this->reloadProxiesIfChanged(); // pick up a background proxy refresh
             $html = $this->fetch(self::SEARCH_URL . '?pagenumber=' . $page);
             if ($html === null) {
                 $this->warn("search page {$page} unfetchable after retries — stopping so the cursor stays honest");
@@ -347,14 +350,38 @@ class ScrapeAutotrader extends Command
     {
         $this->proxies = [];
         $this->proxyIdx = 0;
+        $this->proxyFileMtime = 0;
+        $this->reloadProxiesIfChanged();
+    }
+
+    /**
+     * Re-read the proxy file when it changes on disk, so a background
+     * `scrape:refresh-proxies` run can top up the live pool mid-scrape without
+     * a restart. Free proxies die constantly — this keeps the window supplied.
+     */
+    private function reloadProxiesIfChanged(): void
+    {
         $file = $this->option('proxy-file');
-        if ($file && is_file($file)) {
-            foreach (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-                $line = trim($line);
-                if ($line !== '' && !str_starts_with($line, '#')) {
-                    $this->proxies[] = $line;
-                }
+        if (!$file || !is_file($file)) {
+            return;
+        }
+        clearstatcache(true, $file);
+        $mtime = (int) filemtime($file);
+        if ($mtime === $this->proxyFileMtime) {
+            return;
+        }
+
+        $fresh = [];
+        foreach (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            $line = trim($line);
+            if ($line !== '' && !str_starts_with($line, '#')) {
+                $fresh[] = $line;
             }
+        }
+        if ($fresh) {
+            $this->proxies = $fresh;
+            $this->proxyIdx = 0;
+            $this->proxyFileMtime = $mtime;
         }
     }
 
