@@ -59,6 +59,8 @@ class ScrapeAutotrader extends Command
 
     private array $makeIds = [];
 
+    private bool $dryRun = false;
+
     /** @var string[] */
     private array $proxies = [];
 
@@ -83,7 +85,7 @@ class ScrapeAutotrader extends Command
 
         $maxPages = (int) $this->option('max-pages');
         $limit = (int) $this->option('limit');
-        $dryRun = (bool) $this->option('dry-run');
+        $dryRun = $this->dryRun = (bool) $this->option('dry-run');
         $deep = (bool) $this->option('deep');
         $pagesDone = 0;
 
@@ -329,8 +331,13 @@ class ScrapeAutotrader extends Command
         return $this->carsCategoryId ??= Categories::where('cat_title', 'Cars')->where('type', 'category')->value('id');
     }
 
-    private function makeId(string $name): int
+    private function makeId(string $name): ?int
     {
+        // dry-run must not persist: look up existing makes only, never create
+        if ($this->dryRun) {
+            return $this->makeIds[$name] ??= Categories::where('cat_title', $name)->where('type', 'make')->value('id');
+        }
+
         return $this->makeIds[$name] ??= Categories::firstOrCreate(
             ['cat_title' => $name, 'type' => 'make'],
         )->id;
