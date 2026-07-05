@@ -11,6 +11,8 @@ class AutotraderParser
 {
     public const BASE = 'https://www.autotrader.co.za';
 
+    public const IMAGE_HOST = 'img.autotrader.co.za';
+
     /** @return array{listing_urls: string[], last_page: int|null} */
     public function parseSearchPage(string $html): array
     {
@@ -21,6 +23,150 @@ class AutotraderParser
         $last = $pm[1] ? max(array_map('intval', $pm[1])) : null;
 
         return ['listing_urls' => $urls, 'last_page' => $last];
+    }
+
+    /**
+     * The search page server-renders its 25 result tiles as a full JSON blob —
+     * each tile already carries title, make/model, year, price, mileage, fuel,
+     * transmission, condition, the front image and up to 6 gallery shots. So a
+     * search-only crawl gets complete products at 1/25th the request count of
+     * fetching every detail page.
+     *
+     * @return array{listings: array<int,array<string,mixed>>, last_page: int|null, total: int|null}
+     */
+    public function parseSearchListings(string $html): array
+    {
+        $blob = $this->extractStateBlob($html, 'Components.Desktop_Views_Search_SearchPageView()');
+        if (!$blob || !isset($blob['results'])) {
+            // fall back to link scraping so a markup change degrades, not dies
+            $urls = $this->parseSearchPage($html)['listing_urls'];
+
+            return [
+                'listings' => array_map(fn ($u) => ['product_link' => $u, 'images' => []], $urls),
+                'last_page' => $this->parseSearchPage($html)['last_page'],
+                'total' => null,
+            ];
+        }
+
+        // organic results first (featured tiles are ads repeated from the grid)
+        $tiles = array_merge(
+            $blob['results']['results'] ?? [],
+            $blob['results']['featuredTiles'] ?? []
+        );
+
+        $listings = [];
+        foreach ($tiles as $t) {
+            $mapped = $this->mapSearchTile($t);
+            if ($mapped !== null && !isset($listings[$mapped['listing_id']])) {
+                $listings[$mapped['listing_id']] = $mapped; // dedupe featured vs organic
+            }
+        }
+
+        $pager = $blob['searchPager'] ?? ($blob['results']['searchPager'] ?? []);
+
+        return [
+            'listings' => array_values($listings),
+            'last_page' => $pager['lastPage'] ?? $pager['totalPages'] ?? null,
+            'total' => $pager['totalCount'] ?? null,
+        ];
+    }
+
+    /** @return array<string,mixed>|null */
+    private function mapSearchTile(array $t): ?array
+    {
+        $id = $t['listingId'] ?? null;
+        $url = isset($t['canonicalUrl']) ? self::BASE . $t['canonicalUrl'] : null;
+        if (!$id || !$url) {
+            return null;
+        }
+
+        $title = $t['makeModelLongVariant'] ?? trim(($t['makeModel'] ?? '') . ' ' . ($t['variant'] ?? ''));
+        $title = trim($title);
+        if ($title === '') {
+            return null;
+        }
+
+        // classify the summary icons by their svg filename / type
+        $mileage = $fuel = $transmission = $condition = null;
+        foreach ($t['summaryIcons'] ?? [] as $icon) {
+            $iconUrl = $icon['url'] ?? '';
+            $text = $this->clean($icon['text'] ?? '');
+            if (($icon['type'] ?? 0) === 4) {
+                $condition = $text;
+            } elseif (str_contains($iconUrl, 'mileage')) {
+                $mileage = $this->digits($text);
+            } elseif (str_contains($iconUrl, 'transmission')) {
+                $transmission = $text;
+            } elseif (preg_match('/petrol|diesel|electric|hybrid/i', $iconUrl)) {
+                $fuel = $text;
+            }
+        }
+
+        $images = [];
+        if (!empty($t['imageUrl'])) {
+            $images[] = $this->stripImageSuffix($t['imageUrl']);
+        }
+        foreach ($t['standOutImageUrls'] ?? [] as $u) {
+            if (is_string($u) && str_contains($u, self::IMAGE_HOST)) {
+                $images[] = $this->stripImageSuffix($u);
+            }
+        }
+        $images = array_values(array_unique($images));
+
+        $isPoa = ($t['isPOA'] ?? false) === true;
+
+        return [
+            'listing_id' => (int) $id,
+            'title' => $title,
+            'make' => $t['make'] ?? null,
+            'model' => $t['model'] ?? null,
+            'year' => isset($t['registrationYear']) ? (int) $t['registrationYear'] : null,
+            'mileage_km' => $mileage,
+            'fuel' => $fuel,
+            'transmission' => $transmission,
+            'condition' => $condition ?? ($t['newUsedDescription'] ?? null),
+            'steering' => 'Right',
+            'price' => $isPoa ? null : $this->digits($t['price'] ?? null),
+            'is_poa' => $isPoa,
+            'country' => 'South Africa',
+            'website' => 'autotrader',
+            'body_style' => null,
+            'product_link' => $url,
+            'dealer' => $t['dealerName'] ?? null,
+            'image_count' => $t['imageCount'] ?? count($images),
+            'images' => $images,
+            'product_details' => $this->buildSearchDetails($t),
+        ];
+    }
+
+    private function buildSearchDetails(array $t): string
+    {
+        $rows = [];
+        $add = function ($label, $value) use (&$rows) {
+            $value = $this->clean((string) $value);
+            if ($value !== '') {
+                $rows[] = '<li><strong>' . e($label) . ':</strong> ' . e($value) . '</li>';
+            }
+        };
+        $add('Make', $t['make'] ?? '');
+        $add('Model', $t['model'] ?? '');
+        $add('Variant', $t['variant'] ?? '');
+        $add('Condition', $t['newUsedDescription'] ?? '');
+        $add('Dealer', $t['dealerName'] ?? '');
+        $add('Location', trim(($t['dealerSuburbName'] ?? '') . ' ' . ($t['dealerCityName'] ?? '')));
+
+        return $rows ? '<ul>' . implode('', $rows) . '</ul>' : '';
+    }
+
+    private function stripImageSuffix(string $url): string
+    {
+        // search tiles hand out sized variants (/Fit160x120, /Crop...) — keep the raw id
+        return preg_replace('#(' . preg_quote(self::IMAGE_HOST, '#') . '/\d+)(/.*)?$#', '$1', $url);
+    }
+
+    private function clean(string $s): string
+    {
+        return trim(str_replace("\u{a0}", ' ', $s));
     }
 
     /**
@@ -102,10 +248,10 @@ class AutotraderParser
         ];
     }
 
-    /** balanced-brace extraction of the reactRender listing state */
-    private function extractStateBlob(string $html): ?array
+    /** balanced-brace extraction of a reactRender(...) state blob */
+    private function extractStateBlob(string $html, string $markerText = 'Components.Desktop_Views_Listing_Listing()'): ?array
     {
-        $marker = strpos($html, 'Components.Desktop_Views_Listing_Listing()');
+        $marker = strpos($html, $markerText);
         if ($marker === false) {
             return null;
         }
