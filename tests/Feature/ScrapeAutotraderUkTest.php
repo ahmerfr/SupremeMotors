@@ -145,7 +145,7 @@ class ScrapeAutotraderUkTest extends TestCase
         $this->assertNotNull($product);
         $this->assertSame('Jaguar X-Type', $product->title);
         $this->assertSame(2004, $product->year);
-        $this->assertSame(500.0, (float) $product->price); // GBP verbatim
+        $this->assertSame(635.0, (float) $product->price); // £500 -> USD at default 1.27
         $this->assertSame(118000, $product->mileage_km);
         $this->assertSame('United Kingdom', $product->country);
         $this->assertSame('Right', $product->steering);
@@ -165,6 +165,24 @@ class ScrapeAutotraderUkTest extends TestCase
         // specifications JSON round-trips
         $this->assertIsArray($product->specifications);
         $this->assertSame('2.5 V6 Classic (AWD) 5dr', $product->specifications['subTitle']);
+    }
+
+    public function test_gbp_price_converts_to_usd_and_rate_zero_keeps_raw(): void
+    {
+        $this->seedCategories();
+        $this->fakeGateway();
+
+        // explicit rate: £500 * 1.5 = $750
+        $this->artisan('scrape:autotraderuk', ['--max-pages' => 1, '--delay-ms' => 0, '--usd-rate' => 1.5])
+            ->assertSuccessful();
+        $p = Products::where('product_link', 'like', '%202606183396342')->first();
+        $this->assertSame(750.0, (float) $p->price);
+
+        // rate 0 -> store raw GBP verbatim
+        $this->artisan('scrape:autotraderuk', ['--max-pages' => 1, '--delay-ms' => 0, '--usd-rate' => 0])
+            ->assertSuccessful();
+        $p->refresh();
+        $this->assertSame(500.0, (float) $p->price);
     }
 
     public function test_price_is_visible_for_autotraderuk(): void

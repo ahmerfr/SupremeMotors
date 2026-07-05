@@ -40,8 +40,9 @@ use Illuminate\Support\Facades\Http;
  * POST) cuts the request count. Images are rewritten onto the sm-autotraderuk
  * Bunny pull zone with originals kept in *_source.
  *
- * Prices are GBP (stored verbatim); mileage is MILES stored in the mileage_km
- * column (the unit is noted in specifications).
+ * Prices are converted GBP -> USD at --usd-rate (the store's common currency,
+ * like the ZA catalogue); mileage is MILES stored in the mileage_km column (the
+ * unit is noted in specifications).
  */
 class ScrapeAutotraderUk extends Command
 {
@@ -61,6 +62,7 @@ class ScrapeAutotraderUk extends Command
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--curl-bin= : Override the Schannel curl.exe path (default C:\Windows\System32\curl.exe)}
+        {--usd-rate=1.27 : Convert GBP prices to USD at this rate (USD per GBP; 0 = store raw GBP)}
         {--delay-ms=2500 : Base pause between gateway rounds (jittered 1x..1.4x)}';
 
     protected $description = 'Scrape autotrader.co.uk into products with Bunny CDN images (two-phase: batched+concurrent search, then concurrent detail-HTML enrich; resumable, sharded)';
@@ -659,6 +661,9 @@ class ScrapeAutotraderUk extends Command
             $this->logFailure($url, 'no images on listing');
         }
 
+        // search-tier price is GBP — convert to USD (the store's common currency,
+        // like the ZA catalogue) once, here at ingest, before it's stored
+        $listing['price'] = $this->toUsd($listing['price'] ?? null);
         $attributes = $this->mapToProduct($listing);
 
         if ($this->option('report') && count($this->reportRows) < 100) {
@@ -744,6 +749,12 @@ class ScrapeAutotraderUk extends Command
                 // (0..~20). A specs-only fill is still a win — and must never wipe
                 // the ~4 guaranteed search-tier images.
                 if ($detail !== null) {
+                    // the detail page reprints the price in GBP — convert THIS
+                    // fresh value to USD; when absent, the merge keeps the
+                    // already-USD search-tier price (never double-converted)
+                    if (isset($detail['price'])) {
+                        $detail['price'] = $this->toUsd($detail['price']);
+                    }
                     $existingData = [];
                     if (!$this->dryRun) {
                         $existing = Products::where('product_link', $url)->first();
@@ -960,6 +971,18 @@ class ScrapeAutotraderUk extends Command
             'product_details' => $p->product_details,
             'images' => $searchImages,
         ], fn ($v) => $v !== null && $v !== '' && $v !== []);
+    }
+
+    /**
+     * Convert a source GBP price to USD at --usd-rate (USD per GBP). Rate 0
+     * stores the raw GBP. Applied exactly once per car at ingest so a Phase-2
+     * re-map never double-converts.
+     */
+    private function toUsd(?float $gbp): ?float
+    {
+        $rate = (float) $this->option('usd-rate');
+
+        return $gbp !== null && $rate > 0 ? round($gbp * $rate, 2) : $gbp;
     }
 
     /** @param array<string,mixed> $data */
