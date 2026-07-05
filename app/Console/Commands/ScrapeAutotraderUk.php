@@ -699,7 +699,7 @@ class ScrapeAutotraderUk extends Command
         $this->info(($this->dryRun ? '[dry-run] ' : '') . "autotraderuk enrich starting (pool={$pool})");
 
         for ($round = 1; ; $round++) {
-            $remaining = Products::where('website', 'autotraderuk')->whereNull('specifications')->count();
+            $remaining = Products::where('website', 'autotraderuk')->where('enriched', false)->count();
             file_put_contents(
                 $stateDir . '/autotraderuk-fill-progress.json',
                 json_encode([
@@ -730,7 +730,7 @@ class ScrapeAutotraderUk extends Command
                 $take = min($take, $limit - $this->upserted);
             }
             /** @var array<int,\App\Models\Products> $products */
-            $products = Products::where('website', 'autotraderuk')->whereNull('specifications')
+            $products = Products::where('website', 'autotraderuk')->where('enriched', false)
                 ->limit($take)->get(['id', 'product_link'])->all();
             $links = array_map(fn ($p) => $p->product_link, $products);
             $this->info("enrich round {$round}: {$remaining} missing detail — fetching " . count($links)
@@ -767,7 +767,11 @@ class ScrapeAutotraderUk extends Command
                         $detailImgs = $detail['images'] ?? [];
                         $existingImgs = $existingData['images'] ?? [];
                         $merged['images'] = count($detailImgs) >= count($existingImgs) ? $detailImgs : $existingImgs;
-                        Products::where('product_link', $url)->update($this->mapToProduct($merged));
+                        // enriched=1 is the durable "full detail merged" marker the
+                        // enrich cursor keys on (the search tier also writes a
+                        // specifications JSON, so it can't be the marker)
+                        Products::where('product_link', $url)
+                            ->update($this->mapToProduct($merged) + ['enriched' => true]);
                     }
                     $filled++;
                     $this->upserted++;
