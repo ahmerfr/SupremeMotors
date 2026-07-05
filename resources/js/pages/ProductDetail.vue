@@ -91,6 +91,7 @@ const specRows = computed(() => {
         ['Power', p.power_hp ? `${fmtNum(p.power_hp)} hp` : null],
         ['Drive type', p.drive_type],
         ['Steering', p.steering],
+        ['Colour', p.color],
         ['Seats', p.seats],
         ['Doors', p.doors],
         ['Condition', p.condition],
@@ -102,6 +103,15 @@ const specRows = computed(() => {
         ['Stock code', p.stock_code],
     ];
     return rows.filter(([, v]) => v !== null && v !== undefined && v !== '' && v !== 0);
+});
+
+/* extra manufacturer specs (torque, top speed, fuel economy, CO2, equipment...)
+   captured in the specifications JSON, minus anything already in the ledger */
+const shownSpecKeys = new Set(['make', 'model', 'variant', 'year', 'body type', 'mileage', 'fuel type', 'transmission', 'engine capacity (litre)', 'power maximum (detail)', 'power maximum', 'driven wheels', 'seats (quantity)', 'no of doors', 'manufacturers colour']);
+const extraSpecs = computed(() => {
+    const raw = p.specifications;
+    if (!raw || typeof raw !== 'object') return [];
+    return Object.entries(raw).filter(([k]) => !shownSpecKeys.has(String(k).toLowerCase()));
 });
 
 /* ---------------- dark-card accordions ---------------- */
@@ -303,6 +313,19 @@ const toggleSection = (i) => (openSection.value = openSection.value === i ? -1 :
                             <span style="font-size: 14.5px; font-weight: 700; color: #0b1e3b; text-align: right">{{ value }}</span>
                         </div>
                     </div>
+
+                    <!-- manufacturer detailed specs (torque, top speed, economy, CO2, equipment...) -->
+                    <template v-if="extraSpecs.length">
+                        <h3 style="font-family: Archivo; font-weight: 800; font-size: 18px; color: #0b1e3b; margin-top: 40px">
+                            Manufacturer specifications
+                        </h3>
+                        <div class="sm-pdspecs" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 56px">
+                            <div v-for="[label, value] in extraSpecs" :key="label" style="display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 11px 0; border-bottom: 1px solid #eef1f6">
+                                <span style="font-size: 13px; font-weight: 700; color: #8494ab">{{ label }}</span>
+                                <span style="font-size: 14px; font-weight: 700; color: #0b1e3b; text-align: right">{{ value }}</span>
+                            </div>
+                        </div>
+                    </template>
 
                 </div>
             </section>
