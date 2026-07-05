@@ -190,6 +190,43 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertFileExists(config('cdn.state_dir') . '/autotrader-heartbeat.txt');
     }
 
+    public function test_shard_uses_scoped_cursor_done_marker_and_progress(): void
+    {
+        $this->seedCategories();
+        $this->fakeSite();
+
+        // a shard bounded to its single page writes shard-scoped state files
+        $this->artisan('scrape:autotrader', [
+            '--shard' => 's2', '--min-page' => 1, '--max-page' => 1, '--delay-ms' => 0,
+        ])->assertSuccessful();
+
+        $dir = config('cdn.state_dir');
+        $this->assertFileExists($dir . '/autotrader-s2.cursor');
+        $this->assertFileExists($dir . '/autotrader-scrape-s2.done');
+        $this->assertFileExists($dir . '/autotrader-progress-s2.json');
+
+        $p = json_decode(file_get_contents($dir . '/autotrader-progress-s2.json'), true);
+        $this->assertSame('s2', $p['shard']);
+        $this->assertTrue($p['done']);
+
+        // it must NOT touch the un-sharded default files
+        $this->assertFileDoesNotExist($dir . '/autotrader-scrape.done');
+    }
+
+    public function test_max_page_bounds_a_shard(): void
+    {
+        $this->seedCategories();
+        $this->fakeSite();
+
+        // min=max=5 → the shard starts at page 5 and stops after it (marks done)
+        $this->artisan('scrape:autotrader', [
+            '--shard' => 'sX', '--min-page' => 5, '--max-page' => 5, '--delay-ms' => 0,
+        ])->assertSuccessful();
+
+        $this->assertSame('5', trim(file_get_contents(config('cdn.state_dir') . '/autotrader-sX.cursor')));
+        $this->assertFileExists(config('cdn.state_dir') . '/autotrader-scrape-sX.done');
+    }
+
     public function test_pool_option_with_proxies_is_accepted(): void
     {
         $this->seedCategories();

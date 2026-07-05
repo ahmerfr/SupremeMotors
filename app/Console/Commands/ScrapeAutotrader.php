@@ -33,11 +33,15 @@ class ScrapeAutotrader extends Command
         {--start-page= : Override the resume cursor and start from this search page}
         {--max-pages=0 : Stop after this many search pages (0 = all)}
         {--limit=0 : Stop after upserting this many products (0 = all)}
+        {--shard= : Name this worker; gives it its own cursor + done marker + progress (for parallel shards)}
+        {--min-page=1 : First search page this shard owns}
+        {--max-page=0 : Last search page this shard owns (0 = to the end)}
         {--deep : Fetch each detail page for the full gallery, seats/doors, engine + spec sheet (accurate mode)}
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--refresh : Re-scrape listings that already exist in the database}
         {--delay-ms=2500 : Base pause between requests (jittered); auto-drops when proxies rotate}
+        {--search-direct=1 : Fetch search pages via the home IP (fast); proxies carry the detail flood}
         {--pool=1 : Concurrent detail fetches (only raise past 1 with proxies — a single IP bans)}
         {--proxy-file= : Newline-delimited proxy list (host:port or user:pass@host:port); rotates + fails over on ban}
         {--usd-rate=0.055 : Convert ZAR prices to USD at this rate (0 = store raw ZAR); default ~R18.2/$}';
@@ -86,13 +90,22 @@ class ScrapeAutotrader extends Command
         $this->makeIds = [];
         $this->loadProxies();
 
-        $stateDir = config('cdn.state_dir');
+        $stateDir = config('cdn.state_dir', storage_path('app/cdn'));
         @mkdir($stateDir, 0777, true);
-        $cursorFile = $stateDir . '/autotrader.cursor';
+
+        // shard scoping: each parallel worker owns a page range with its own
+        // cursor, done marker, and progress file so shards never collide
+        $shard = $this->option('shard');
+        $suffix = $shard ? "-{$shard}" : '';
+        $cursorFile = $stateDir . "/autotrader{$suffix}.cursor";
+        $doneMarker = $stateDir . "/autotrader-scrape{$suffix}.done";
+
+        $minPage = max(1, (int) $this->option('min-page'));
+        $maxPage = (int) $this->option('max-page') ?: null;
 
         $page = $this->option('start-page') !== null
             ? max(1, (int) $this->option('start-page'))
-            : (is_file($cursorFile) ? ((int) file_get_contents($cursorFile)) + 1 : 1);
+            : (is_file($cursorFile) ? max($minPage, ((int) file_get_contents($cursorFile)) + 1) : $minPage);
 
         $maxPages = (int) $this->option('max-pages');
         $limit = (int) $this->option('limit');
@@ -101,12 +114,13 @@ class ScrapeAutotrader extends Command
         $pagesDone = 0;
 
         $this->info(($dryRun ? '[dry-run] ' : '') . ($deep ? '[deep] ' : '[search] ')
-            . 'starting at page ' . $page
+            . ($shard ? "shard {$shard} " : '') . 'starting at page ' . $page
+            . ($maxPage ? " (range {$minPage}-{$maxPage})" : '')
             . ($this->proxies ? ' via ' . count($this->proxies) . ' proxies' : ''));
 
         while (true) {
             $this->reloadProxiesIfChanged(); // pick up a background proxy refresh
-            $html = $this->fetch(self::SEARCH_URL . '?pagenumber=' . $page);
+            $html = $this->fetchSearch(self::SEARCH_URL . '?pagenumber=' . $page);
             if ($html === null) {
                 $this->warn("search page {$page} unfetchable after retries — stopping so the cursor stays honest");
 
@@ -146,15 +160,18 @@ class ScrapeAutotrader extends Command
                 file_put_contents($cursorFile, (string) $page);
             }
             $pagesDone++;
-            $this->writeProgress($stateDir, $page, $search['last_page'], $search['total'], false);
-            $this->info("page {$page}/" . ($search['last_page'] ?? '?')
+            $shardEnd = $maxPage ? min($maxPage, $search['last_page'] ?? $maxPage) : $search['last_page'];
+            $this->writeProgress($stateDir, $suffix, $page, $shardEnd, $search['total'], false);
+            $this->info("page {$page}/" . ($shardEnd ?? '?')
                 . ' done — ' . $this->upserted . ' products banked'
                 . ($search['total'] ? ' (of ~' . number_format($search['total']) . ')' : ''));
 
-            if ($search['last_page'] !== null && $page >= $search['last_page']) {
-                $this->writeProgress($stateDir, $page, $search['last_page'], $search['total'], true);
+            $atEnd = ($search['last_page'] !== null && $page >= $search['last_page'])
+                || ($maxPage !== null && $page >= $maxPage);
+            if ($atEnd) {
+                $this->writeProgress($stateDir, $suffix, $page, $shardEnd, $search['total'], true);
                 if (!$dryRun) {
-                    file_put_contents($stateDir . '/autotrader-scrape.done', now()->toDateTimeString() . "\n");
+                    file_put_contents($doneMarker, now()->toDateTimeString() . "\n");
                 }
                 break;
             }
@@ -179,7 +196,7 @@ class ScrapeAutotrader extends Command
      * keepalive task and any status page read this; it's how the run reports
      * itself while unattended. Also drops a plain-text heartbeat line.
      */
-    private function writeProgress(string $stateDir, int $page, ?int $lastPage, ?int $total, bool $done): void
+    private function writeProgress(string $stateDir, string $suffix, int $page, ?int $lastPage, ?int $total, bool $done): void
     {
         $elapsed = max(1, time() - $this->startTs);
         $ratePerMin = round($this->upserted / $elapsed * 60, 1);
@@ -191,6 +208,7 @@ class ScrapeAutotrader extends Command
 
         $snapshot = [
             'mode' => $this->option('deep') ? 'deep' : 'search',
+            'shard' => $this->option('shard') ?: null,
             'done' => $done,
             'page' => $page,
             'last_page' => $lastPage,
@@ -207,11 +225,11 @@ class ScrapeAutotrader extends Command
         ];
 
         file_put_contents(
-            $stateDir . '/autotrader-progress.json',
+            $stateDir . "/autotrader-progress{$suffix}.json",
             json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
         );
         file_put_contents(
-            $stateDir . '/autotrader-heartbeat.txt',
+            $stateDir . "/autotrader-heartbeat{$suffix}.txt",
             date('c') . " page {$page}/" . ($lastPage ?? '?')
             . " products={$this->upserted} images={$this->imagesScraped}"
             . ($etaMin !== null ? " eta~{$etaMin}min" : '') . "\n"
@@ -503,6 +521,46 @@ class ScrapeAutotrader extends Command
         }
     }
 
+    /**
+     * Fetch a search-results page. The ~3,700 search pages are the serial spine
+     * of the crawl, so we run them over the fast home IP (2s) instead of a slow
+     * free proxy (5-15s) — the search rate is low (one per detail batch) so the
+     * home IP's rate limit is never hit. On a home-IP 403/503 it falls back to
+     * the proxy pool for that page. Tests + --search-direct=0 use the pool path.
+     */
+    private function fetchSearch(string $url): ?string
+    {
+        if (!(bool) $this->option('search-direct') || app()->runningUnitTests()) {
+            return $this->fetch($url);
+        }
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $response = Http::withHeaders([
+                    'User-Agent' => self::USER_AGENT,
+                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => 'en-ZA,en;q=0.9',
+                    'Referer' => self::SEARCH_URL,
+                ])->timeout(20)->get($url); // no proxy: home IP
+
+                if ($response->successful()) {
+                    return $response->body();
+                }
+                if (in_array($response->status(), [404, 410], true)) {
+                    return null;
+                }
+                if (in_array($response->status(), [403, 429, 503], true)) {
+                    break; // home IP throttled — hand this page to the proxy pool
+                }
+            } catch (\Throwable) {
+                break;
+            }
+            sleep($attempt);
+        }
+
+        return $this->proxies ? $this->fetch($url) : null;
+    }
+
     private function currentProxy(): ?string
     {
         if (!$this->proxies) {
@@ -537,7 +595,7 @@ class ScrapeAutotrader extends Command
         $this->failures++;
         $this->warn("skip {$url}: {$reason}");
         file_put_contents(
-            config('cdn.state_dir') . '/autotrader-failures.log',
+            config('cdn.state_dir', storage_path('app/cdn')) . '/autotrader-failures.log',
             now()->toDateTimeString() . "\t{$url}\t{$reason}\n",
             FILE_APPEND
         );

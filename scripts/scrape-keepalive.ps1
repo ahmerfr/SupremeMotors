@@ -1,12 +1,17 @@
 # AutoTrader scrape coordinator/keepalive — run by the SupremeMotors-Scrape
 # task every 5 minutes AND at logon, so the crawl survives net drops, crashes,
-# and full reboots: on the next login Windows fires this and it resumes from
-# the page cursor. Nothing banked is ever re-fetched.
-#   1. autotrader-scrape.done -> remove the scheduled task and exit
+# and full reboots: on the next login Windows fires this and it resumes each
+# shard from its own page cursor. Nothing banked is ever re-fetched.
+#
+# SPEED MODEL: the ~3,700 search pages are split into parallel shards, each a
+# separate worker with a big concurrent proxy pool. N shards x pool each =
+# N-fold throughput; the shared free-proxy pool is the ceiling, so we also
+# refresh it aggressively. Steps each tick:
+#   1. all shard done-markers present -> write autotrader-scrape.done, self-delete
 #   2. ensure mysqld up + 512M buffer pool
-#   3. refresh the free-proxy pool when it is stale/thin (background)
-#   4. relaunch the scraper if its process died (resumes from cursor)
-#   5. render a human status page from the progress JSON
+#   3. refresh the proxy pool when stale/thin (big validated batch, background)
+#   4. relaunch any shard whose worker died and whose done-marker is missing
+#   5. aggregate the per-shard progress into one live status page
 
 $project = 'C:\xampp\htdocs\SupremeMotors'
 $php     = 'C:\xampp\php\php.exe'
@@ -17,25 +22,36 @@ $logDir  = Join-Path $project 'storage\logs'
 if (-not (Test-Path $state))  { New-Item -ItemType Directory -Force $state  | Out-Null }
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 
-# tuning — safe to edit; the running scraper picks up a new proxy file live
-$scrapeArgs = @('artisan','scrape:autotrader','--deep','--pool=30',
-                "--proxy-file=$proxies",'--usd-rate=0.055','--delay-ms=400')
-$proxyMaxAgeMin = 15   # refresh the pool when older than this
-$proxyMinLive   = 8    # or when fewer than this many remain
+# Shard table: 4 parallel workers over the ~3713 search pages. The last shard
+# runs to the true end (max=0) so new listings get covered. pool = concurrent
+# detail fetches per shard; 4 x 40 = 160 concurrent across the proxy pool.
+$shards = @(
+    @{ name = 's1'; min = 1;    max = 928 },
+    @{ name = 's2'; min = 929;  max = 1856 },
+    @{ name = 's3'; min = 1857; max = 2784 },
+    @{ name = 's4'; min = 2785; max = 0 }
+)
+$pool = 40
+$proxyMaxAgeMin = 10   # refresh the pool when older than this
+$proxyMinLive   = 25   # or when fewer than this many remain
 
 function Log($msg) {
-    $line = (Get-Date -Format o) + "  $msg"
-    Add-Content -Path (Join-Path $logDir 'scrape-keepalive.log') -Value $line
+    Add-Content -Path (Join-Path $logDir 'scrape-keepalive.log') -Value ((Get-Date -Format o) + "  $msg")
 }
 
-# 1. done -> self-destruct
-if (Test-Path $done) {
+# 1. all shards done -> finish + self-destruct
+$allDone = $true
+foreach ($s in $shards) {
+    if (-not (Test-Path (Join-Path $state ("autotrader-scrape-" + $s.name + ".done")))) { $allDone = $false }
+}
+if ($allDone) {
+    Set-Content -Path $done -Value (Get-Date -Format o)
     schtasks /delete /tn 'SupremeMotors-Scrape' /f 2>$null
-    Log 'scrape complete — task removed'
+    Log 'all shards complete — scrape done, task removed'
     exit 0
 }
 
-# 2. MySQL up + big buffer pool (scraper writes products continuously)
+# 2. MySQL up + big buffer pool (shards write products continuously)
 $mysqld = Get-Process mysqld -ErrorAction SilentlyContinue
 if (-not $mysqld) {
     Start-Process -FilePath 'C:\xampp\mysql\bin\mysqld.exe' `
@@ -48,8 +64,8 @@ if (-not $mysqld) {
 }
 & 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -P 3307 -u root -B -e 'SET GLOBAL innodb_buffer_pool_size=536870912' 2>$null
 
-# 3. refresh the free-proxy pool when stale or thin (runs detached; the scraper
-#    hot-reloads proxies.txt between pages so it never has to stop)
+# 3. refresh the free-proxy pool when stale or thin (detached; shards hot-reload
+#    proxies.txt between pages, so they never stop for it)
 $needProxies = $true
 if (Test-Path $proxies) {
     $ageMin = ((Get-Date) - (Get-Item $proxies).LastWriteTime).TotalMinutes
@@ -60,53 +76,67 @@ $refreshing = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" |
     Where-Object { $_.CommandLine -like '*scrape:refresh-proxies*' }
 if ($needProxies -and -not $refreshing) {
     Start-Process -FilePath $php `
-        -ArgumentList (@('artisan','scrape:refresh-proxies','--validate','--pool=60','--limit=600') -join ' ') `
+        -ArgumentList (@('artisan','scrape:refresh-proxies','--validate','--limit=3200','--pool=250','--timeout=6') -join ' ') `
         -WorkingDirectory $project -WindowStyle Hidden
-    Log 'refreshing proxy pool'
+    Log 'refreshing proxy pool (big validated batch)'
 }
 
-# 4. relaunch the scraper if it died (resumes from the page cursor)
-$running = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" |
-    Where-Object { $_.CommandLine -like '*scrape:autotrader*' }
-if (-not $running) {
-    Start-Process -FilePath $php -ArgumentList ($scrapeArgs -join ' ') `
-        -WorkingDirectory $project -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $logDir 'scrape-run.log') `
-        -RedirectStandardError  (Join-Path $logDir 'scrape-run.err.log')
-    Log 'relaunched scraper (resume from cursor)'
+# 4. relaunch any dead shard (resumes from its own cursor)
+$phps = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'"
+foreach ($s in $shards) {
+    if (Test-Path (Join-Path $state ("autotrader-scrape-" + $s.name + ".done"))) { continue }
+    # word-boundary match so --shard=s1 never matches s10/s11 etc
+    $running = $phps | Where-Object { $_.CommandLine -like ('*--shard=' + $s.name + ' *') }
+    if (-not $running) {
+        $args = @('artisan','scrape:autotrader','--deep',
+                  ('--shard=' + $s.name), ('--min-page=' + $s.min), ('--max-page=' + $s.max),
+                  ('--pool=' + $pool), ("--proxy-file=$proxies"), '--usd-rate=0.055', '--delay-ms=0')
+        Start-Process -FilePath $php -ArgumentList ($args -join ' ') `
+            -WorkingDirectory $project -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $logDir ('scrape-' + $s.name + '.log')) `
+            -RedirectStandardError  (Join-Path $logDir ('scrape-' + $s.name + '.err.log'))
+        Log ('relaunched shard ' + $s.name + ' (resume from cursor)')
+    }
 }
 
-# 5. render a status page from the progress JSON
-$progressFile = Join-Path $state 'autotrader-progress.json'
-if (Test-Path $progressFile) {
-    try {
-        $p = Get-Content $progressFile -Raw | ConvertFrom-Json
-        $pct = if ($p.percent) { $p.percent } else { 0 }
-        $eta = if ($p.eta_minutes) { [math]::Round($p.eta_minutes / 60, 1).ToString() + ' h' } else { '—' }
-        $html = @"
-<!doctype html><meta charset="utf-8"><title>AutoTrader scrape — live status</title>
+# 5. aggregate per-shard progress into one live status page
+$tot = 0; $img = 0; $fail = 0; $pagesDone = 0; $pagesTotal = 0; $rate = 0; $liveProxies = 0
+$doneCount = 0
+foreach ($s in $shards) {
+    $pf = Join-Path $state ("autotrader-progress-" + $s.name + ".json")
+    if (Test-Path $pf) {
+        try {
+            $p = Get-Content $pf -Raw | ConvertFrom-Json
+            $tot += [int]$p.products_scraped; $img += [int]$p.images_scraped; $fail += [int]$p.failures
+            $rate += [double]$p.rate_per_min; $liveProxies = [int]$p.proxies_live
+            if ($p.last_page) { $pagesTotal += [int]$p.last_page - [int]$s.min + 1; $pagesDone += [int]$p.page - [int]$s.min + 1 }
+            if ($p.done) { $doneCount++ }
+        } catch {}
+    }
+}
+$pct = if ($pagesTotal -gt 0) { [math]::Round($pagesDone / $pagesTotal * 100, 1) } else { 0 }
+$eta = if ($rate -gt 0) { [math]::Round((92807 - $tot) / $rate / 60, 1).ToString() + ' h' } else { '—' }
+$html = @"
+<!doctype html><meta charset="utf-8"><title>AutoTrader scrape — live</title>
 <meta http-equiv="refresh" content="30">
 <style>body{font-family:Segoe UI,system-ui,sans-serif;background:#0b1e3b;color:#fff;margin:0;display:grid;place-items:center;min-height:100vh}
-.card{background:#122c53;border-radius:18px;padding:34px 40px;box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(560px,92vw)}
-h1{font-size:20px;margin:0 0 18px;color:#9db2d4;font-weight:700;letter-spacing:.04em}
+.card{background:#122c53;border-radius:18px;padding:34px 40px;box-shadow:0 10px 40px rgba(0,0,0,.4);width:min(600px,92vw)}
+h1{font-size:20px;margin:0 0 6px;color:#9db2d4;letter-spacing:.04em}.big{font-size:44px;font-weight:800}
 .bar{height:14px;background:#0b1e3b;border-radius:10px;overflow:hidden;margin:10px 0 22px}
 .fill{height:100%;background:linear-gradient(90deg,#e01f26,#ff5a60);width:$pct%}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.k{font-size:28px;font-weight:800}.l{font-size:12px;color:#9db2d4}.big{font-size:40px;color:#fff}
-.upd{margin-top:20px;font-size:11px;color:#6f86a8}</style>
-<div class=card><h1>AUTOTRADER SCRAPE — LIVE</h1>
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.k{font-size:26px;font-weight:800}.l{font-size:12px;color:#9db2d4}.upd{margin-top:20px;font-size:11px;color:#6f86a8}</style>
+<div class=card><h1>AUTOTRADER SCRAPE — $doneCount/$($shards.Count) SHARDS DONE</h1>
 <div class=big>$pct%</div><div class=bar><div class=fill></div></div>
 <div class=grid>
-<div><div class=k>$($p.products_scraped)</div><div class=l>products scraped / ~$($p.products_total_estimate)</div></div>
-<div><div class=k>$($p.images_scraped)</div><div class=l>images captured</div></div>
-<div><div class=k>page $($p.page)/$($p.last_page)</div><div class=l>$($p.mode) mode</div></div>
-<div><div class=k>$eta</div><div class=l>est. remaining · $($p.rate_per_min)/min</div></div>
-<div><div class=k>$($p.proxies_live)</div><div class=l>live proxies</div></div>
-<div><div class=k>$($p.failures)</div><div class=l>failures logged</div></div>
-</div><div class=upd>updated $($p.updated_at) · auto-refreshes every 30s</div></div>
+<div><div class=k>$tot</div><div class=l>products / ~92,807</div></div>
+<div><div class=k>$img</div><div class=l>images captured</div></div>
+<div><div class=k>$eta</div><div class=l>est. remaining</div></div>
+<div><div class=k>$([math]::Round($rate,0))</div><div class=l>products/min</div></div>
+<div><div class=k>$liveProxies</div><div class=l>live proxies</div></div>
+<div><div class=k>$fail</div><div class=l>failures</div></div>
+</div><div class=upd>updated $(Get-Date -Format o) · auto-refreshes every 30s</div></div>
 "@
-        Set-Content -Path (Join-Path $state 'autotrader-status.html') -Value $html -Encoding utf8
-    } catch { Log "status render failed: $_" }
-}
+Set-Content -Path (Join-Path $state 'autotrader-status.html') -Value $html -Encoding utf8
 
-Log "tick — running=$([bool]$running) needProxies=$needProxies"
+Log ("tick — shards done=$doneCount products=$tot images=$img proxies=$liveProxies needProxies=$needProxies")

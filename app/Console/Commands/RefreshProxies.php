@@ -40,7 +40,7 @@ class RefreshProxies extends Command
 
     public function handle(): int
     {
-        $out = $this->option('out') ?: config('cdn.state_dir') . '/proxies.txt';
+        $out = $this->option('out') ?: config('cdn.state_dir', storage_path('app/cdn')) . '/proxies.txt';
         @mkdir(dirname($out), 0777, true);
 
         $raw = [];
