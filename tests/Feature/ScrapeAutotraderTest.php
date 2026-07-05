@@ -190,6 +190,21 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertFileExists(config('cdn.state_dir') . '/autotrader-heartbeat.txt');
     }
 
+    public function test_limit_stops_the_loop_without_crawling_empty_pages(): void
+    {
+        $this->seedCategories();
+        $this->fakeSite();
+
+        // dry-run so every page's tiles count toward the limit (no dedup);
+        // 40 products = ~2 pages of 28. Without the limit-stop guard the loop
+        // would crawl on through empty pages forever once the limit is hit.
+        $this->artisan('scrape:autotrader', ['--limit' => 40, '--dry-run' => true, '--delay-ms' => 0])
+            ->assertSuccessful();
+
+        // the guard must stop it after a couple pages, not hundreds
+        $this->assertLessThan(4, Http::recorded(fn ($r) => str_contains($r->url(), 'cars-for-sale'))->count());
+    }
+
     public function test_shard_uses_scoped_cursor_done_marker_and_progress(): void
     {
         $this->seedCategories();

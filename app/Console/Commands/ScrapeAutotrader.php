@@ -156,6 +156,12 @@ class ScrapeAutotrader extends Command
                 $this->bankTile($tile, $deep ? ($details[$tile['product_link']] ?? null) : null, $dryRun, $deep);
             }
 
+            // limit reached but this page yielded no pending tiles — stop the
+            // loop instead of crawling on through empty search pages
+            if ($limit > 0 && $this->upserted >= $limit) {
+                break;
+            }
+
             if (!$dryRun) {
                 file_put_contents($cursorFile, (string) $page);
             }
