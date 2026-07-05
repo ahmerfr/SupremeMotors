@@ -15,12 +15,17 @@ $logDir  = Join-Path $project 'storage\logs'
 $shardsFile = Join-Path $state 'autotraderuk-shards.json'
 if (-not (Test-Path $shardsFile)) { exit 0 }
 
+# run from the project root so `artisan` resolves (the & call operator does not
+# take -WorkingDirectory, so use the absolute artisan path)
+Set-Location $project
+$artisan = Join-Path $project 'artisan'
+
 $plan  = Get-Content $shardsFile -Raw | ConvertFrom-Json
 foreach ($b in $plan.bands) {
     $doneMk = Join-Path $state ("autotraderuk-scrape-" + $b.shard + ".done")
     if (Test-Path $doneMk) { continue }
 
-    $sargs = @('artisan','scrape:autotraderuk',('--shard=' + $b.shard),'--pool=3','--delay-ms=200')
+    $sargs = @($artisan,'scrape:autotraderuk',('--shard=' + $b.shard),'--pool=3','--delay-ms=200')
     if ($b.min -ne $null) { $sargs += ('--min-price=' + [int]$b.min); $sargs += ('--max-price=' + [int]$b.max) }
 
     # blocking run — one band, then straight on to the next
