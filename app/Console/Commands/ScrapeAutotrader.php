@@ -33,13 +33,14 @@ class ScrapeAutotrader extends Command
         {--start-page= : Override the resume cursor and start from this search page}
         {--max-pages=0 : Stop after this many search pages (0 = all)}
         {--limit=0 : Stop after upserting this many products (0 = all)}
-        {--deep : Also fetch each detail page for the full gallery + spec sheet (25x slower)}
+        {--deep : Fetch each detail page for the full gallery, seats/doors, engine + spec sheet (accurate mode)}
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--refresh : Re-scrape listings that already exist in the database}
-        {--delay-ms=2500 : Base pause between requests (jittered), keeps us polite}
+        {--delay-ms=2500 : Base pause between requests (jittered); auto-drops when proxies rotate}
+        {--pool=1 : Concurrent detail fetches (only raise past 1 with proxies — a single IP bans)}
         {--proxy-file= : Newline-delimited proxy list (host:port or user:pass@host:port); rotates + fails over on ban}
-        {--usd-rate=0 : Convert ZAR prices to USD at this rate (0 = store raw ZAR)}';
+        {--usd-rate=0.055 : Convert ZAR prices to USD at this rate (0 = store raw ZAR); default ~R18.2/$}';
 
     protected $description = 'Scrape autotrader.co.za into products with Bunny CDN images (search-first, resumable, proxy-rotating)';
 
@@ -104,11 +105,27 @@ class ScrapeAutotrader extends Command
                 break;
             }
 
+            // pick the tiles we actually need this page (respect resume + limit)
+            $pending = [];
             foreach ($search['listings'] as $tile) {
+                if ($limit > 0 && count($pending) + $this->upserted >= $limit) {
+                    break;
+                }
+                if ($this->option('refresh') || $dryRun
+                    || !Products::where('product_link', $tile['product_link'])->exists()) {
+                    $pending[] = $tile;
+                }
+            }
+
+            // deep mode: fetch all this page's detail pages concurrently (proxy-spread),
+            // then merge each over its search tile. search mode banks tiles directly.
+            $details = $deep ? $this->fetchDetailBatch(array_column($pending, 'product_link')) : [];
+
+            foreach ($pending as $tile) {
                 if ($limit > 0 && $this->upserted >= $limit) {
                     break 2;
                 }
-                $this->processTile($tile, $dryRun, $deep);
+                $this->bankTile($tile, $deep ? ($details[$tile['product_link']] ?? null) : null, $dryRun, $deep);
             }
 
             if (!$dryRun) {
@@ -138,23 +155,23 @@ class ScrapeAutotrader extends Command
         return self::SUCCESS;
     }
 
-    /** @param array<string,mixed> $tile */
-    private function processTile(array $tile, bool $dryRun, bool $deep): void
+    /**
+     * @param array<string,mixed> $tile   basic search-tile data
+     * @param string|null         $detailHtml pre-fetched detail HTML (deep mode)
+     */
+    private function bankTile(array $tile, ?string $detailHtml, bool $dryRun, bool $deep): void
     {
         $url = $tile['product_link'];
-
-        if (!$this->option('refresh') && !$dryRun && Products::where('product_link', $url)->exists()) {
-            return;
-        }
-
         $data = $tile;
+
         if ($deep) {
-            $detailHtml = $this->fetch($url);
             if ($detailHtml !== null) {
                 $detail = $this->parser->parseDetailPage($detailHtml, $url);
                 if ($detail !== null) {
-                    // detail page wins on gallery + specs; keep search fields it lacks
+                    // detail page wins on gallery + seats/doors/engine; keep tile fields it lacks
                     $data = array_merge($tile, array_filter($detail, fn ($v) => $v !== null && $v !== []));
+                } else {
+                    $this->logFailure($url, 'detail unparseable — kept search-tile data');
                 }
             } else {
                 $this->logFailure($url, 'detail unfetchable — kept search-tile data');
@@ -179,6 +196,89 @@ class ScrapeAutotrader extends Command
         }
 
         $this->upserted++;
+    }
+
+    /**
+     * Fetch many detail pages, returning [url => html|null]. With proxies and
+     * --pool>1 it runs a rolling concurrent window (each request on the next
+     * proxy), retrying ban/connection failures on fresh proxies across rounds.
+     * Without proxies it falls back to the polite sequential fetcher, since a
+     * single IP is banned by concurrency. Tests use the fakeable sequential path.
+     *
+     * @param  string[]  $urls
+     * @return array<string,string|null>
+     */
+    private function fetchDetailBatch(array $urls): array
+    {
+        $poolSize = max(1, (int) $this->option('pool'));
+
+        if ($poolSize === 1 || !$this->proxies || app()->runningUnitTests()) {
+            $out = [];
+            foreach ($urls as $url) {
+                $out[$url] = $this->fetch($url);
+            }
+
+            return $out;
+        }
+
+        $results = [];
+        $pending = array_values($urls);
+
+        for ($round = 1; $round <= 6 && $pending !== []; $round++) {
+            $client = new \GuzzleHttp\Client([
+                'connect_timeout' => 12,
+                'timeout' => 30,
+                'http_errors' => false,
+                'headers' => [
+                    'User-Agent' => self::USER_AGENT,
+                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => 'en-ZA,en;q=0.9',
+                    'Referer' => self::SEARCH_URL,
+                ],
+            ]);
+
+            $retry = [];
+            $requests = function () use ($pending, $client) {
+                foreach ($pending as $url) {
+                    $opts = [];
+                    if ($proxy = $this->currentProxy()) {
+                        $opts['proxy'] = $proxy;
+                    }
+                    $this->proxyIdx++; // spread each request across the pool
+                    yield $url => $client->getAsync($url, $opts);
+                }
+            };
+
+            \GuzzleHttp\Promise\Each::ofLimit(
+                $requests(),
+                $poolSize,
+                function ($resp, $url) use (&$results, &$retry) {
+                    $code = $resp->getStatusCode();
+                    if ($code >= 200 && $code < 300) {
+                        $results[$url] = (string) $resp->getBody();
+                    } elseif (in_array($code, [404, 410], true)) {
+                        $results[$url] = null; // withdrawn
+                    } else {
+                        $retry[] = $url; // 403/429/503 — try again on another proxy
+                    }
+                },
+                function ($_e, $url) use (&$retry) {
+                    $retry[] = $url; // dead proxy / connection error
+                }
+            )->wait();
+
+            $pending = $retry;
+            if ($pending !== [] && $round < 6) {
+                sleep(2 * $round); // let banned proxies cool before the next round
+            }
+        }
+
+        foreach ($pending as $url) {
+            $results[$url] = null; // exhausted retries
+            $this->logFailure($url, 'detail unfetchable after pooled retries');
+        }
+
+        return $results;
     }
 
     /** @param array<string,mixed> $data */
@@ -351,38 +451,56 @@ class ScrapeAutotrader extends Command
 
     private function renderReport(): string
     {
+        $rate = (float) $this->option('usd-rate');
         $rows = '';
         foreach ($this->reportRows as $i => $row) {
             $s = $row['source'];
             $m = $row['mapped'];
-            $img = $m['front_image'] ? '<img src="' . e($m['front_image']) . '" loading="lazy">' : '';
+            $img = $m['front_image'] ? '<img src="' . e($m['front_image']) . '" loading="lazy">' : '<div class="noimg">no image</div>';
             $gallery = count($m['other_images']) + ($m['front_image'] ? 1 : 0);
-            $priceCell = $s['price'] !== null ? 'R ' . number_format((float) $s['price']) : 'POA / Enquire';
+            $zar = $s['price'] !== null ? 'R ' . number_format((float) $s['price']) : 'POA';
+            $usd = $m['price'] !== null ? '$' . number_format((float) $m['price']) : '<span class="enq">Enquire</span>';
+            $specBits = array_filter([
+                ($m['seats'] ?? null) ? $m['seats'] . ' seats' : null,
+                ($m['doors'] ?? null) ? $m['doors'] . ' doors' : null,
+                $m['drive_type'] ?? null,
+                ($m['engine_cc'] ?? null) ? $m['engine_cc'] . 'cc' : null,
+                $m['color'] ?? null,
+            ]);
             $rows .= '<tr>'
                 . '<td class="n">' . ($i + 1) . '</td>'
                 . '<td>' . $img . '</td>'
-                . '<td><a href="' . e($s['product_link']) . '" target="_blank">' . e($s['title']) . '</a>'
-                . '<div class="sub">' . e($s['dealer'] ?? '') . '</div></td>'
-                . '<td>' . $priceCell . '</td>'
+                . '<td><a href="' . e($s['product_link']) . '" target="_blank" rel="noopener">' . e($m['title']) . '</a>'
+                . '<div class="sub">' . e($s['dealer'] ?? '') . '</div>'
+                . '<div class="src"><a href="' . e($s['product_link']) . '" target="_blank" rel="noopener">↗ view on AutoTrader</a></div></td>'
+                . '<td class="price"><b>' . $usd . '</b><div class="sub">' . $zar . '</div></td>'
                 . '<td>' . e($m['condition'] ?? '—') . '</td>'
                 . '<td>' . e((string) ($m['year'] ?? '—')) . '</td>'
                 . '<td>' . ($m['mileage_km'] !== null ? number_format($m['mileage_km']) . ' km' : '—') . '</td>'
                 . '<td>' . e($m['fuel'] ?? '—') . ' / ' . e($m['transmission'] ?? '—') . '</td>'
-                . '<td>' . $gallery . ($s['image_count'] ?? null ? ' / ' . $s['image_count'] : '') . '</td>'
-                . '<td class="url">' . e($m['front_image'] ?? '') . '</td>'
+                . '<td class="specs">' . ($specBits ? e(implode(' · ', $specBits)) : '<span class="sub">search-only</span>') . '</td>'
+                . '<td class="ph"><b>' . $gallery . '</b>' . ($s['image_count'] ?? null ? ' / ' . $s['image_count'] . ' avail' : '') . '</td>'
                 . '</tr>';
         }
 
+        $mode = $this->option('deep') ? 'deep — full detail pages (seats, doors, engine, whole gallery)' : 'search-only (add --deep for full specs + gallery)';
+
         return '<!doctype html><meta charset="utf-8"><title>AutoTrader ZA scrape preview</title><style>'
-            . 'body{font-family:Segoe UI,sans-serif;background:#f4f6f9;margin:24px;color:#0b1e3b}'
-            . 'h1{font-size:22px}table{border-collapse:collapse;width:100%;background:#fff;font-size:13px}'
-            . 'th,td{border:1px solid #e3e8f0;padding:8px;text-align:left;vertical-align:top}'
-            . 'th{background:#0b1e3b;color:#fff;position:sticky;top:0}'
-            . 'img{width:130px;height:98px;object-fit:cover;border-radius:6px}'
-            . '.n{color:#8494ab}.sub{color:#8494ab;font-size:11px}.url{font-size:10px;word-break:break-all;max-width:220px}'
-            . '</style><h1>AutoTrader ZA → SupremeMotors mapping preview (' . count($this->reportRows) . ' products)</h1>'
-            . '<p>Captured from search-page data (no detail fetch). Prices stay in ZAR unless --usd-rate is set; POA listings and the "autotrader" website (not price-visible) render as <strong>Enquire</strong> on cards. Images point at the sm-autotrader Bunny pull zone; originals live in *_source. Photos column shows captured / total-available — run with --deep to pull the full gallery.</p>'
-            . '<table><tr><th>#</th><th>Front image (CDN)</th><th>Title / dealer</th><th>Price</th><th>Condition</th><th>Year</th><th>Mileage</th><th>Fuel / Gearbox</th><th>Photos</th><th>CDN front URL</th></tr>'
-            . $rows . '</table>';
+            . 'body{font-family:Segoe UI,system-ui,sans-serif;background:#eceff4;margin:0;color:#0b1e3b}'
+            . '.wrap{max-width:1600px;margin:0 auto;padding:26px}'
+            . 'h1{font-size:23px;margin:0 0 4px}.lede{color:#5b6b83;font-size:14px;margin:0 0 18px;max-width:90ch}'
+            . 'table{border-collapse:collapse;width:100%;background:#fff;font-size:13px;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px rgba(11,30,59,.06)}'
+            . 'th{background:#0b1e3b;color:#fff;padding:11px 10px;text-align:left;font-size:11px;letter-spacing:.03em;text-transform:uppercase;position:sticky;top:0}'
+            . 'td{border-bottom:1px solid #eef1f6;padding:10px;vertical-align:top}tr:hover td{background:#f8fafc}'
+            . 'img{width:150px;height:112px;object-fit:cover;border-radius:8px;background:#eef1f6;display:block}'
+            . '.noimg{width:150px;height:112px;border-radius:8px;background:#eef1f6;display:grid;place-items:center;color:#b3bece;font-size:11px}'
+            . 'a{color:#2456b8;text-decoration:none;font-weight:700}a:hover{text-decoration:underline}'
+            . '.sub{color:#8494ab;font-size:11px;margin-top:2px}.src a{color:#e01f26;font-size:11px}'
+            . '.price b{font-size:15px;color:#0b1e3b}.enq{color:#b5591a}.specs{max-width:200px;color:#33445e}'
+            . '.ph b{color:#1f8f57}.n{color:#b3bece;font-variant-numeric:tabular-nums}'
+            . '</style><div class="wrap"><h1>AutoTrader ZA → SupremeMotors · ' . count($this->reportRows) . ' products</h1>'
+            . '<p class="lede">Mode: <b>' . e($mode) . '</b>. Click <b>↗ view on AutoTrader</b> to open the live listing and compare against our stored row side by side. Prices converted to <b>USD</b> at ' . ($rate > 0 ? number_format($rate, 4) . ' (≈ R' . number_format(1 / $rate, 1) . '/$)' : 'raw ZAR') . ' — cards show the real price, not Enquire. Images point at the sm-autotrader Bunny CDN; originals kept in *_source.</p>'
+            . '<table><tr><th>#</th><th>Image (CDN)</th><th>Title / source link</th><th>Price USD / ZAR</th><th>Condition</th><th>Year</th><th>Mileage</th><th>Fuel / Gearbox</th><th>Detail specs</th><th>Photos</th></tr>'
+            . $rows . '</table></div>';
     }
 }

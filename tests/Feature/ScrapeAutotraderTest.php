@@ -76,7 +76,7 @@ class ScrapeAutotraderTest extends TestCase
         $this->seedCategories();
         $this->fakeSite();
 
-        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0])
+        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0, '--usd-rate' => 0])
             ->assertSuccessful();
 
         $this->assertGreaterThanOrEqual(25, Products::where('website', 'autotrader')->count());
@@ -87,7 +87,7 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertStringStartsWith('https://img.autotrader.co.za/', $product->front_image_source);
         $this->assertSame('SM' . $product->id, $product->stock_code);
         $this->assertSame('South Africa', $product->country);
-        $this->assertSame(234990.0, (float) $product->price);
+        $this->assertSame(234990.0, (float) $product->price); // --usd-rate=0 keeps raw ZAR
         $this->assertSame(2021, $product->year);
         $this->assertNotNull($product->make_id);
         $this->assertSame('Hyundai', Categories::find($product->make_id)->cat_title);
@@ -118,6 +118,11 @@ class ScrapeAutotraderTest extends TestCase
         // detail fixture has 20 images -> 1 front + 19 others, richer than search's handful
         $this->assertCount(19, $product->other_images);
         $this->assertStringContainsString('Warranty distance', $product->product_details);
+        // deep mode captures the specs the search page lacks
+        $this->assertSame(5, $product->seats);
+        $this->assertSame(4, $product->doors);
+        $this->assertSame(1996, $product->engine_cc);
+        $this->assertSame('4x2', $product->drive_type);
     }
 
     public function test_rerun_skips_existing_unless_refresh(): void
@@ -151,17 +156,36 @@ class ScrapeAutotraderTest extends TestCase
         $this->assertStringContainsString('Hyundai Tucson', $html);
     }
 
-    public function test_usd_rate_converts_price(): void
+    public function test_price_converts_to_usd_by_default(): void
     {
         $this->seedCategories();
         $this->fakeSite();
 
-        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--limit' => 1, '--delay-ms' => 0, '--usd-rate' => 0.055])
+        // default --usd-rate is 0.055; no flag needed to get dollar prices
+        $this->artisan('scrape:autotrader', ['--max-pages' => 1, '--delay-ms' => 0])
             ->assertSuccessful();
 
-        $product = Products::where('website', 'autotrader')->first();
-        $this->assertGreaterThan(0, (float) $product->price);
-        $this->assertLessThan(50000, (float) $product->price); // ZAR converted down to USD
+        $tucson = Products::where('product_link', 'like', '%28520428')->first();
+        $this->assertSame(round(234990 * 0.055, 2), (float) $tucson->price); // 12924.45 USD
+        $this->assertLessThan(50000, (float) $tucson->price);
+    }
+
+    public function test_pool_option_with_proxies_is_accepted(): void
+    {
+        $this->seedCategories();
+        $this->fakeSite();
+
+        @mkdir(config('cdn.state_dir'), 0777, true);
+        $proxyFile = config('cdn.state_dir') . '/proxies.txt';
+        file_put_contents($proxyFile, "1.2.3.4:8080\n5.6.7.8:3128\n");
+
+        // in tests the batch fetcher uses the fakeable sequential path regardless of pool
+        $this->artisan('scrape:autotrader', [
+            '--max-pages' => 1, '--limit' => 2, '--deep' => true,
+            '--pool' => 5, '--proxy-file' => $proxyFile, '--delay-ms' => 0,
+        ])->assertSuccessful();
+
+        $this->assertSame(2, Products::where('website', 'autotrader')->count());
     }
 
     public function test_proxy_file_is_loaded_and_used(): void
