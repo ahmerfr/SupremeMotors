@@ -1058,7 +1058,10 @@ class ScrapeAutotraderUk extends Command
                 $requests[$ci] = ['method' => 'POST', 'url' => self::AT_GRAPHQL, 'headers' => $this->graphqlHeaders(), 'body' => json_encode($ops)];
             }
 
-            $this->ensureSession();
+            // force a fresh __cf_bm each round — a ~2h run outlives the 30-min
+            // cookie TTL, and a stale token is the main cause of a wave of POST
+            // failures; one homepage GET per ~2000 fetches is negligible
+            $this->ensureSession(true);
             $responses = $this->curl->parallel($requests, $this->jarFile, $pool, 40);
 
             // gather adverts from 200 responses; track which advertIds were actually answered

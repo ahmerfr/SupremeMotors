@@ -97,7 +97,7 @@ if (-not $allBandsDone -and -not $p1loop) {
 # --- 2. Phase-2 FAST enrich: batched /at-graphql (un-throttled), always running ---
 $enrich = $phps | Where-Object { $_.CommandLine -like '*scrape:autotraderuk*--fast-enrich*' }
 if (-not $enrich) {
-    Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:autotraderuk','--fast-enrich','--fast-pool=10') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-enrich.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-enrich.err.log')
+    Start-Process -FilePath $php -ArgumentList (@('artisan','scrape:autotraderuk','--fast-enrich','--fast-pool=5') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-enrich.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-enrich.err.log')
     Log 'Phase-2 FAST enrich launched (batched /at-graphql, pool 10)'
 }
 
