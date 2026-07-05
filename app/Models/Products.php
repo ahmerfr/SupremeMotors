@@ -60,7 +60,7 @@ class Products extends Model
     protected $appends = ['show_price'];
 
     /** sources whose prices are trustworthy enough to display (rest show "Enquire") */
-    public const PRICE_VISIBLE_SITES = ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza', 'perfectmotors'];
+    public const PRICE_VISIBLE_SITES = ['tcv', 'suprememotors', 'electricvehicles', 'autotraderza', 'autotraderuk', 'perfectmotors'];
 
     /**
      * Whether the card/detail page should show the numeric price. Keeps the

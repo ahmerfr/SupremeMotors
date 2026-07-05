@@ -1,0 +1,233 @@
+query SearchResultsListingsGridQuery(
+        $filters: [FilterInput!]!
+        $channel: Channel!
+        $page: Int
+        $sortBy: SearchResultsSort
+        $listingType: [ListingType!]
+        $searchId: String!
+        $featureFlags: [FeatureFlag]
+    ) {
+        searchResults(
+            input: {
+                facets: []
+                filters: $filters
+                channel: $channel
+                page: $page
+                sortBy: $sortBy
+                listingType: $listingType
+                searchId: $searchId
+                featureFlags: $featureFlags
+            }
+        ) {
+            intercept {
+                interceptType
+                title
+                subtitle
+                buttonText
+                sort
+                ctaUrl
+            }
+            listings {
+                ... on SearchListing {
+                    type
+                    advertId
+                    title
+                    subTitle
+                    attentionGrabber
+                    price
+                    vehicleLocation
+                    locationType
+                    discount
+                    images
+                    numberOfImages
+                    rrp
+                    sellerType
+                    dealerLink
+                    dealerReview {
+                        overallReviewRating
+                    }
+                    fpaLink
+                    hasDigitalRetailing
+                    preReg
+                    finance {
+                        monthlyPrice {
+                            priceFormattedAndRounded
+                        }
+                        initialPayment
+                        termMonths
+                        quoteSubType
+                        representativeValues {
+                            financeKey
+                            financeValue
+                        }
+                        disclaimerText {
+                            components {
+                                ... on FinanceListingDisclaimerTextComponent {
+                                    text
+                                }
+                                ... on FinanceListingDisclaimerLinkComponent {
+                                    text
+                                    link
+                                }
+                                ... on FinanceListingDisclaimerTitleComponent {
+                                    text
+                                }
+                            }
+                        }
+                        financeListingProvider
+                        rawFinanceFields {
+                            deposit
+                            term
+                            annualMileage
+                        }
+                    }
+                    badges {
+                        type
+                        displayText
+                    }
+                    position
+                    canSaveAdvert
+                    trackingContext {
+                        retailerContext {
+                            id
+                        }
+                        advertContext {
+                            id
+                            advertiserId
+                            advertiserType
+                            make
+                            model
+                            vehicleCategory
+                            year
+                            condition
+                            price
+                            searchVersionId
+                        }
+                        card {
+                            category
+                            subCategory
+                            pageNumber
+                            position
+                        }
+                        advertCardFeatures {
+                            condition
+                            numImages
+                            hasFinance
+                            priceIndicator
+                            isManufacturedApproved
+                            isFranchiseApproved
+                        }
+                        distance {
+                            distance
+                            distance_unit
+                        }
+                    }
+                }
+                ... on GPTListing {
+                    type
+                    targetingSegments {
+                        name
+                        values
+                    }
+                    areaOfInterest {
+                        manufacturerCodes
+                    }
+                    posId
+                }
+                ... on CampaignAdvertListing {
+                    type
+                    advertId
+                    adTitle: title
+                    subtext
+                    cta
+                    image
+                    imageAltText
+                    trackingContext {
+                        searchCard {
+                            advertId
+                            listingType
+                            position
+                        }
+                    }
+                }
+                ... on LeasingListing {
+                    type
+                    advertId
+                    title
+                    subTitle
+                    price
+                    vatStatus
+                    images
+                    numberOfImages
+                    fpaLink
+                    canSaveAdvert
+                    finance {
+                        monthlyPrice {
+                            priceFormattedAndRounded
+                        }
+                        representativeExample
+                        representativeValues {
+                            financeKey
+                            financeValue
+                        }
+                        initialPayment
+                        termMonths
+                        mileage
+                    }
+                    badges {
+                        type
+                        displayText
+                    }
+                    trackingContext {
+                        retailerContext {
+                            id
+                        }
+                        advertContext {
+                            id
+                            advertiserId
+                            advertiserType
+                            make
+                            model
+                            vehicleCategory
+                            year
+                            condition
+                            price
+                            searchVersionId
+                        }
+                        card {
+                            category
+                            subCategory
+                            pageNumber
+                            position
+                        }
+                        advertCardFeatures {
+                            condition
+                            numImages
+                            hasFinance
+                            priceIndicator
+                            isManufacturedApproved
+                            isFranchiseApproved
+                        }
+                        distance {
+                            distance
+                            distance_unit
+                        }
+                    }
+                }
+            }
+            page {
+                number
+                count
+                results {
+                    count
+                }
+            }
+            searchInfo {
+                isForFinanceSearch
+                leasingSummary
+            }
+            trackingContext {
+                searchId
+            }
+        }
+    }
