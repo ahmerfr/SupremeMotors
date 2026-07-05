@@ -281,9 +281,8 @@ class ScrapeAutotraderUkTest extends TestCase
 
         $this->assertNotNull($detail);
 
-        // the page carries the main car's full gallery as {resize}-templated
-        // URLs plus related cars' pre-sized (w600) imageLists; keying on {resize}
-        // isolates this car's whole gallery — 36 photos here, no related bleed.
+        // the full gallery comes from the blob's gallery.images[] (36 photos for
+        // this car, no related bleed — related cars live in a separate blob key).
         $this->assertCount(36, $detail['images']);
         foreach ($detail['images'] as $img) {
             $this->assertStringStartsWith('https://m.atcdn.co.uk/a/media/w800/', $img);
@@ -316,13 +315,63 @@ class ScrapeAutotraderUkTest extends TestCase
         $this->assertSame('ST-Line', $detail['specifications']['trim']);
     }
 
+    /**
+     * Prove the PRIMARY path is the embedded __staticRouterHydrationData JSON
+     * blob — not the regex scrape. We hand the parser a page that carries ONLY
+     * the blob script (no rendered gallery <section>, no key-facts <p> strip, no
+     * loose advertContext/imageList markup the fallback regexes key on). If the
+     * full 36-photo gallery + structured specs still come out, they can only have
+     * come from decoding the blob.
+     */
+    public function test_detail_parser_reads_the_static_hydration_json_blob(): void
+    {
+        $full = $this->fixture('detail-page.html');
+
+        // slice out just the JSON.parse("…") argument and wrap it in a bare page
+        $anchor = '__staticRouterHydrationData = JSON.parse(';
+        $pos = strpos($full, $anchor);
+        $open = strpos($full, '"', $pos + strlen($anchor));
+        $len = strlen($full);
+        $end = null;
+        for ($i = $open + 1; $i < $len; $i++) {
+            $c = $full[$i];
+            if ($c === '\\') {
+                $i++;
+
+                continue;
+            }
+            if ($c === '"') {
+                $end = $i;
+                break;
+            }
+        }
+        $blobScript = substr($full, $pos, $end - $pos + 2); // through the closing ")"
+        $blobOnly = '<html><body><script>window.' . $blobScript . ');</script></body></html>';
+
+        $detail = (new AutotraderUkDetailParser)->parseDetail($blobOnly, self::DETAIL_URL);
+
+        $this->assertNotNull($detail);
+        // full gallery recovered from gallery.images[] in the blob alone
+        $this->assertCount(36, $detail['images']);
+        $this->assertStringStartsWith('https://m.atcdn.co.uk/a/media/w800/', $detail['images'][0]);
+        // structured specs recovered from advertTrackingData in the blob alone
+        $this->assertSame('Ford EcoSport', $detail['title']);
+        $this->assertSame(1498, $detail['engine_cc']);
+        $this->assertSame('Diesel', $detail['fuel']);
+        $this->assertSame(5, $detail['doors']);   // from keySpecification, not the <p> strip
+        $this->assertSame(5, $detail['seats']);
+        $this->assertSame('Front Wheel Drive', $detail['drive_type']);
+        $this->assertSame('ST-Line', $detail['specifications']['trim']);
+        $this->assertSame('detail', $detail['specifications']['source']);
+    }
+
     public function test_detail_parser_pulls_full_resize_gallery_isolated_from_related_cars(): void
     {
-        // this live-captured page carries the car's full 40-photo gallery as
-        // {resize}-templated URLs AND four related vehicles' pre-sized (w600)
-        // imageLists (80 more hashes). Keying on the {resize} placeholder must
-        // pull exactly this car's 40 — proving related-car isolation and the full
-        // gallery (not the ~7 the eager carousel renders).
+        // this live-captured page carries the car's full 40-photo gallery in the
+        // blob's gallery.images[] AND four related vehicles in a separate blob
+        // key. Reading gallery.images[] must pull exactly this car's 40 — proving
+        // related-car isolation and the full gallery (not the ~7 the eager
+        // carousel renders).
         $detail = (new AutotraderUkDetailParser)->parseDetail(
             $this->fixture('detail-page-gallery.html'),
             'https://www.autotrader.co.uk/car-details/202606153314591'
