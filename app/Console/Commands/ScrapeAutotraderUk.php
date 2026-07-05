@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Categories;
 use App\Models\Products;
+use App\Services\AutotraderUkDetailParser;
 use App\Services\AutotraderUkParser;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
@@ -49,11 +50,15 @@ class ScrapeAutotraderUk extends Command
         {--min-price= : Restrict to cars at/above this price (GBP) — price-band shard}
         {--max-price= : Restrict to cars at/below this price (GBP) — price-band shard}
         {--shard= : Name this worker; gives it its own cursor + done marker + progress}
+        {--enrich : PHASE 2 — fetch car-details HTML for every specifications-NULL row and fill full gallery + specs (ignores Phase-1 options)}
+        {--pool=8 : Concurrent requests per Guzzle Pool (Phase-1 batched POSTs / Phase-2 detail GETs); 8 is proven safe, 10-12 cautiously}
+        {--batch=10 : Search pages per gateway POST (the gateway accepts ~10-15 ops; 10 is the safe ceiling)}
+        {--enrich-limit=0 : PHASE 2 — stop after enriching this many products (0 = all)}
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
-        {--delay-ms=2500 : Base pause between gateway requests (jittered 1x..1.4x)}';
+        {--delay-ms=2500 : Base pause between gateway rounds (jittered 1x..1.4x)}';
 
-    protected $description = 'Scrape autotrader.co.uk into products with Bunny CDN images (search-gateway, single-threaded, resumable, sharded)';
+    protected $description = 'Scrape autotrader.co.uk into products with Bunny CDN images (two-phase: batched+concurrent search, then concurrent detail-HTML enrich; resumable, sharded)';
 
     private const CDN_HOST = 'sm-autotraderuk.b-cdn.net';
     private const ORIGIN_HOST = AutotraderUkParser::IMAGE_HOST; // m.atcdn.co.uk
@@ -69,6 +74,8 @@ class ScrapeAutotraderUk extends Command
     private const COOKIE_TTL = 1500;
 
     private AutotraderUkParser $parser;
+
+    private AutotraderUkDetailParser $detailParser;
 
     private int $upserted = 0;
 
@@ -95,9 +102,10 @@ class ScrapeAutotraderUk extends Command
 
     private string $query = '';
 
-    public function handle(AutotraderUkParser $parser): int
+    public function handle(AutotraderUkParser $parser, AutotraderUkDetailParser $detailParser): int
     {
         $this->parser = $parser;
+        $this->detailParser = $detailParser;
         $this->upserted = 0;
         $this->imagesScraped = 0;
         $this->failures = 0;
@@ -113,6 +121,13 @@ class ScrapeAutotraderUk extends Command
         $stateDir = config('cdn.state_dir', storage_path('app/cdn'));
         @mkdir($stateDir, 0777, true);
 
+        $this->dryRun = (bool) $this->option('dry-run');
+
+        // PHASE 2 — enrich the specifications-NULL rows with full detail data
+        if ($this->option('enrich')) {
+            return $this->enrich($stateDir);
+        }
+
         // shard scoping: each parallel/sequential shard owns its own cursor,
         // done marker and progress file, keyed by --shard (or make/price if none)
         $shard = $this->option('shard') ?: $this->autoShardName();
@@ -126,7 +141,6 @@ class ScrapeAutotraderUk extends Command
 
         $maxPages = (int) $this->option('max-pages');
         $limit = (int) $this->option('limit');
-        $this->dryRun = (bool) $this->option('dry-run');
         $pagesDone = 0;
 
         $this->info(($this->dryRun ? '[dry-run] ' : '') . 'autotraderuk '
@@ -134,41 +148,82 @@ class ScrapeAutotraderUk extends Command
             . ($this->option('make') ? ' make=' . $this->option('make') : '')
             . ($this->priceLabel() ? ' price=' . $this->priceLabel() : ''));
 
+        // how many pages to pull per round: min(remaining allowance, batch*pool).
+        // Each round issues `pool` concurrent gateway POSTs, each POST carrying
+        // `batch` page-ops — the proven fast path (268 cars in one ~2s POST).
+        $batch = max(1, (int) $this->option('batch'));
+        $pool = max(1, (int) $this->option('pool'));
+        $lastPage = self::PAGE_CAP;
+
         while ($page <= self::PAGE_CAP) {
-            $payload = $this->fetchPage($page);
-            if ($payload === null) {
-                $this->warn("page {$page} unfetchable after retries — stopping so the cursor stays honest");
-
-                return self::FAILURE;
+            // cap this round to the max-pages allowance so --max-pages=1 fetches
+            // exactly page 1 (keeps the resumable cursor honest + tests green)
+            $roundPages = $batch * $pool;
+            if ($maxPages > 0) {
+                $roundPages = min($roundPages, $maxPages - $pagesDone);
             }
-
-            $search = $this->parser->parseSearchResponse($payload);
-            if (!$search['listings']) {
-                $this->info("page {$page} has no listings — end of this filter set reached");
+            $roundPages = min($roundPages, self::PAGE_CAP - $page + 1, $lastPage - $page + 1);
+            if ($roundPages <= 0) {
                 break;
             }
 
-            foreach ($search['listings'] as $listing) {
-                if ($limit > 0 && $this->upserted >= $limit) {
-                    break 2;
+            $roundStart = $page;
+            $pages = range($page, $page + $roundPages - 1);
+            $payloads = $this->fetchPages($pages, $batch, $pool);
+
+            $stop = false;   // hit the product limit
+            $ended = false;  // ran off the end of the filter set (empty page)
+            $highestBanked = $page - 1;
+
+            foreach ($pages as $p) {
+                $payload = $payloads[$p] ?? null;
+                if ($payload === null) {
+                    $this->warn("page {$p} unfetchable after retries — stopping so the cursor stays honest");
+
+                    return self::FAILURE;
                 }
-                $this->bankListing($listing);
+
+                $search = $this->parser->parseSearchResponse($payload);
+                if (!$search['listings']) {
+                    $this->info("page {$p} has no listings — end of this filter set reached");
+                    $ended = true;
+                    break;
+                }
+
+                foreach ($search['listings'] as $listing) {
+                    if ($limit > 0 && $this->upserted >= $limit) {
+                        $stop = true;
+                        break;
+                    }
+                    $this->bankListing($listing);
+                }
+
+                $highestBanked = $p;
+                $lastPage = min(self::PAGE_CAP, $search['last_page'] ?? self::PAGE_CAP);
+                $lastTotal = $search['total'];
+
+                if ($stop) {
+                    break;
+                }
             }
 
-            if (!$this->dryRun) {
-                file_put_contents($cursorFile, (string) $page);
+            $bankedThisRound = max(0, $highestBanked - $roundStart + 1);
+            $pagesDone += $bankedThisRound;
+            $page = $highestBanked + 1;
+
+            if ($bankedThisRound > 0 && !$this->dryRun) {
+                file_put_contents($cursorFile, (string) $highestBanked);
             }
-            $pagesDone++;
+            $this->writeProgress($stateDir, $suffix, $shard, $highestBanked, $lastPage, $lastTotal ?? null);
+            $this->info("through page {$highestBanked}/{$lastPage} — {$this->upserted} products banked"
+                . (isset($lastTotal) && $lastTotal ? ' (filter set ~' . number_format($lastTotal) . ' cars)' : ''));
 
-            // last page = min(total pages in the filter set, the 100 hard cap)
-            $lastPage = min(self::PAGE_CAP, $search['last_page'] ?? self::PAGE_CAP);
-            $this->writeProgress($stateDir, $suffix, $shard, $page, $lastPage, $search['total']);
-            $this->info("page {$page}/{$lastPage} done — {$this->upserted} products banked"
-                . ($search['total'] ? ' (filter set ~' . number_format($search['total']) . ' cars)' : ''));
-
-            if ($page >= $lastPage) {
-                if ($search['total'] !== null && $search['total'] > self::PAGE_CAP * 20) {
-                    $this->warn("filter set has ~{$search['total']} cars but the gateway caps at page "
+            if ($stop) {
+                break;
+            }
+            if ($ended || $page > $lastPage) {
+                if (isset($lastTotal) && $lastTotal !== null && $lastTotal > self::PAGE_CAP * 20) {
+                    $this->warn("filter set has ~{$lastTotal} cars but the gateway caps at page "
                         . self::PAGE_CAP . ' — shard by make/price to reach the rest');
                 }
                 if (!$this->dryRun) {
@@ -179,7 +234,6 @@ class ScrapeAutotraderUk extends Command
             if ($maxPages > 0 && $pagesDone >= $maxPages) {
                 break;
             }
-            $page++;
         }
 
         if ($this->option('report')) {
@@ -194,13 +248,46 @@ class ScrapeAutotraderUk extends Command
     }
 
     /**
-     * Fetch one gateway page, returning the decoded JSON payload (array), or
-     * null after exhausting retries. Handles the Cloudflare handshake, cookie
-     * refresh, jittered pacing, and 403 -> re-handshake.
+     * PHASE 1 fetch: pull `$pages` and return [page => single-result payload].
      *
+     * Live path: chunk the pages into `$batch`-op gateway POSTs and run `$pool`
+     * of those POSTs concurrently through a Guzzle Pool (direct, no proxies — the
+     * UK Cloudflare tolerates concurrency from one IP with the cookie). Each POST
+     * answers with one result per op, which we map back to its page.
+     *
+     * Test/degenerate path: with the Http fake, a single page, or pool=1 we take
+     * the polite sequential fetcher so the existing Http::fake + assertions hold.
+     *
+     * @param  int[]  $pages
+     * @return array<int,array<mixed>|null>
+     */
+    private function fetchPages(array $pages, int $batch, int $pool): array
+    {
+        if (app()->runningUnitTests() || $pool <= 1) {
+            $out = [];
+            foreach (array_chunk($pages, $batch) as $chunk) {
+                $payload = $this->fetchBatch($chunk);
+                foreach ($chunk as $i => $p) {
+                    $out[$p] = $payload === null ? null : ($payload[$i] ?? null);
+                }
+            }
+
+            return $out;
+        }
+
+        return $this->fetchBatchesConcurrently($pages, $batch, $pool);
+    }
+
+    /**
+     * Fetch one batch of pages in a single gateway POST, returning the decoded
+     * JSON ARRAY (one result per requested page), or null after exhausting
+     * retries. Handles the Cloudflare handshake, cookie refresh, jittered pacing,
+     * and 403 -> re-handshake.
+     *
+     * @param  int[]  $pages
      * @return array<mixed>|null
      */
-    private function fetchPage(int $page): ?array
+    private function fetchBatch(array $pages): ?array
     {
         $this->pace();
 
@@ -211,7 +298,7 @@ class ScrapeAutotraderUk extends Command
                 $response = Http::withHeaders($this->gatewayHeaders())
                     ->withOptions(['cookies' => $this->cookieJar()])
                     ->timeout(30)
-                    ->post(self::GATEWAY_URL, $this->buildBody($page));
+                    ->post(self::GATEWAY_URL, $this->buildBody($pages));
 
                 $status = $response->status();
 
@@ -264,6 +351,104 @@ class ScrapeAutotraderUk extends Command
         $this->failures++;
 
         return null;
+    }
+
+    /**
+     * Run many batched gateway POSTs concurrently through a rolling Guzzle Pool
+     * (direct, no proxies). Pages are chunked into `$batch`-op POSTs; up to
+     * `$pool` POSTs are in flight at once. Chunks that come back 403/429/503 or
+     * error are retried across rounds (with a cookie refresh on a 403), so a
+     * transient block doesn't lose pages. Returns [page => single-result payload].
+     *
+     * @param  int[]  $pages
+     * @return array<int,array<mixed>|null>
+     */
+    private function fetchBatchesConcurrently(array $pages, int $batch, int $pool): array
+    {
+        $this->pace();
+        $this->ensureSession();
+
+        $out = [];
+        $pendingChunks = array_map('array_values', array_chunk($pages, $batch));
+
+        for ($round = 1; $round <= 5 && $pendingChunks !== []; $round++) {
+            $cookieHeader = $this->cookieHeader();
+            $client = new \GuzzleHttp\Client([
+                'connect_timeout' => 10,
+                'timeout' => 40,
+                'http_errors' => false,
+                'headers' => $this->gatewayHeaders() + ['Cookie' => $cookieHeader],
+            ]);
+
+            $retry = [];
+            $needsCookieRefresh = false;
+
+            $requests = function () use ($pendingChunks, $client) {
+                foreach ($pendingChunks as $ci => $chunk) {
+                    yield $ci => $client->postAsync(self::GATEWAY_URL, [
+                        'json' => $this->buildBody($chunk),
+                    ]);
+                }
+            };
+
+            \GuzzleHttp\Promise\Each::ofLimit(
+                $requests(),
+                $pool,
+                function ($resp, $ci) use (&$out, &$retry, &$needsCookieRefresh, $pendingChunks) {
+                    $chunk = $pendingChunks[$ci];
+                    $code = $resp->getStatusCode();
+                    if ($code === 403 || $code === 429 || $code === 503) {
+                        $needsCookieRefresh = $needsCookieRefresh || $code === 403;
+                        $retry[] = $chunk;
+
+                        return;
+                    }
+                    $json = json_decode((string) $resp->getBody(), true);
+                    if (!is_array($json)) {
+                        $retry[] = $chunk;
+
+                        return;
+                    }
+                    foreach ($chunk as $i => $p) {
+                        $out[$p] = $json[$i] ?? null;
+                    }
+                },
+                function ($_e, $ci) use (&$retry, $pendingChunks) {
+                    $retry[] = $pendingChunks[$ci];
+                }
+            )->wait();
+
+            $pendingChunks = $retry;
+            if ($pendingChunks !== [] && $round < 5) {
+                if ($needsCookieRefresh) {
+                    $this->cookies = [];
+                    $this->cookieMintedAt = 0;
+                    $this->ensureSession(true);
+                }
+                sleep(min(30, 5 * $round));
+            }
+        }
+
+        // pages in chunks that never came through -> null (caller stops honestly)
+        foreach ($pendingChunks as $chunk) {
+            foreach ($chunk as $p) {
+                $out[$p] = null;
+            }
+            $this->failures++;
+        }
+
+        return $out;
+    }
+
+    /** the current cookie jar folded into a single Cookie: header string */
+    private function cookieHeader(): string
+    {
+        $bits = [];
+        foreach ($this->cookies as $name => $value) {
+            $bits[] = $name . '=' . $value;
+        }
+
+        return implode('; ', $bits);
     }
 
     /** jittered pause so the request cadence doesn't read like a bot */
@@ -346,13 +531,26 @@ class ScrapeAutotraderUk extends Command
     }
 
     /**
-     * The JSON-ARRAY gateway body. `channel` is a top-level var; the postcode +
-     * `price_search_type:total` filters are required, then optional make / price
-     * shard filters.
+     * The JSON-ARRAY gateway body for one or more pages. The gateway accepts a
+     * BATCH of operations in one POST (proven ~10 ops safe), so each requested
+     * page becomes one op — the whole array answers with one result per op.
      *
+     * @param  int[]  $pages
      * @return array<int,array<string,mixed>>
      */
-    private function buildBody(int $page): array
+    private function buildBody(array $pages): array
+    {
+        return array_map($this->buildOp(...), $pages);
+    }
+
+    /**
+     * A single SearchResultsListingsGridQuery op. `channel` is a top-level var;
+     * the postcode + `price_search_type:total` filters are required, then the
+     * optional make / price shard filters.
+     *
+     * @return array<string,mixed>
+     */
+    private function buildOp(int $page): array
     {
         $filters = [
             ['filter' => 'postcode', 'selected' => [(string) $this->option('postcode')]],
@@ -369,7 +567,7 @@ class ScrapeAutotraderUk extends Command
             $filters[] = ['filter' => 'max_price', 'selected' => [(string) (int) $max]];
         }
 
-        return [[
+        return [
             'operationName' => self::OP_NAME,
             'variables' => [
                 'filters' => $filters,
@@ -381,7 +579,7 @@ class ScrapeAutotraderUk extends Command
                 'featureFlags' => [],
             ],
             'query' => $this->query,
-        ]];
+        ];
     }
 
     /** @param array<string,mixed> $listing */
@@ -408,6 +606,279 @@ class ScrapeAutotraderUk extends Command
 
         $this->imagesScraped += count($listing['images'] ?? []);
         $this->upserted++;
+    }
+
+    /**
+     * PHASE 2 — enrich every specifications-NULL autotraderuk row with the full
+     * car-details data (complete gallery + fuel/transmission/body/engine/doors/
+     * seats/colour). Fetches the detail HTML concurrently (Guzzle Pool, cookie,
+     * no proxies), parses it, and UPDATEs the row in place, merging the detail
+     * over the search-tier row. Loops until no NULL-specifications row remains;
+     * withdrawn listings (404/410) are deleted since they can never complete.
+     */
+    private function enrich(string $stateDir): int
+    {
+        $pool = max(1, (int) $this->option('pool'));
+        $limit = (int) $this->option('enrich-limit');
+        $doneMarker = $stateDir . '/autotraderuk-fill.done';
+        @unlink($doneMarker);
+
+        $this->info(($this->dryRun ? '[dry-run] ' : '') . "autotraderuk enrich starting (pool={$pool})");
+
+        for ($round = 1; ; $round++) {
+            $remaining = Products::where('website', 'autotraderuk')->whereNull('specifications')->count();
+            file_put_contents(
+                $stateDir . '/autotraderuk-fill-progress.json',
+                json_encode([
+                    'source' => 'autotraderuk',
+                    'incomplete_remaining' => $remaining,
+                    'enriched' => $this->upserted,
+                    'updated_at' => date('c'),
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+            );
+
+            if ($remaining === 0) {
+                if (!$this->dryRun) {
+                    file_put_contents($doneMarker, now()->toDateTimeString() . "\n");
+                }
+                $this->info('enrich: every autotraderuk product has full detail');
+
+                return self::SUCCESS;
+            }
+
+            if ($limit > 0 && $this->upserted >= $limit) {
+                $this->info("enrich: hit --enrich-limit={$limit}, stopping");
+
+                return self::SUCCESS;
+            }
+
+            $take = 300;
+            if ($limit > 0) {
+                $take = min($take, $limit - $this->upserted);
+            }
+            /** @var array<int,\App\Models\Products> $products */
+            $products = Products::where('website', 'autotraderuk')->whereNull('specifications')
+                ->limit($take)->get(['id', 'product_link'])->all();
+            $links = array_map(fn ($p) => $p->product_link, $products);
+            $this->info("enrich round {$round}: {$remaining} missing detail — fetching " . count($links)
+                . " (pool={$pool})");
+
+            $htmlByUrl = $this->fetchDetailBatch($links, $pool);
+
+            $filled = 0;
+            $failed = [];
+            foreach ($links as $url) {
+                $html = $htmlByUrl[$url] ?? null;
+                $detail = $html !== null ? $this->detailParser->parseDetail($html, $url) : null;
+
+                if ($detail !== null && !empty($detail['images'])) {
+                    if (!$this->dryRun) {
+                        $existing = Products::where('product_link', $url)->first();
+                        // detail wins on the fields it carries; keep the search-tier
+                        // values (power_hp, product_details, price…) it doesn't touch
+                        $merged = array_merge(
+                            $existing ? $this->existingAsData($existing) : [],
+                            $detail
+                        );
+                        Products::where('product_link', $url)->update($this->mapToProduct($merged));
+                    }
+                    $filled++;
+                    $this->upserted++;
+                    $this->imagesScraped += count($detail['images']);
+                } else {
+                    $failed[] = $url;
+                }
+            }
+            $this->info("enrich round {$round}: filled {$filled}, still failing " . count($failed));
+
+            if ($filled === 0) {
+                // nothing came through — delete any genuinely withdrawn (404/410),
+                // then hand back so a fresh cookie/retry picks the rest up next run
+                if (!$this->dryRun) {
+                    $this->pruneWithdrawn(array_slice($failed, 0, 25));
+                }
+
+                return self::SUCCESS;
+            }
+        }
+    }
+
+    /**
+     * Fetch many car-details pages CONCURRENTLY, returning [url => html|null].
+     * Direct (no proxies) rolling Guzzle Pool with the Cloudflare cookie; the UK
+     * site tolerates concurrency from one IP. 404/410 -> null (withdrawn). Ban/
+     * timeout chunks retry across rounds with a cookie refresh. The Http-fake
+     * test path uses the polite sequential fetcher.
+     *
+     * @param  string[]  $urls
+     * @return array<string,string|null>
+     */
+    private function fetchDetailBatch(array $urls, int $pool): array
+    {
+        if (app()->runningUnitTests() || $pool <= 1) {
+            $out = [];
+            foreach ($urls as $url) {
+                $out[$url] = $this->fetchDetail($url);
+            }
+
+            return $out;
+        }
+
+        $this->ensureSession();
+        $results = [];
+        $pending = array_values($urls);
+
+        for ($round = 1; $round <= 5 && $pending !== []; $round++) {
+            $client = new \GuzzleHttp\Client([
+                'connect_timeout' => 10,
+                'timeout' => 40,
+                'http_errors' => false,
+                'headers' => [
+                    'User-Agent' => self::USER_AGENT,
+                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => 'en-GB,en;q=0.9',
+                    'Referer' => AutotraderUkParser::BASE . '/car-search',
+                    'Cookie' => $this->cookieHeader(),
+                ],
+            ]);
+
+            $retry = [];
+            $needsCookieRefresh = false;
+            $requests = function () use ($pending, $client) {
+                foreach ($pending as $url) {
+                    yield $url => $client->getAsync($url);
+                }
+            };
+
+            \GuzzleHttp\Promise\Each::ofLimit(
+                $requests(),
+                $pool,
+                function ($resp, $url) use (&$results, &$retry, &$needsCookieRefresh) {
+                    $code = $resp->getStatusCode();
+                    if ($code >= 200 && $code < 300) {
+                        $results[$url] = (string) $resp->getBody();
+                    } elseif (in_array($code, [404, 410], true)) {
+                        $results[$url] = null; // withdrawn
+                    } else {
+                        $needsCookieRefresh = $needsCookieRefresh || $code === 403;
+                        $retry[] = $url;
+                    }
+                },
+                function ($_e, $url) use (&$retry) {
+                    $retry[] = $url;
+                }
+            )->wait();
+
+            $pending = $retry;
+            if ($pending !== [] && $round < 5) {
+                if ($needsCookieRefresh) {
+                    $this->cookies = [];
+                    $this->cookieMintedAt = 0;
+                    $this->ensureSession(true);
+                }
+                sleep(min(30, 3 * $round));
+            }
+        }
+
+        foreach ($pending as $url) {
+            $results[$url] = null;
+            $this->logFailure($url, 'detail unfetchable after pooled retries');
+        }
+
+        return $results;
+    }
+
+    /** polite single-detail fetch (test/degenerate path), with 404/410 -> null */
+    private function fetchDetail(string $url): ?string
+    {
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $this->ensureSession($attempt > 1);
+            try {
+                $response = Http::withHeaders([
+                    'User-Agent' => self::USER_AGENT,
+                    'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => 'en-GB,en;q=0.9',
+                    'Referer' => AutotraderUkParser::BASE . '/car-search',
+                ])->withOptions(['cookies' => $this->cookieJar()])->timeout(40)->get($url);
+
+                $status = $response->status();
+                if (in_array($status, [404, 410], true)) {
+                    return null; // withdrawn — a fact, not an outage
+                }
+                if ($status === 403 || $status === 429 || $status === 503) {
+                    $this->cookies = [];
+                    $this->cookieMintedAt = 0;
+                    if (app()->runningUnitTests()) {
+                        return null;
+                    }
+                    sleep(min(30, 5 * $attempt));
+
+                    continue;
+                }
+                if ($response->successful()) {
+                    return $response->body();
+                }
+            } catch (\Throwable) {
+                if (app()->runningUnitTests()) {
+                    return null;
+                }
+            }
+            if (!app()->runningUnitTests()) {
+                sleep($attempt);
+            }
+        }
+
+        return null;
+    }
+
+    /** delete products whose listing is gone from AutoTrader (404/410) */
+    private function pruneWithdrawn(array $urls): void
+    {
+        foreach ($urls as $url) {
+            try {
+                $code = Http::withHeaders(['User-Agent' => self::USER_AGENT])
+                    ->withOptions(['cookies' => $this->cookieJar()])->timeout(15)->get($url)->status();
+                if (in_array($code, [404, 410], true)) {
+                    Products::where('product_link', $url)->delete();
+                    $this->warn("enrich: deleted withdrawn listing {$url}");
+                }
+            } catch (\Throwable) {
+            }
+            if (!app()->runningUnitTests()) {
+                usleep(400000); // gentle on the home IP
+            }
+        }
+    }
+
+    /**
+     * Re-hydrate an existing product row into the loose array shape mapToProduct
+     * consumes, so a Phase-2 detail merge keeps the search-tier fields (power_hp,
+     * product_details, price, model…) the detail page doesn't carry.
+     *
+     * @return array<string,mixed>
+     */
+    private function existingAsData(\App\Models\Products $p): array
+    {
+        return array_filter([
+            'title' => $p->title,
+            'model' => $p->model,
+            'year' => $p->year,
+            'engine_cc' => $p->engine_cc,
+            'mileage_km' => $p->mileage_km,
+            'fuel' => $p->fuel,
+            'transmission' => $p->transmission,
+            'condition' => $p->condition,
+            'color' => $p->color,
+            'seats' => $p->seats,
+            'doors' => $p->doors,
+            'drive_type' => $p->drive_type,
+            'power_hp' => $p->power_hp,
+            'price' => $p->price,
+            'body_style' => $p->body_style,
+            'country' => $p->country,
+            'product_link' => $p->product_link,
+            'product_details' => $p->product_details,
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     /** @param array<string,mixed> $data */

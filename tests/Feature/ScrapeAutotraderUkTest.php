@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Categories;
 use App\Models\Products;
+use App\Services\AutotraderUkDetailParser;
 use App\Services\AutotraderUkParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -233,6 +234,142 @@ class ScrapeAutotraderUkTest extends TestCase
         $this->assertSame('Ford', $p['make']);
         // it must NOT touch the un-sharded default files
         $this->assertFileDoesNotExist($dir . '/autotraderuk.cursor');
+    }
+
+    // ---- PHASE 2: detail-HTML enrich -----------------------------------------
+
+    private const DETAIL_URL = 'https://www.autotrader.co.uk/car-details/202603120655789';
+
+    /**
+     * Fake the Cloudflare handshake + every car-details GET returning the saved
+     * 270KB detail-page fixture, so the enrich path is exercised end to end.
+     */
+    private function fakeDetail(): void
+    {
+        Http::fake([
+            'www.autotrader.co.uk/car-details/*' => Http::response($this->fixture('detail-page.html'), 200),
+            'www.autotrader.co.uk/' => Http::response('<html>ok</html>', 200, [
+                'Set-Cookie' => '__cf_bm=abc123; path=/; HttpOnly',
+            ]),
+        ]);
+    }
+
+    public function test_detail_parser_isolates_the_main_gallery_and_full_specs(): void
+    {
+        $detail = (new AutotraderUkDetailParser)->parseDetail(
+            $this->fixture('detail-page.html'),
+            self::DETAIL_URL
+        );
+
+        $this->assertNotNull($detail);
+
+        // the page carries related-car imageLists + sized dupes (w340..w800) of
+        // every hash; the main car's carousel is exactly 7 photos. Isolation must
+        // yield 7 canonical-size URLs, deduped by media hash, no related images.
+        $this->assertCount(7, $detail['images']);
+        foreach ($detail['images'] as $img) {
+            $this->assertStringStartsWith('https://m.atcdn.co.uk/a/media/w800/', $img);
+        }
+        // hashes are unique (sized dupes collapsed)
+        $hashes = array_map(fn ($u) => preg_replace('#.*/([0-9a-f]{32})\.jpg#', '$1', $u), $detail['images']);
+        $this->assertSame($hashes, array_values(array_unique($hashes)));
+
+        // full structured specs from the main advertContext/vehicleContext block
+        $this->assertSame('Ford EcoSport', $detail['title']);
+        $this->assertSame('Ford', $detail['make']);
+        $this->assertSame('EcoSport', $detail['model']);
+        $this->assertSame(2018, $detail['year']);
+        $this->assertSame(69734, $detail['mileage_km']);
+        $this->assertSame(1498, $detail['engine_cc']);
+        $this->assertSame('Diesel', $detail['fuel']);
+        $this->assertSame('Manual', $detail['transmission']);
+        $this->assertSame('SUV', $detail['body_style']);
+        $this->assertSame('Orange', $detail['color']);
+        $this->assertSame('Used', $detail['condition']);
+        $this->assertSame(5, $detail['doors']);
+        $this->assertSame(5, $detail['seats']);
+        $this->assertSame('Front Wheel Drive', $detail['drive_type']);
+        $this->assertSame('Right', $detail['steering']);
+
+        // specifications is always a non-empty array on success (the enriched marker)
+        $this->assertIsArray($detail['specifications']);
+        $this->assertSame('detail', $detail['specifications']['source']);
+        $this->assertSame('Euro 6', $detail['specifications']['emissionClass']);
+        $this->assertSame('ST-Line', $detail['specifications']['trim']);
+    }
+
+    public function test_detail_parser_returns_null_on_empty_html(): void
+    {
+        $this->assertNull((new AutotraderUkDetailParser)->parseDetail('', self::DETAIL_URL));
+    }
+
+    public function test_enrich_fills_a_specifications_null_row_in_place(): void
+    {
+        $this->seedCategories();
+        $this->fakeDetail();
+
+        // a search-tier row: NULL specifications marks it not-yet-enriched
+        $product = Products::create([
+            'title' => 'Ford EcoSport',
+            'website' => 'autotraderuk',
+            'product_link' => self::DETAIL_URL,
+            'price' => 7700,
+            'steering' => 'Right',
+            'country' => 'United Kingdom',
+            'specifications' => null,
+            'front_image' => 'https://sm-autotraderuk.b-cdn.net/a/media/w800/old.jpg',
+        ]);
+        $searchId = $product->id;
+
+        $this->artisan('scrape:autotraderuk', ['--enrich' => true, '--delay-ms' => 0])
+            ->assertSuccessful();
+
+        $product->refresh();
+
+        // updated in place (same row), not duplicated
+        $this->assertSame($searchId, $product->id);
+        $this->assertSame(1, Products::where('website', 'autotraderuk')->count());
+
+        // now carries the full detail data
+        $this->assertSame('Diesel', $product->fuel);
+        $this->assertSame('Manual', $product->transmission);
+        $this->assertSame('SUV', $product->body_style);
+        $this->assertSame(1498, $product->engine_cc);
+        $this->assertSame(5, $product->doors);
+        $this->assertSame(5, $product->seats);
+        $this->assertSame('Orange', $product->color);
+
+        // full gallery replaced the ~4 search images, rewritten onto Bunny CDN
+        $this->assertCount(7, array_merge([$product->front_image], $product->other_images));
+        $this->assertStringStartsWith('https://sm-autotraderuk.b-cdn.net/a/media/w800/', $product->front_image);
+        $this->assertStringStartsWith('https://m.atcdn.co.uk/', $product->front_image_source);
+
+        // specifications is now populated -> no longer selected by the enrich query
+        $this->assertIsArray($product->specifications);
+        $this->assertSame(0, Products::where('website', 'autotraderuk')->whereNull('specifications')->count());
+    }
+
+    public function test_enrich_dry_run_writes_nothing(): void
+    {
+        $this->seedCategories();
+        $this->fakeDetail();
+
+        Products::create([
+            'title' => 'Ford EcoSport',
+            'website' => 'autotraderuk',
+            'product_link' => self::DETAIL_URL,
+            'price' => 7700,
+            'steering' => 'Right',
+            'country' => 'United Kingdom',
+            'specifications' => null,
+        ]);
+
+        $this->artisan('scrape:autotraderuk', ['--enrich' => true, '--dry-run' => true, '--delay-ms' => 0])
+            ->assertSuccessful();
+
+        // still not enriched — dry-run touched nothing
+        $this->assertSame(1, Products::where('website', 'autotraderuk')->whereNull('specifications')->count());
+        $this->assertNull(Products::first()->fuel);
     }
 
     public function test_gateway_body_carries_required_filters_and_channel(): void

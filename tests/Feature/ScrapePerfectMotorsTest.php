@@ -39,6 +39,21 @@ class ScrapePerfectMotorsTest extends TestCase
         Http::fake($routes);
     }
 
+    public function test_implausible_seats_doors_are_nulled_not_overflowed(): void
+    {
+        // a mis-parsed spec cell (mileage landing in Seating Capacity) must not
+        // overflow the tinyint seats/doors columns — clamp to null instead
+        $html = '<h1 class="protitle">2018 Toyota Hiace</h1>'
+            . '<div class="propricemaincon" id="propricemaincon"><h6>Price</h6><h6>$8,000.00</h6></div>'
+            . '<div class="thumb-gallery-detail"><img src="https://perfect-motors.com/admin-assets/images/1_thumb.jpg"><div class="thumb-gallery-thumbs">'
+            . '<table><tr><td>Seating Capacity</td><th>234100</th></tr><tr><td>Number of Doors</td><th>99</th></tr></table>';
+
+        $data = (new PerfectMotorsParser)->parseDetailPage($html, 'https://perfect-motors.com/productDetail/1');
+
+        $this->assertNull($data['seats']);  // 234100 is implausible -> null
+        $this->assertNull($data['doors']);  // 99 doors -> null
+    }
+
     public function test_sold_reserved_cars_are_skipped(): void
     {
         $this->seedCategories();

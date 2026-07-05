@@ -62,8 +62,11 @@ class PerfectMotorsParser
 
         $mileage = $this->digits($specs['Milage'] ?? $specs['Mileage'] ?? null);
         $engineCc = $this->digits($specs['Engine'] ?? null);
-        $seats = $this->digits($specs['Seating Capacity'] ?? null);
-        $doors = $this->digits($specs['Number of Doors'] ?? null);
+        // clamp to plausible ranges — a mis-parsed spec cell (e.g. a mileage
+        // landing in "Seating Capacity") would otherwise overflow the tinyint
+        // seats/doors columns and crash the whole batch insert
+        $seats = $this->clampInt($this->digits($specs['Seating Capacity'] ?? null), 1, 99);
+        $doors = $this->clampInt($this->digits($specs['Number of Doors'] ?? null), 1, 15);
         $steering = $this->steering($specs['Steering'] ?? null);
 
         // year comes off the title first (clean integer); fall back to the spec table
@@ -306,5 +309,11 @@ class PerfectMotorsParser
         $n = preg_replace('/[^\d]/', '', $value);
 
         return $n === '' ? null : (int) $n;
+    }
+
+    /** keep only plausible values; out-of-range = a mis-parse, so null it */
+    private function clampInt(?int $n, int $min, int $max): ?int
+    {
+        return ($n !== null && $n >= $min && $n <= $max) ? $n : null;
     }
 }
