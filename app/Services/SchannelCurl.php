@@ -12,12 +12,14 @@ namespace App\Services;
  * against Schannel (the OS TLS stack); its fingerprint passes cleanly and every
  * request returns 200. So the ENTIRE UK transport goes through curl.exe.
  *
- * Concurrency is done by a single `curl.exe --parallel` process per wave: it
- * opens up to N transfers at once inside one process (far cheaper than spawning
- * N processes) and we map each result back by curl's %{urlnum} index. Cookies
- * (the __cf_bm Cloudflare token) live in a shared jar FILE so the homepage
- * handshake and the gateway calls reuse the same session, exactly like a
- * browser — no manual Set-Cookie parsing.
+ * Concurrency is done by a single `curl.exe -Z --parallel` process per wave: it
+ * opens up to N transfers at once inside ONE process (far cheaper than spawning
+ * N processes, and it reuses TCP/TLS connections across transfers) and we map
+ * each result back by curl's %{urlnum} index. The whole wave is described in a
+ * curl CONFIG FILE fed with -K, because 460k URLs will never fit on a command
+ * line. Cookies (the __cf_bm Cloudflare token) live in a shared jar FILE so the
+ * homepage handshake and the gateway calls reuse the same session, exactly like
+ * a browser — no manual Set-Cookie parsing.
  */
 class SchannelCurl
 {
@@ -76,16 +78,21 @@ class SchannelCurl
     }
 
     /**
-     * Run many requests concurrently through a pool of curl.exe processes.
+     * Run many requests concurrently through ONE `curl.exe -Z --parallel` process.
      * Each request is [method,url,headers,body?]; results come back keyed by the
-     * SAME array keys with [status, body]. Up to $poolMax processes run at once;
-     * as each finishes a new one is launched (rolling window).
+     * SAME array keys with [status, body]. Up to $poolMax transfers run at once
+     * inside a single process, reusing TCP/TLS connections across transfers.
      *
-     * Each process is byte-for-byte the same invocation as request() — the one
-     * we proved returns 200 real data — so there are no curl-config quirks. The
-     * jar is read-only here (-b, no -c): __cf_bm is minted by the homepage
-     * handshake before this runs, and letting N processes rewrite one jar file
-     * concurrently would corrupt it. Cloudflare doesn't rotate the token mid-wave.
+     * The wave is described in a curl CONFIG FILE (-K), one --next-separated block
+     * per transfer, because 460k URLs won't fit on a command line. Each transfer
+     * writes its body to its own output tempfile and its "%{urlnum} %{http_code}
+     * %{exitcode}" line to stdout; we map those back by urlnum -> ordered key.
+     *
+     * The jar is READ-ONLY here (cookie=<jar>, i.e. -b, NEVER -c): __cf_bm is
+     * minted by the homepage handshake before this runs, and letting N concurrent
+     * transfers rewrite one jar file would corrupt it. Cloudflare doesn't rotate
+     * the token mid-wave. A transfer with no stdout status line (curl crashed or
+     * timed out) comes back as [0, ''] so the caller's retry logic handles it.
      *
      * @param  array<int|string,array{method:string,url:string,headers:array<string,string>,body?:string|null}>  $requests
      * @return array<int|string,array{0:int,1:string}>  key => [status, body]
@@ -96,77 +103,118 @@ class SchannelCurl
             return [];
         }
 
-        $queue = array_keys($requests);
-        $running = [];   // key => ['proc'=>res,'pipes'=>[],'out'=>path,'body'=>?path]
-        $results = [];
         $poolMax = max(1, $poolMax);
+        $keys = array_keys($requests);   // urlnum (0-based, config order) => original key
 
-        while ($queue !== [] || $running !== []) {
-            while ($queue !== [] && count($running) < $poolMax) {
-                $key = array_shift($queue);
-                $running[$key] = $this->launch($requests[$key], $jar, $timeout);
+        // Per-transfer output files, indexed by urlnum. Also track POST body files.
+        $outFiles = [];
+        $bodyFiles = [];
+
+        // ---- Build the curl config file for this wave --------------------------
+        $lines = [
+            'parallel',
+            'parallel-max = ' . $poolMax,
+            'parallel-max-host = ' . $poolMax, // CRITICAL: default 5 caps concurrency to one host
+            'compressed',
+            'silent',
+            'max-time = ' . $timeout,
+            'cookie = ' . $this->cfgQuote($jar), // read-only jar (-b), NO -c
+        ];
+
+        foreach ($keys as $urlnum => $key) {
+            $r = $requests[$key];
+            $method = $r['method'] ?? 'GET';
+
+            $out = $this->tmp('out');
+            $outFiles[$urlnum] = $out;
+
+            $lines[] = '--next';
+            $lines[] = 'url = ' . $this->cfgQuote($r['url']);
+            $lines[] = 'output = ' . $this->cfgQuote($out);
+            $lines[] = 'write-out = ' . $this->cfgQuote($urlnum . ' %{http_code} %{exitcode}\\n');
+            $lines[] = 'request = ' . $this->cfgQuote($method);
+
+            foreach (($r['headers'] ?? []) as $hk => $hv) {
+                $lines[] = 'header = ' . $this->cfgQuote($hk . ': ' . $hv);
             }
 
-            foreach ($running as $key => $h) {
-                $st = proc_get_status($h['proc']);
-                if ($st['running']) {
-                    continue;
-                }
-                $code = (int) trim(stream_get_contents($h['pipes'][1]));
-                fclose($h['pipes'][1]);
-                fclose($h['pipes'][2]);
-                proc_close($h['proc']);
-                $body = is_file($h['out']) ? (string) file_get_contents($h['out']) : '';
-                $results[$key] = [$code, $body];
-                @unlink($h['out']);
-                if ($h['body'] !== null) {
-                    @unlink($h['body']);
-                }
-                unset($running[$key]);
+            if ($method === 'POST' && ($r['body'] ?? null) !== null) {
+                $bodyFile = $this->tmp('body');
+                file_put_contents($bodyFile, $r['body']);
+                $bodyFiles[$urlnum] = $bodyFile;
+                // @file makes curl read the raw bytes; the leading @ is a curl directive,
+                // the path itself is a plain value so it does NOT go through cfgQuote.
+                $lines[] = 'data-binary = ' . $this->cfgQuote('@' . $bodyFile);
             }
+        }
 
-            if ($running !== []) {
-                usleep(20000); // 20ms poll — keeps CPU idle while curls run
+        $cfgFile = $this->tmp('cfg');
+        file_put_contents($cfgFile, implode("\n", $lines) . "\n");
+
+        // ---- Run the single -Z process -----------------------------------------
+        // -K reads the whole config; every transfer carries max-time=$timeout, so
+        // a stalled host self-caps and the process can't hang the wave forever.
+        $stdout = $this->run(['-K', $cfgFile]);
+
+        // ---- Parse "urlnum status exitcode" lines from stdout -------------------
+        $status = []; // urlnum => http_code
+        foreach (explode("\n", $stdout) as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
             }
+            $parts = preg_split('/\s+/', $line);
+            if (count($parts) < 3 || !ctype_digit($parts[0])) {
+                continue;
+            }
+            $status[(int) $parts[0]] = (int) $parts[1];
+        }
+
+        // ---- Assemble results, one per input key --------------------------------
+        $results = [];
+        foreach ($keys as $urlnum => $key) {
+            if (!isset($status[$urlnum])) {
+                // No status line -> curl crashed/timed out for this transfer.
+                $results[$key] = [0, ''];
+            } else {
+                $body = is_file($outFiles[$urlnum])
+                    ? (string) file_get_contents($outFiles[$urlnum])
+                    : '';
+                $results[$key] = [$status[$urlnum], $body];
+            }
+        }
+
+        // ---- Clean up every temp file this wave created -------------------------
+        @unlink($cfgFile);
+        foreach ($outFiles as $f) {
+            @unlink($f);
+        }
+        foreach ($bodyFiles as $f) {
+            @unlink($f);
         }
 
         return $results;
     }
 
     /**
-     * Start one non-blocking curl.exe process for a request.
-     * @param  array{method:string,url:string,headers:array<string,string>,body?:string|null}  $r
-     * @return array{proc:resource,pipes:array,out:string,body:?string}
+     * Quote a value for a curl config file (-K). Inside a double-quoted config
+     * value, backslash is an escape char, so a literal backslash must be doubled
+     * and a literal double-quote must be backslash-escaped. Windows paths are full
+     * of backslashes — a mis-escape silently breaks the transfer. We deliberately
+     * emit the escape sequence \n literally (callers pass '\\n' as two chars) so
+     * curl expands it to a newline in write-out.
      */
-    private function launch(array $r, string $jar, int $timeout): array
+    private function cfgQuote(string $s): string
     {
-        $out = $this->tmp('out');
-        $args = [
-            '-s', '--compressed', '--max-time', (string) $timeout,
-            '-o', $out, '-w', '%{http_code}',
-            '-b', $jar,
-            '-X', $r['method'] ?? 'GET',
-        ];
-        foreach (($r['headers'] ?? []) as $k => $v) {
-            $args[] = '-H';
-            $args[] = "$k: $v";
-        }
-        $bodyFile = null;
-        if (($r['method'] ?? 'GET') === 'POST' && ($r['body'] ?? null) !== null) {
-            $bodyFile = $this->tmp('body');
-            file_put_contents($bodyFile, $r['body']);
-            $args[] = '--data-binary';
-            $args[] = '@' . $bodyFile;
-        }
-        $args[] = $r['url'];
+        // Preserve an already-literal "\n" (backslash + n) that callers embed for
+        // write-out newlines: temporarily shield it before doubling backslashes.
+        $placeholder = "\x00NL\x00";
+        $s = str_replace('\\n', $placeholder, $s);
+        $s = str_replace('\\', '\\\\', $s);   // literal backslash -> \\
+        $s = str_replace('"', '\\"', $s);     // literal quote -> \"
+        $s = str_replace($placeholder, '\\n', $s);
 
-        $cmd = $this->esc($this->bin);
-        foreach ($args as $a) {
-            $cmd .= ' ' . $this->esc($a);
-        }
-        $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-
-        return ['proc' => $proc, 'pipes' => $pipes, 'out' => $out, 'body' => $bodyFile];
+        return '"' . $s . '"';
     }
 
     /** run curl.exe with an argv array (blocking); returns stdout */

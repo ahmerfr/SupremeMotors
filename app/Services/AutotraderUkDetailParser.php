@@ -11,16 +11,34 @@ namespace App\Services;
  * is pure + side-effect free so it is unit-testable against the saved fixture
  * (tests/Fixtures/autotraderuk/detail-page.html).
  *
- * Isolating the MAIN car from the ~related-car cross-sell noise is the whole
- * game here — the page carries, besides the car being viewed:
+ * PRIMARY path — the embedded JSON blob:
+ *   Every car-details page ships all its data as a JSON blob in the SSR HTML:
+ *     window.__staticRouterHydrationData = JSON.parse("<double-encoded-json>");
+ *   The inner argument is a JS string literal whose content is JSON with escaped
+ *   quotes (double-encoded). We `json_decode()` the quoted literal once (that
+ *   unescapes it to the real JSON *text*), then `json_decode(..., true)` again to
+ *   get the PHP array. Its `loaderData['car-details']['aggregatorAdvert']` holds
+ *   EVERYTHING clean for the car being viewed (and only that car):
+ *     - gallery.images[]  → the FULL gallery ({resize}-templated CDN URLs), no
+ *       related-car bleed (related cars live in connectedVehicleCollection);
+ *     - advertTrackingData.advertContext / vehicleContext → the structured
+ *       make/model/year/mileage/price/condition + body/fuel/transmission/colour/
+ *       drivetrain/engineCC/trim/emissionClass sheet;
+ *     - keySpecification[]  → labelled Doors/Seats/Owners/Registration values.
+ *   The advertContext/vehicleContext shape is identical to what the old regex
+ *   scrape produced, so the downstream field-mapping + buildSpecifications() are
+ *   shared between both paths.
+ *
+ * FALLBACK path — regex scrape (kept so nothing regresses if the blob is absent
+ * or unparseable). Isolating the MAIN car from the related-car cross-sell noise
+ * is the whole game there — the page carries, besides the car being viewed:
  *   - a "you may also like" rail whose cars each ship their own escaped-JSON
  *     block with an `imageList`, `specificationData` and a *different* advertId;
  *   - sized dupes of every image (w340/w480/w600/w720/w800 of one media hash).
  * Two clean anchors defeat both:
- *   1. GALLERY images come ONLY from the rendered `<section data-testid="gallery">`
- *      carousel (the related-car rail is a different section, and its images live
- *      in JSON `imageList`s, never in this section). Dedup by the 32-char media
- *      hash; normalise every size token to one canonical size.
+ *   1. GALLERY images come from the main advert's {resize}-templated URLs (dedup
+ *      by the 32-char media hash; normalise every size token to one canonical
+ *      size), then the advertId-anchored imageList / rendered carousel.
  *   2. STRUCTURED specs come from the FIRST `advertContext`+`vehicleContext`
  *      escaped-JSON block whose advertId matches the URL — that is the car being
  *      viewed. Related cars have a distinct `specificationData` shape and their
@@ -51,17 +69,42 @@ class AutotraderUkDetailParser
         }
 
         $advertId = $this->advertIdFromUrl($url);
-        $ctx = $this->mainVehicleJson($html, $advertId);
-        $panel = $this->keyFactsPanel($html);
-        $images = $this->galleryImages($html, $advertId);
 
-        // nothing structured AND no gallery => not a real detail page
-        if ($ctx === null && $panel === [] && $images === []) {
-            return null;
+        // PRIMARY: the embedded __staticRouterHydrationData JSON blob carries the
+        // whole car — clean structured specs + the FULL gallery, no related-car
+        // bleed. Fall through to the regex scrape only when it's absent/unusable.
+        $advert = [];
+        $vehicle = [];
+        $panel = [];
+        $images = [];
+
+        $blob = $this->aggregatorAdvert($html);
+        if ($blob !== null) {
+            $tracking = $blob['advertTrackingData'] ?? [];
+            $advert = $tracking['advertContext'] ?? [];
+            $vehicle = $tracking['vehicleContext'] ?? [];
+            $panel = $this->keySpecificationPanel($blob['keySpecification'] ?? $blob['overview']['keySpecification'] ?? []);
+            $images = $this->blobGalleryImages($blob);
         }
 
-        $advert = $ctx['advert'] ?? [];
-        $vehicle = $ctx['vehicle'] ?? [];
+        // FALLBACK: nothing usable from the blob for one of the axes -> regex.
+        $ctx = null;
+        if ($advert === [] && $vehicle === []) {
+            $ctx = $this->mainVehicleJson($html, $advertId);
+            $advert = $ctx['advert'] ?? [];
+            $vehicle = $ctx['vehicle'] ?? [];
+        }
+        if ($panel === []) {
+            $panel = $this->keyFactsPanel($html);
+        }
+        if ($images === []) {
+            $images = $this->galleryImages($html, $advertId);
+        }
+
+        // nothing structured AND no gallery => not a real detail page
+        if ($blob === null && $ctx === null && $advert === [] && $vehicle === [] && $panel === [] && $images === []) {
+            return null;
+        }
 
         $make = $vehicle['standardMake'] ?? $advert['make'] ?? null;
         $model = $vehicle['standardModel'] ?? $advert['model'] ?? null;
@@ -126,6 +169,131 @@ class AutotraderUkDetailParser
         }
 
         return null;
+    }
+
+    /**
+     * Decode the `window.__staticRouterHydrationData = JSON.parse("…")` blob and
+     * return its `loaderData['car-details']['aggregatorAdvert']` — everything the
+     * page knows about the car being viewed, clean and related-car-free.
+     *
+     * The JSON.parse argument is a JS string literal whose content is JSON with
+     * escaped quotes (double-encoded). We cut out the literal INCLUDING its outer
+     * quotes, json_decode it once (that unescapes \" \\ \/ \uXXXX etc. down to the
+     * real JSON *text*), then json_decode(..., true) again for the PHP array.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function aggregatorAdvert(string $html): ?array
+    {
+        $anchor = '__staticRouterHydrationData = JSON.parse(';
+        $pos = strpos($html, $anchor);
+        if ($pos === false) {
+            return null;
+        }
+
+        // the first double-quote after the anchor opens the JS string literal
+        $open = strpos($html, '"', $pos + strlen($anchor));
+        if ($open === false) {
+            return null;
+        }
+
+        // walk to the matching closing quote, honouring backslash escapes so an
+        // escaped \" inside the literal doesn't end it early
+        $len = strlen($html);
+        $end = null;
+        for ($i = $open + 1; $i < $len; $i++) {
+            $c = $html[$i];
+            if ($c === '\\') {
+                $i++; // skip the escaped char
+
+                continue;
+            }
+            if ($c === '"') {
+                $end = $i;
+                break;
+            }
+        }
+        if ($end === null) {
+            return null;
+        }
+
+        $literal = substr($html, $open, $end - $open + 1); // includes the quotes
+        $inner = json_decode($literal);                    // -> real JSON text
+        if (!is_string($inner)) {
+            return null;
+        }
+
+        $data = json_decode($inner, true);                 // -> PHP array
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $advert = $data['loaderData']['car-details']['aggregatorAdvert'] ?? null;
+
+        return is_array($advert) ? $advert : null;
+    }
+
+    /**
+     * Turn the blob's `keySpecification` list (`[{label,value,specKey}, …]`) into
+     * the same `label => value` map keyFactsPanel() returns, so the downstream
+     * field mapping (Doors/Seats/Body type/…) is shared between the JSON and
+     * regex paths.
+     *
+     * @param  array<int,array<string,mixed>>  $keySpec
+     * @return array<string,string>
+     */
+    private function keySpecificationPanel(array $keySpec): array
+    {
+        $out = [];
+        foreach ($keySpec as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $label = isset($row['label']) ? trim((string) $row['label']) : '';
+            $value = isset($row['value']) ? trim((string) $row['value']) : '';
+            if ($label === '' || $value === '' || isset($out[$label])) {
+                continue;
+            }
+            $out[$label] = html_entity_decode($value, ENT_QUOTES);
+        }
+
+        return $out;
+    }
+
+    /**
+     * The MAIN car's full gallery from the blob's `gallery.images[].url` — every
+     * photo, no related-car bleed. URLs are {resize}-templated; normalise to one
+     * canonical size and dedup by the 32-char media hash, keeping page order.
+     *
+     * @param  array<string,mixed>  $blob
+     * @return string[]
+     */
+    private function blobGalleryImages(array $blob): array
+    {
+        $imgs = $blob['gallery']['images'] ?? null;
+        if (!is_array($imgs)) {
+            return [];
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($imgs as $img) {
+            $url = is_array($img) ? ($img['url'] ?? null) : null;
+            if (!is_string($url)) {
+                continue;
+            }
+            if (!preg_match('#/a/media/(?:\{resize\}|w\d+)/([0-9a-f]{32})#i', $url, $m)) {
+                continue;
+            }
+            $hash = strtolower($m[1]);
+            if (isset($seen[$hash])) {
+                continue;
+            }
+            $seen[$hash] = true;
+            $out[] = 'https://' . self::IMAGE_HOST . '/a/media/' . self::CANON_SIZE . '/' . $hash . '.jpg';
+        }
+
+        return $out;
     }
 
     /**
