@@ -26,7 +26,7 @@ class ScrapeAutotrader extends Command
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--refresh : Re-fetch listings that already exist in the database}
-        {--delay-ms=800 : Pause between requests, keeps us polite to the origin}
+        {--delay-ms=2500 : Pause between requests, keeps us polite to the origin}
         {--usd-rate=0 : Convert ZAR prices to USD at this rate (0 = store raw ZAR)}';
 
     protected $description = 'Scrape autotrader.co.za listings into products with Bunny CDN image URLs (resumable, re-runnable, outage-proof)';
@@ -216,15 +216,18 @@ class ScrapeAutotrader extends Command
     {
         $delayMs = max(0, (int) $this->option('delay-ms'));
         if ($delayMs > 0) {
-            usleep($delayMs * 1000);
+            usleep(random_int($delayMs, (int) ($delayMs * 1.6)) * 1000); // jitter reads less like a bot
         }
 
         for ($round = 1; ; $round++) {
             for ($attempt = 1; $attempt <= 5; $attempt++) {
                 try {
-                    $response = Http::withHeaders(['User-Agent' => self::USER_AGENT])
-                        ->timeout(30)
-                        ->get($url);
+                    $response = Http::withHeaders([
+                        'User-Agent' => self::USER_AGENT,
+                        'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                        'Accept-Language' => 'en-ZA,en;q=0.9',
+                        'Referer' => AutotraderParser::BASE . '/cars-for-sale',
+                    ])->timeout(30)->get($url);
 
                     if ($response->successful()) {
                         return $response->body();
