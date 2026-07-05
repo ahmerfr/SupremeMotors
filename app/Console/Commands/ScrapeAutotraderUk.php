@@ -739,20 +739,28 @@ class ScrapeAutotraderUk extends Command
                 $html = $htmlByUrl[$url] ?? null;
                 $detail = $html !== null ? $this->detailParser->parseDetail($html, $url) : null;
 
-                if ($detail !== null && !empty($detail['images'])) {
+                // enrich on SPECS presence, not images: the detail page always
+                // carries the full spec sheet, but its SSR gallery is inconsistent
+                // (0..~20). A specs-only fill is still a win — and must never wipe
+                // the ~4 guaranteed search-tier images.
+                if ($detail !== null) {
+                    $existingData = [];
                     if (!$this->dryRun) {
                         $existing = Products::where('product_link', $url)->first();
+                        $existingData = $existing ? $this->existingAsData($existing) : [];
                         // detail wins on the fields it carries; keep the search-tier
                         // values (power_hp, product_details, price…) it doesn't touch
-                        $merged = array_merge(
-                            $existing ? $this->existingAsData($existing) : [],
-                            $detail
-                        );
+                        $merged = array_merge($existingData, $detail);
+                        // keep whichever gallery is richer — detail SSR can be
+                        // thinner than the search set, so never downgrade
+                        $detailImgs = $detail['images'] ?? [];
+                        $existingImgs = $existingData['images'] ?? [];
+                        $merged['images'] = count($detailImgs) >= count($existingImgs) ? $detailImgs : $existingImgs;
                         Products::where('product_link', $url)->update($this->mapToProduct($merged));
                     }
                     $filled++;
                     $this->upserted++;
-                    $this->imagesScraped += count($detail['images']);
+                    $this->imagesScraped += max(count($detail['images'] ?? []), count($existingData['images'] ?? []));
                 } else {
                     $failed[] = $url;
                 }
@@ -924,6 +932,13 @@ class ScrapeAutotraderUk extends Command
      */
     private function existingAsData(\App\Models\Products $p): array
     {
+        // rehydrate the search-tier gallery from the *_source columns so the
+        // enrich merge can keep it when the detail page's SSR gallery is thinner
+        $searchImages = array_values(array_filter(array_merge(
+            [$p->front_image_source],
+            (array) json_decode($p->other_images_source ?? '[]', true)
+        )));
+
         return array_filter([
             'title' => $p->title,
             'model' => $p->model,
@@ -943,7 +958,8 @@ class ScrapeAutotraderUk extends Command
             'country' => $p->country,
             'product_link' => $p->product_link,
             'product_details' => $p->product_details,
-        ], fn ($v) => $v !== null && $v !== '');
+            'images' => $searchImages,
+        ], fn ($v) => $v !== null && $v !== '' && $v !== []);
     }
 
     /** @param array<string,mixed> $data */
