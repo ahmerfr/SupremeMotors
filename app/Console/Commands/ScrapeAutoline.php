@@ -204,7 +204,7 @@ class ScrapeAutoline extends Command
             if ($row) {
                 $row['category_id'] = $this->mapCategory($u, $row['title']);
                 $row['price_usd'] = $row['price_eur'] !== null
-                    ? round($row['price_eur'] * (float) $this->option('usd-rate'), 2) : null;
+                    ? round($row['price_eur'] * (float) $this->option('usd-rate')) : null;
                 $rows[] = $row;
             }
         }
@@ -335,7 +335,7 @@ class ScrapeAutoline extends Command
     /** INSERT one advert. Never touches an existing row. */
     private function insertRow(array $row, float $rate): void
     {
-        $priceUsd = $row['price_eur'] !== null ? round($row['price_eur'] * $rate, 2) : 0.0;
+        $priceUsd = $row['price_eur'] !== null ? round($row['price_eur'] * $rate) : 0.0;
 
         $attrs = [
             'title' => mb_substr($row['title'], 0, 255),

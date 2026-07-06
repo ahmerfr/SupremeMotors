@@ -145,7 +145,7 @@ class ScrapeAutotraderUkTest extends TestCase
         $this->assertNotNull($product);
         $this->assertSame('Jaguar X-Type', $product->title);
         $this->assertSame(2004, $product->year);
-        $this->assertSame(635.0, (float) $product->price); // £500 -> USD at default 1.27
+        $this->assertSame(668.0, (float) $product->price); // £500 -> USD at default 1.335, whole dollars (667.5->668)
         $this->assertSame(118000, $product->mileage_km);
         $this->assertSame('United Kingdom', $product->country);
         $this->assertSame('Right', $product->steering);

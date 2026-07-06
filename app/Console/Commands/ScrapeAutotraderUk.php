@@ -64,7 +64,7 @@ class ScrapeAutotraderUk extends Command
         {--dry-run : Parse and map but write nothing to the database}
         {--report= : Write an HTML source-vs-database comparison sheet to this path}
         {--curl-bin= : Override the Schannel curl.exe path (default C:\Windows\System32\curl.exe)}
-        {--usd-rate=1.27 : Convert GBP prices to USD at this rate (USD per GBP; 0 = store raw GBP)}
+        {--usd-rate=1.335 : Convert GBP prices to USD at this rate (USD per GBP; 0 = store raw GBP)}
         {--delay-ms=2500 : Base pause between gateway rounds (jittered 1x..1.4x)}';
 
     protected $description = 'Scrape autotrader.co.uk into products with Bunny CDN images (two-phase: batched+concurrent search, then concurrent detail-HTML enrich; resumable, sharded)';
@@ -1241,7 +1241,9 @@ class ScrapeAutotraderUk extends Command
     {
         $rate = (float) $this->option('usd-rate');
 
-        return $gbp !== null && $rate > 0 ? round($gbp * $rate, 2) : $gbp;
+        // whole dollars — listing prices carry no cents (a converted clean £ price
+        // like £44,574 would otherwise land on $59,506.29)
+        return $gbp !== null && $rate > 0 ? round($gbp * $rate) : $gbp;
     }
 
     /** @param array<string,mixed> $data */
