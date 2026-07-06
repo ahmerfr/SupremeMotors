@@ -35,6 +35,7 @@ class ScrapeJaftim extends Command
         {--pool=25 : concurrent detail-gallery fetches}
         {--gallery-limit=60 : store front + up to this many gallery images}
         {--refetch-min=0 : with --fix-images, also re-fetch rows whose stored gallery is >= this size (catches galleries truncated by an old cap)}
+        {--refetch-max=0 : with --probe-tail, only process rows whose stored gallery is <= this (0 = no upper bound); skips already-un-truncated rows on resume}
         {--max-pages=40 : safety cap on listing pages}';
 
     protected $description = 'Scrape jaftim.com stock (arrStock-embedded, insert-only, live-safe chunk export)';
@@ -417,10 +418,13 @@ class ScrapeJaftim extends Command
         $window = min($limit, 40);                            // max index to probe (live max ~29)
         $minLen = max(2, (int) $this->option('refetch-min') ?: 13);
 
-        $rows = DB::table('products')->where('website', 'jaftim')
-            ->whereRaw('JSON_LENGTH(other_images) >= ?', [$minLen])
-            ->select('id', 'product_link', 'front_image', 'other_images')
-            ->get()->all();
+        $maxLen = (int) $this->option('refetch-max');
+        $q = DB::table('products')->where('website', 'jaftim')
+            ->whereRaw('JSON_LENGTH(other_images) >= ?', [$minLen]);
+        if ($maxLen > 0) {
+            $q->whereRaw('JSON_LENGTH(other_images) <= ?', [$maxLen]);   // resume: only not-yet-expanded rows
+        }
+        $rows = $q->select('id', 'product_link', 'front_image', 'other_images')->get()->all();
         $this->info(count($rows) . " candidate rows to probe (pool {$pool}, indices up to {$window})");
 
         $grown = 0;
