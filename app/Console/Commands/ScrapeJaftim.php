@@ -85,24 +85,35 @@ class ScrapeJaftim extends Command
      * is flaky on the first hit, so a bare "empty" is retried a few times before
      * we believe the page is genuinely empty (end of catalogue).
      */
-    private function fetchPage(int $pageNum, int $perPage, int $tries = 4): array
+    private function fetchPage(int $pageNum, int $perPage, int $tries = 5): array
     {
         $url = self::LISTING . '?pageNum=' . $pageNum . '&itemsPerPage=' . $perPage;
+        // jaftim's big listing response is FLAKY — the same page can come back full
+        // (500), short (a partial), or empty on different hits. So try several times
+        // and keep the response with the MOST cars; only a consistently-empty page
+        // is a real end-of-catalogue. This stops a flaky short/empty hit from
+        // silently dropping cars or ending pagination early.
+        $bestRaw = 0;
+        $bestRows = [];
         for ($t = 1; $t <= $tries; $t++) {
             [$status, $html] = $this->curl->request('GET', $url, $this->headers(), null, $this->jar, 90);
             if ($status === 200 && $html !== '' && str_contains($html, 'arrStock')) {
-                $this->lastRaw = substr_count($html, '"stock_id":"'); // raw, pre-filter
-                $rows = $this->parser->parseListing($html);
-                if ($this->lastRaw > 0) {
-                    return $rows;   // real page (rows may be < raw due to sold-filter)
+                $raw = substr_count($html, '"stock_id":"');
+                if ($raw > $bestRaw) {
+                    $bestRaw = $raw;
+                    $bestRows = $this->parser->parseListing($html);
+                }
+                if ($raw >= $perPage) {
+                    break;   // full page — no need to keep retrying
                 }
             }
             if ($t < $tries) {
-                usleep(1500000); // 1.5s backoff before retry
+                usleep(1200000);
             }
         }
+        $this->lastRaw = $bestRaw;
 
-        return [];
+        return $bestRows;
     }
 
     /**
@@ -172,14 +183,21 @@ class ScrapeJaftim extends Command
             });
         $this->info(count($existing) . ' jaftim rows already present (will skip)');
 
+        $emptyStreak = 0;
         for ($page = 1; $page <= $maxPages; $page++) {
             $rows = $this->fetchPage($page, $perPage);
-            // genuine end of catalogue: the page carried NO cars at all (raw count 0)
+            // ONLY a genuinely empty page ends pagination — and require TWO empties
+            // in a row so a single flaky-empty hit can't stop us short of the catalogue.
             if ($this->lastRaw === 0) {
-                $this->info("page {$page}: empty — done");
-                break;
+                if (++$emptyStreak >= 2) {
+                    $this->info("page {$page}: empty x2 — done");
+                    break;
+                }
+                $this->info("page {$page}: empty (flaky?) — trying next");
+
+                continue;
             }
-            $lastPage = $this->lastRaw < $perPage;   // partial page = last one
+            $emptyStreak = 0;
             $fresh = array_values(array_filter($rows, fn ($r) => !isset($existing[$r['product_link']])));
             if ($fresh !== []) {
                 $this->fillGalleries($fresh, $pool, $limit);
@@ -189,10 +207,8 @@ class ScrapeJaftim extends Command
                 }
             }
             $this->info("page {$page}: raw {$this->lastRaw}, +" . count($fresh) . " inserted (total {$this->inserted})");
-            if ($lastPage) {
-                $this->info('last page reached');
-                break;
-            }
+            // NOTE: do NOT stop on a partial page — jaftim flakily returns short pages
+            // mid-catalogue; we page on until two empties confirm the real end.
         }
         $this->info("RUN DONE: inserted {$this->inserted} jaftim cars. Next: php artisan scrape:jaftim --export-chunk");
 
