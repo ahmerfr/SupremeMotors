@@ -309,16 +309,32 @@ class ShopController extends Controller
             return collect();
         }
 
-        $randomIds = Products::query()
-            ->where('category_id', $categoryId)
-            ->where('country', $country)
-            ->where('id', '!=', $excludeId)
-            ->whereNull('front_image_dead_at')
-            ->inRandomOrder()
-            ->limit($limit)
-            ->pluck('id');
+        // ORDER BY RAND() (and min/max/offset) over the WHOLE (category,country)
+        // group — ~450k rows for UK Cars — costs seconds. Instead cache a small
+        // pool of recent candidate ids per (category,country): `latest('id')`
+        // reads only ~60 entries off the tail of the (category_id, country)
+        // index (fast), the pool is cached 1h (stale-while-revalidate so the
+        // rebuild never blocks a request), and we shuffle-pick in PHP.
+        $pool = Cache::flexible(
+            'similar_pool_' . $categoryId . '_' . md5($country),
+            [3600, 86400],
+            fn () => Products::query()
+                ->where('category_id', $categoryId)
+                ->where('country', $country)
+                ->whereNotNull('front_image')
+                ->whereNull('front_image_dead_at')
+                ->latest('id')
+                ->limit(60)
+                ->pluck('id')
+                ->all()
+        );
 
-        return Products::whereIn('id', $randomIds)->with('category')->get();
+        $ids = collect($pool)->reject(fn ($i) => $i === $excludeId)->shuffle()->take($limit);
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return Products::whereIn('id', $ids)->with('category')->get();
     }
 
     public function search_products(Request $request)
