@@ -46,6 +46,9 @@ class ScrapeJaftim extends Command
 
     private int $inserted = 0;
 
+    /** raw arrStock count of the last fetched page (before sold-filter) */
+    private int $lastRaw = 0;
+
     public function __construct(JaftimParser $parser)
     {
         parent::__construct();
@@ -77,16 +80,29 @@ class ScrapeJaftim extends Command
         return ['User-Agent' => self::UA, 'Accept-Language' => 'en', 'Accept' => 'text/html'];
     }
 
-    /** GET one listing page -> parsed rows */
-    private function fetchPage(int $pageNum, int $perPage): array
+    /**
+     * GET one listing page -> parsed rows. Retries: the big (4MB) listing request
+     * is flaky on the first hit, so a bare "empty" is retried a few times before
+     * we believe the page is genuinely empty (end of catalogue).
+     */
+    private function fetchPage(int $pageNum, int $perPage, int $tries = 4): array
     {
         $url = self::LISTING . '?pageNum=' . $pageNum . '&itemsPerPage=' . $perPage;
-        [$status, $html] = $this->curl->request('GET', $url, $this->headers(), null, $this->jar, 90);
-        if ($status !== 200 || $html === '') {
-            return [];
+        for ($t = 1; $t <= $tries; $t++) {
+            [$status, $html] = $this->curl->request('GET', $url, $this->headers(), null, $this->jar, 90);
+            if ($status === 200 && $html !== '' && str_contains($html, 'arrStock')) {
+                $this->lastRaw = substr_count($html, '"stock_id":"'); // raw, pre-filter
+                $rows = $this->parser->parseListing($html);
+                if ($this->lastRaw > 0) {
+                    return $rows;   // real page (rows may be < raw due to sold-filter)
+                }
+            }
+            if ($t < $tries) {
+                usleep(1500000); // 1.5s backoff before retry
+            }
         }
 
-        return $this->parser->parseListing($html);
+        return [];
     }
 
     /**
@@ -158,23 +174,22 @@ class ScrapeJaftim extends Command
 
         for ($page = 1; $page <= $maxPages; $page++) {
             $rows = $this->fetchPage($page, $perPage);
-            if ($rows === []) {
+            // genuine end of catalogue: the page carried NO cars at all (raw count 0)
+            if ($this->lastRaw === 0) {
                 $this->info("page {$page}: empty — done");
                 break;
             }
+            $lastPage = $this->lastRaw < $perPage;   // partial page = last one
             $fresh = array_values(array_filter($rows, fn ($r) => !isset($existing[$r['product_link']])));
-            if ($fresh === []) {
-                $this->info("page {$page}: all " . count($rows) . ' already present');
-
-                continue;
+            if ($fresh !== []) {
+                $this->fillGalleries($fresh, $pool, $limit);
+                foreach ($fresh as $r) {
+                    $this->insertRow($r);
+                    $existing[$r['product_link']] = true;
+                }
             }
-            $this->fillGalleries($fresh, $pool, $limit);
-            foreach ($fresh as $r) {
-                $this->insertRow($r);
-                $existing[$r['product_link']] = true;
-            }
-            $this->info("page {$page}: +" . count($fresh) . " inserted (total {$this->inserted})");
-            if (count($rows) < $perPage) {
+            $this->info("page {$page}: raw {$this->lastRaw}, +" . count($fresh) . " inserted (total {$this->inserted})");
+            if ($lastPage) {
                 $this->info('last page reached');
                 break;
             }
@@ -208,13 +223,16 @@ class ScrapeJaftim extends Command
             'product_link' => $r['product_link'],
             'front_image' => $r['front_image'],
             'front_image_source' => $r['front_image'],
-            'other_images' => $r['images'],
-            'other_images_source' => $r['images'],
+            'other_images' => $r['images'],  // cast to array by the model -> json
+            // other_images_source has NO cast on the model, so encode it ourselves
+            'other_images_source' => json_encode($r['images'], JSON_UNESCAPED_SLASHES),
             'product_details' => $r['product_details'],
         ];
+        // dealer stock ref (JFTUK…) isn't reliably unique, and stock_code has a
+        // UNIQUE index — so use the guaranteed-unique SM{id} like the other sources.
         try {
             $p = Products::create($attrs);
-            $p->update(['stock_code' => $r['stock_ref'] ?: ('SM' . $p->id)]);
+            $p->update(['stock_code' => 'SM' . $p->id]);
             $this->inserted++;
         } catch (\Throwable $e) {
             $this->warn('insert failed ' . $r['product_link'] . ': ' . $e->getMessage());
