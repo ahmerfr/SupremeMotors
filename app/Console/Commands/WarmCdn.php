@@ -12,6 +12,7 @@ class WarmCdn extends Command
     protected $signature = 'products:warm-cdn
         {--start-id= : Force a starting product id (default: resume from checkpoint)}
         {--scope=all : all | fronts (fronts warms only front images, own checkpoint)}
+        {--gallery-limit=0 : Warm at most this many gallery images per product (0 = all; e.g. 9 = front + first 9)}
         {--shard= : Named id-range worker; writes warm-<shard>.done instead of warm.done}
         {--min-id=0 : Shard range start (inclusive lower bound)}
         {--max-id= : Shard range end (exclusive upper bound)}
@@ -39,6 +40,7 @@ class WarmCdn extends Command
     public function handle(): int
     {
         $frontsOnly = $this->option('scope') === 'fronts';
+        $galleryLimit = max(0, (int) $this->option('gallery-limit'));
         $shard = (string) $this->option('shard');
         $minId = (int) $this->option('min-id');
         $maxId = $this->option('max-id') !== null ? (int) $this->option('max-id') : null;
@@ -82,9 +84,14 @@ class WarmCdn extends Command
                     $jobs["{$r->id}|front"] = $r->front_image;
                 }
                 if (! $frontsOnly) {
+                    $g = 0;
                     foreach (json_decode($r->other_images ?? '[]', true) ?: [] as $i => $url) {
+                        if ($galleryLimit > 0 && $g >= $galleryLimit) {
+                            break; // cap gallery images warmed per car (front + N)
+                        }
                         if (is_string($url) && str_contains($url, '.b-cdn.net')) {
                             $jobs["{$r->id}|g{$i}"] = $url;
+                            $g++;
                         }
                     }
                 }

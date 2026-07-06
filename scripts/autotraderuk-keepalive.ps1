@@ -114,11 +114,12 @@ if ($allBandsDone -and $nullLeft -eq 0 -and (BankedCount) -gt 0 -and -not (Test-
 $warming = $phps | Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotraderuk*' }
 if (-not (Test-Path $dataDone) -and (Test-Path $warmDone)) { Remove-Item $warmDone -Force -ErrorAction SilentlyContinue }
 if ((BankedCount) -gt 0 -and -not $warming -and -not (Test-Path $warmDone)) {
-    # fronts-only: warm the 1 hero image/car (454k) that the grid needs — NOT
-    # all ~8M gallery images, which hammer the m.atcdn origin into rate-limiting
-    # Bunny's pulls (the "1932/1932 failed" loop). Galleries cache on-demand
-    # (Bunny pull-on-miss) when a visitor opens the car. Gentler pool too.
-    Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--scope=fronts','--shard=ukwarm','--pool=20','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-warm.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-warm.err.log')
+    # warm the hero image + first 9 gallery pics per car (~10/car, ~4.5M) so a
+    # product page's visible gallery is CDN-cached, WITHOUT bulk-pulling all
+    # ~8M gallery images (that hammered the m.atcdn origin into throttling Bunny
+    # -> the "1932/1932 failed" loop). The rest of a big gallery caches on-demand
+    # (Bunny pull-on-miss). Moderate pool keeps origin fetches under the limit.
+    Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9','--shard=ukwarm','--pool=20','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-warm.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-warm.err.log')
     Log 'image warm running (parallel Perma-Cache into Bunny)'
 }
 
