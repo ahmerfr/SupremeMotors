@@ -140,7 +140,7 @@ class JaftimParser
             'steering' => $this->steering($s['stock_derivative'] ?? ''),
             'price_usd' => $price ?? 0,
             'category_id' => $this->category($s['body_name'] ?? '', $s['fuel_type_name'] ?? ''),
-            'country' => 'UAE',
+            'country' => 'United Arab Emirates',
             'product_link' => $card['url'] ?? (self::SITE . 'stock/' . $sid),
             'stock_ref' => $this->stockRef($s['stock_derivative'] ?? ''),
             'front_image' => $images[0],
