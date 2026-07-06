@@ -129,13 +129,13 @@ class JaftimParser
             'model' => $model,
             'year' => $year,
             'mileage_km' => isset($s['stock_mileage']) ? (int) $s['stock_mileage'] : null,
-            'fuel' => $this->clean($s['fuel_type_name'] ?? null),
+            'fuel' => $this->normFuel($this->clean($s['fuel_type_name'] ?? null)),
             'transmission' => $this->transmission($s['transmission_type_name'] ?? null),
             'condition' => 'Used',
             'color' => $this->clean($s['color_name'] ?? null),
-            'body_style' => $this->clean($s['body_name'] ?? null),
+            'body_style' => $this->normBody($this->clean($s['body_name'] ?? null)),
             'engine_cc' => isset($s['stock_cc']) && (int) $s['stock_cc'] > 0 ? (int) $s['stock_cc'] : null,
-            'drive_type' => $this->clean($s['stock_drive'] ?? null),
+            'drive_type' => $this->normDrive($this->clean($s['stock_drive'] ?? null)),
             'doors' => isset($s['stock_door']) && (int) $s['stock_door'] > 0 ? (int) $s['stock_door'] : null,
             'steering' => $this->steering($s['stock_derivative'] ?? ''),
             'price_usd' => $price ?? 0,
@@ -187,6 +187,36 @@ class JaftimParser
             'MT' => 'Manual',
             '' => null,
             default => $t,
+        };
+    }
+
+    /* Normalise jaftim's US-style facet terms onto the existing catalogue's
+       (UK-style) conventions so filters don't split into duplicate entries. */
+    private function normFuel(?string $f): ?string
+    {
+        return $f === 'Gasoline' ? 'Petrol' : $f;   // rest (Petrol/Diesel/Hybrid/Electric/LPG) already match
+    }
+
+    private function normDrive(?string $d): ?string
+    {
+        $u = strtoupper((string) $d);
+        if ($u === '4WD' || $u === 'AWD') {
+            return 'Four Wheel Drive';
+        }
+        if ($u === '2WD') {
+            return '2WD';
+        }
+
+        return null;   // Other / 6-2 / 4-2 etc. are junk for cars
+    }
+
+    private function normBody(?string $b): ?string
+    {
+        return match ($b) {
+            'Sedan' => 'Saloon',
+            'SUV Crossover', 'Jeep' => 'SUV',
+            'Station Wagon' => 'Estate',
+            default => $b,
         };
     }
 
