@@ -119,7 +119,7 @@ if ((BankedCount) -gt 0 -and -not $warming -and -not (Test-Path $warmDone)) {
     # ~8M gallery images (that hammered the m.atcdn origin into throttling Bunny
     # -> the "1932/1932 failed" loop). The rest of a big gallery caches on-demand
     # (Bunny pull-on-miss). Moderate pool keeps origin fetches under the limit.
-    Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9','--shard=ukwarm','--pool=20','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-warm.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-warm.err.log')
+    Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9','--min-id=545008','--shard=ukwarm','--pool=30','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-warm.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-warm.err.log')
     Log 'image warm running (parallel Perma-Cache into Bunny)'
 }
 
