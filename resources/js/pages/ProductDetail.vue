@@ -106,12 +106,42 @@ const specRows = computed(() => {
 });
 
 /* extra manufacturer specs (torque, top speed, fuel economy, CO2, equipment...)
-   captured in the specifications JSON, minus anything already in the ledger */
+   captured in the specifications JSON, minus anything already in the ledger and
+   minus internal/scrape bookkeeping so the panel reads like a real spec sheet */
 const shownSpecKeys = new Set(['make', 'model', 'variant', 'year', 'body type', 'mileage', 'fuel type', 'transmission', 'engine capacity (litre)', 'power maximum (detail)', 'power maximum', 'driven wheels', 'seats (quantity)', 'no of doors', 'manufacturers colour']);
+
+/* keys that are internal plumbing / source metadata, never shown to a buyer */
+const hiddenSpecKeys = new Set([
+    'source', 'pricecurrency', 'pricedisplay', 'mileageunit', 'numberofimages', 'numimages',
+    'categorytags', 'iscrossover', 'advertisertype', 'advertiserid', 'hashomedelivery',
+    'subtitle', 'vehiclelocation', 'attentiongrabber', 'locationtype', 'distancemiles',
+    'distance', 'searchversionid', 'id', 'advertid', 'vehiclecategory', 'condition',
+    'priceindicator', 'hasfinance', 'isfranchiseapproved', 'ismanufacturedapproved',
+    'sellertype', 'canfinance', 'preg', 'rrp', 'bodytype', 'fueltype', 'derivative',
+]);
+
+/* pretty labels for the keys worth showing; anything else is humanised generically */
+const specLabels = {
+    emissionClass: 'Emission Class', driveTrain: 'Drivetrain', drivetrain: 'Drivetrain',
+    engineSizeLitres: 'Engine Size', trim: 'Trim', registration: 'Registration',
+    owners: 'Previous Owners', vehicleCheckStatus: 'Vehicle Check', co2: 'CO₂',
+};
+const humanizeSpec = (k) => specLabels[k]
+    || String(k).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+
 const extraSpecs = computed(() => {
     const raw = p.specifications;
     if (!raw || typeof raw !== 'object') return [];
-    return Object.entries(raw).filter(([k]) => !shownSpecKeys.has(String(k).toLowerCase()));
+    return Object.entries(raw)
+        // drop already-shown specs, internal metadata, and non-scalar/empty values
+        // (booleans, arrays, objects) — leaves a clean sheet of real spec facts
+        .filter(([k, v]) => {
+            const key = String(k).toLowerCase();
+            if (shownSpecKeys.has(key) || hiddenSpecKeys.has(key)) return false;
+            return (typeof v === 'string' && v.trim() !== '') || (typeof v === 'number' && v !== 0);
+        })
+        .map(([k, v]) => [humanizeSpec(k), v]);
 });
 
 /* ---------------- dark-card accordions ---------------- */
