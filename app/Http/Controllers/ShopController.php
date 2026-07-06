@@ -113,9 +113,12 @@ class ShopController extends Controller
      */
     private function buildListingQuery(array $data)
     {
-        // Products whose front image died since the last purge are flagged by
-        // the daily verify/warm passes; hide them until rescued or deleted.
-        $query = Products::query()->whereNull('front_image_dead_at');
+        // NOTE: the `front_image_dead_at IS NULL` predicate is deliberately NOT
+        // here — it's unindexed and only excludes a couple of rows, but it turned
+        // the pagination COUNT into a 20s full scan. The count runs on this base
+        // (no dead predicate); the dead rows are hidden only on the fetch (where
+        // filtering 30 rows is free) — see listing().
+        $query = Products::query();
 
         $csv = fn (?string $v) => ($v !== null && $v !== '') ? array_map('trim', explode(',', $v)) : [];
 
@@ -152,22 +155,31 @@ class ShopController extends Controller
     }
 
     /**
-     * Whitelisted sort orders. Price sorts sink rows whose price the cards
-     * don't display (Enquire): 0/null prices AND sources whose prices are
-     * hidden by the frontend business rule (only tcv/suprememotors/
-     * electricvehicles show numbers) — otherwise a price sort surfaces a
-     * wall of "Enquire" cards.
+     * Whitelisted sort orders. Price sorts sink "Enquire" rows (0/null price or
+     * a source whose prices the cards don't display) to the bottom — via the
+     * indexed `enquire_sort` generated column (0 = show price, 1 = enquire), so
+     * `enquire_sort ASC, price` is served straight off the
+     * (country|category_id, enquire_sort, price) composite indexes with no
+     * filesort. See migration 2026_07_06_130000.
      */
-    private const PRICE_VISIBLE_SITES = "'tcv','suprememotors','electricvehicles','autotraderza'";
-
     private function applySort($query, ?string $sort): void
     {
-        $enquire = '(price IS NULL OR price = 0 OR website NOT IN (' . self::PRICE_VISIBLE_SITES . ')) asc';
         match ($sort) {
-            'price_asc' => $query->orderByRaw($enquire)->orderBy('price'),
-            'price_desc' => $query->orderByRaw($enquire)->orderByDesc('price'),
-            'year_desc' => $query->orderByRaw('year IS NULL asc')->orderByDesc('year'),
-            'mileage_asc' => $query->orderByRaw('mileage_km IS NULL asc')->orderBy('mileage_km'),
+            // price_asc: enquire (0/null-price) rows would otherwise pile at the
+            // TOP, so sink them via the indexed enquire_sort (both ASC -> served
+            // by the (…, enquire_sort, price) index, no filesort).
+            'price_asc' => $query->orderBy('enquire_sort')->orderBy('price'),
+            // price_desc: NULL/0 prices are already the smallest, so they sink to
+            // the bottom on their own — a plain price DESC is a backward scan of
+            // the (…, price) index, no filesort, no computed key.
+            'price_desc' => $query->orderByDesc('price'),
+            // newest-year first: NULL years are the smallest so they sink to the
+            // bottom on their own -> plain year DESC off the year index, no filesort
+            'year_desc' => $query->orderByDesc('year'),
+            // lowest-mileage first, off the mileage index (no filesort). NULLs
+            // sort first but are few; keeping it a pure ORDER BY preserves the
+            // sort-independent count cache.
+            'mileage_asc' => $query->orderBy('mileage_km'),
             default => $query->orderByDesc('created_at'),
         };
     }
@@ -177,41 +189,45 @@ class ShopController extends Controller
     {
         $query = $this->buildListingQuery($request->all());
         $countKey = 'listing_count_' . md5(json_encode(collect($request->except(['page', 'sort']))->sortKeys()->all()));
-        $total = Cache::flexible($countKey, [300, 3600], fn () => $query->toBase()->getCountForPagination());
+        $total = Cache::flexible($countKey, [3600, 86400], fn () => $query->toBase()->getCountForPagination());
 
         return response()->json(['total' => $total]);
     }
 
+    /** Only the columns ProductCard.vue renders — never the huge blobs. */
+    private const CARD_COLUMNS = [
+        'id', 'title', 'make_id', 'category_id', 'country', 'fuel',
+        'transmission', 'mileage_km', 'price', 'website', 'front_image', 'other_images',
+    ];
+
     public function listing()
     {
         $request = request();
-        $query = $this->buildListingQuery($request->all())
-            ->with(['category:id,cat_title', 'make:id,cat_title']);
-
-        // paginate()'s COUNT(*) costs ~100-200ms on 453K rows even warm;
-        // totals per filter signature barely change, so cache them briefly.
+        // base query WITHOUT the dead-image predicate -> the COUNT stays index-fast
+        $query = $this->buildListingQuery($request->all());
         $this->applySort($query, $request->input('sort'));
         $page = max(1, (int) $request->input('page', 1));
-        $countKey = 'listing_count_' . md5(json_encode(collect($request->except(['page', 'sort']))->sortKeys()->all()));
-        $total = Cache::flexible($countKey, [300, 3600], fn () => $query->toBase()->getCountForPagination());
 
-        $results = new \Illuminate\Pagination\LengthAwarePaginator(
-            $query->forPage($page, 30)->get(),
+        // per-filter totals barely move on an 838K catalogue; cache them long.
+        $countKey = 'listing_count_' . md5(json_encode(collect($request->except(['page', 'sort']))->sortKeys()->all()));
+        $total = Cache::flexible($countKey, [3600, 86400], fn () => (clone $query)->toBase()->getCountForPagination());
+
+        // fetch: lean column set (no product_details/specifications/*_source
+        // blobs = ~90KB/page saved) + hide the handful of dead-image rows here,
+        // where filtering 30 rows is free.
+        $rows = (clone $query)
+            ->whereNull('front_image_dead_at')
+            ->with(['category:id,cat_title', 'make:id,cat_title'])
+            ->forPage($page, 30)
+            ->get(self::CARD_COLUMNS);
+
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $rows,
             $total,
             30,
             $page,
             ['path' => $request->url(), 'query' => $request->query()]
         );
-
-        // Cards render only a ~180-char snippet of product_details, but the
-        // full HTML blob dominated the JSON payload (~130KB/page). Ship the
-        // snippet instead; the product-detail endpoint still serves the full blob.
-        $results->getCollection()->transform(function ($p) {
-            $p->product_details = \Illuminate\Support\Str::limit(trim(strip_tags($p->product_details ?? '')), 220);
-            return $p;
-        });
-
-        return $results;
     }
 
     /**
@@ -334,7 +350,9 @@ class ShopController extends Controller
             return collect();
         }
 
-        return Products::whereIn('id', $ids)->with('category')->get();
+        return Products::whereIn('id', $ids)
+            ->with(['category:id,cat_title', 'make:id,cat_title'])
+            ->get(self::CARD_COLUMNS);
     }
 
     public function search_products(Request $request)

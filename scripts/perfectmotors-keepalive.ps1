@@ -44,7 +44,7 @@ if (-not $mysqld) {
     }
     Log 'started mysqld'
 }
-& 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -P 3307 -u root -B -e 'SET GLOBAL innodb_buffer_pool_size=4294967296' 2>$null
+& 'C:\xampp\mysql\bin\mysql.exe' -h 127.0.0.1 -P 3307 -u root -B -e 'SET GLOBAL innodb_buffer_pool_size=7516192768' 2>$null
 
 $phps = Get-CimInstance Win32_Process -Filter "Name = 'php.exe'"
 
