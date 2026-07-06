@@ -108,20 +108,34 @@ if ($allBandsDone -and $nullLeft -eq 0 -and (BankedCount) -gt 0 -and -not (Test-
     Log 'DATA COMPLETE - all bands scraped and every car enriched'
 }
 
-# --- 3. Warm images into Bunny (background, different origin, decoupled) ---
-# run once data is flowing; front_image first so listings show a photo fast.
-# a stale caught-up marker while cars still arrive -> clear + relaunch.
-$warming = $phps | Where-Object { $_.CommandLine -like '*products:warm-cdn*--website=autotraderuk*' }
-if (-not (Test-Path $dataDone) -and (Test-Path $warmDone)) { Remove-Item $warmDone -Force -ErrorAction SilentlyContinue }
-if ((BankedCount) -gt 0 -and -not $warming -and -not (Test-Path $warmDone)) {
-    # warm the hero image + first 9 gallery pics per car (~10/car, ~4.5M) so a
-    # product page's visible gallery is CDN-cached, WITHOUT bulk-pulling all
-    # ~8M gallery images (that hammered the m.atcdn origin into throttling Bunny
-    # -> the "1932/1932 failed" loop). The rest of a big gallery caches on-demand
-    # (Bunny pull-on-miss). Moderate pool keeps origin fetches under the limit.
-    Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9','--min-id=545008','--shard=ukwarm','--pool=30','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'autotraderuk-warm.log') -RedirectStandardError (Join-Path $logDir 'autotraderuk-warm.err.log')
-    Log 'image warm running (parallel Perma-Cache into Bunny)'
+# --- 3. Warm images into Bunny — 6 PARALLEL id-range shards (front + 9 gallery
+# per car). One worker is origin-pull-bound (~30 img/s -> ~18h); sharding the id
+# range scales ~linearly (measured 100-120 concurrent = 0 origin throttle) ->
+# ~1800 cars/min -> ~4h. Each shard owns its own cursor + warm-<shard>.done, so
+# it resumes after a crash/reboot. Bulk-pulling ALL ~8M gallery images throttled
+# the m.atcdn origin (the "1932/1932 failed" loop) — gallery-limit=9 keeps volume
+# sane; the deep-gallery tail caches on-demand via Bunny pull-on-miss.
+$warmShards = @(
+    @{ n = 'ukw1'; mn = 545008; mx = 620738 },
+    @{ n = 'ukw2'; mn = 620738; mx = 696468 },
+    @{ n = 'ukw3'; mn = 696468; mx = 772198 },
+    @{ n = 'ukw4'; mn = 772198; mx = 847928 },
+    @{ n = 'ukw5'; mn = 847928; mx = 923658 },
+    @{ n = 'ukw6'; mn = 923658; mx = 999999 }
+)
+$warmAllDone = $true
+foreach ($w in $warmShards) { if (-not (Test-Path (Join-Path $state ('warm-' + $w.n + '.done')))) { $warmAllDone = $false } }
+if ((BankedCount) -gt 0 -and -not $warmAllDone) {
+    foreach ($w in $warmShards) {
+        if (Test-Path (Join-Path $state ('warm-' + $w.n + '.done'))) { continue }
+        $running = $phps | Where-Object { $_.CommandLine -like ('*products:warm-cdn*--shard=' + $w.n + ' *') }
+        if (-not $running) {
+            Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9',('--min-id=' + $w.mn),('--max-id=' + $w.mx),('--shard=' + $w.n),'--pool=20','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir ('warm-' + $w.n + '.log')) -RedirectStandardError (Join-Path $logDir ('warm-' + $w.n + '.err.log'))
+            Log ('warm shard ' + $w.n + ' launched')
+        }
+    }
 }
+if ($warmAllDone -and -not (Test-Path $warmDone)) { Set-Content -Path $warmDone -Value (Get-Date -Format o) }
 
 # --- status page ---
 $banked = BankedCount
