@@ -97,6 +97,7 @@ Route::middleware(['auth', 'verified', 'role:admin,editor'])->prefix('admin')->n
         Route::get('/', [AdminController::class, 'products_index'])->name('index');
         Route::get('/listing', [AdminController::class, 'products_listing'])->name('listing');
         Route::get('/create', [AdminController::class, 'products_create'])->name('create');
+        Route::get('/models', [AdminController::class, 'products_models'])->name('models');
         Route::post('/store', [AdminController::class, 'products_store'])->name('store');
         Route::get('/edit/{id}', [AdminController::class, 'products_edit'])->name('edit');
         Route::post('/update', [AdminController::class, 'products_update'])->name('update');

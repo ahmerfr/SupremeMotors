@@ -15,6 +15,8 @@ use App\Models\Newsletter;
 use App\Models\QueryForm;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class AdminController extends Controller
@@ -281,6 +283,32 @@ class AdminController extends Controller
         return Inertia::render('Admin/Products/Create', [
             'categories' => $categories,
         ]);
+    }
+
+    /**
+     * Distinct known models for a given make, for the admin form's dependent
+     * Model dropdown. Cached per make (the catalogue has 62k make|model pairs,
+     * far too many to ship in every page load, so the form fetches on demand).
+     */
+    public function products_models(Request $request)
+    {
+        $makeId = (int) $request->query('make_id');
+        if ($makeId <= 0) {
+            return response()->json(['models' => []]);
+        }
+
+        $models = Cache::remember("admin_models_make_{$makeId}", 3600, function () use ($makeId) {
+            return DB::table('products')
+                ->where('make_id', $makeId)
+                ->whereNotNull('model')
+                ->where('model', '!=', '')
+                ->distinct()
+                ->orderBy('model')
+                ->pluck('model')
+                ->values();
+        });
+
+        return response()->json(['models' => $models]);
     }
 
     public function products_store(Request $request)

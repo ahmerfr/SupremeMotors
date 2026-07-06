@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import ModelCombobox from '@/components/ModelCombobox.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Image, Upload, CheckCircle } from 'lucide-vue-next';
@@ -68,6 +69,10 @@ const attributeFields = [
     { key: 'color', label: 'Color', type: 'text' },
 ];
 
+// Changing the make invalidates the old model (it belonged to another make);
+// the ModelCombobox refetches the new make's options on its own.
+watch(() => product.value.make_id, () => { product.value.model = ''; });
+
 // Initialize image previews with full URLs (absolute CDN URLs pass through)
 const toPreviewUrl = (url) => (url.startsWith('http') ? url : `${STORAGE_BASE_URL}${url}`);
 const frontImagePreview = ref(props.product.front_image ? toPreviewUrl(props.product.front_image) : null);
@@ -101,6 +106,7 @@ const init_description_editor = () => {
 
 onMounted(() => {
     init_description_editor();
+    fetchModels(product.value.make_id);
 });
 
 const previewFrontImage = (event) => {
@@ -359,8 +365,15 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                         <label :for="field.key" class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                                             {{ field.label }}
                                         </label>
+                                        <!-- Model: searchable combobox of the selected make's known models -->
+                                        <ModelCombobox
+                                            v-if="field.key === 'model'"
+                                            :make-id="product.make_id"
+                                            v-model="product.model"
+                                            :error="!!errors.model"
+                                        />
                                         <select
-                                            v-if="field.type === 'select'"
+                                            v-else-if="field.type === 'select'"
                                             :id="field.key"
                                             v-model="product[field.key]"
                                             class="mt-1 p-2 w-full rounded-lg border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"

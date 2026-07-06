@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
+import ModelCombobox from '@/components/ModelCombobox.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Image, Upload, CheckCircle } from 'lucide-vue-next';
@@ -61,6 +62,10 @@ const attributeFields = [
     { key: 'drive_type', label: 'Drive Type', type: 'select', options: ['2WD', '4WD', 'AWD', 'FWD', 'RWD', '6x4', '8x4'] },
     { key: 'color', label: 'Color', type: 'text' },
 ];
+
+// Changing the make invalidates the old model; the ModelCombobox loads the
+// new make's options itself, so here we just reset the selected value.
+watch(() => product.value.make_id, () => { product.value.model = ''; });
 
 const description_editor = ref(null);
 const frontImagePreview = ref(null);
@@ -304,8 +309,15 @@ const makesList = props.categories.filter(item => item.type === 'make');
                                         <label :for="field.key" class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                                             {{ field.label }}
                                         </label>
+                                        <!-- Model: searchable combobox of the selected make's known models -->
+                                        <ModelCombobox
+                                            v-if="field.key === 'model'"
+                                            :make-id="product.make_id"
+                                            v-model="product.model"
+                                            :error="!!errors.model"
+                                        />
                                         <select
-                                            v-if="field.type === 'select'"
+                                            v-else-if="field.type === 'select'"
                                             :id="field.key"
                                             v-model="product[field.key]"
                                             class="mt-1 p-2 w-full rounded-lg border border-zinc-200 bg-white text-zinc-900 focus:border-[#8e2527] focus:outline-none focus:ring-1 focus:ring-[#8e2527] dark:border-zinc-700 dark:bg-zinc-950 dark:text-white transition duration-300"
