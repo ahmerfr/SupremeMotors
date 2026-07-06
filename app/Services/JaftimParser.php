@@ -157,7 +157,9 @@ class JaftimParser
     public function parseGalleryImages(string $detailHtml, string $stockId): array
     {
         $base = self::IMG_BASE . $stockId . '/';
-        preg_match_all('#' . preg_quote($base, '#') . '([a-z0-9]+\.jpe?g)#i', $detailHtml, $m);
+        // match EVERY common image extension, not just jpg — jaftim mixes jpg / jpeg
+        // and may use png / webp / avif / gif; hard-coding .jpg silently dropped cars.
+        preg_match_all('#' . preg_quote($base, '#') . '([a-z0-9_-]+\.(?:jpe?g|png|webp|avif|gif|bmp))#i', $detailHtml, $m);
         $seen = [];
         $files = [];
         foreach ($m[1] as $file) {
