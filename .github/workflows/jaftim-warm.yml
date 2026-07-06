@@ -1,0 +1,47 @@
+name: Warm jaftim galleries into Bunny CDN
+
+# Free multi-egress image warmer for jaftim. 20 parallel runners (= 20 different
+# egress IPs) each read their manifest shard, DOWNLOAD every image via the Bunny
+# pull-zone (sm-jaftim.b-cdn.net — origin erp.jaftim.com throttles our-style IPs,
+# so we let the Bunny edge pull-and-cache), then PUT it straight into the Bunny
+# perma-cache storage zone. The pull-zone then serves every gallery image as a
+# cache HIT with no origin pull.
+#
+# SETUP (one-time):
+#   1. Push this repo to GitHub with the .github/warm-manifest/jaftim-*.txt files
+#      committed — generate them with:
+#        php artisan products:export-warm-manifest --website=jaftim
+#   2. Repo -> Settings -> Secrets and variables -> Actions -> New secret:
+#        name  = BUNNY_STORAGE_KEY
+#        value = the suprememotors-media storage-zone password.
+#      (Same secret the autotrader warmer already uses.)
+#   3. Actions tab -> "Warm jaftim galleries into Bunny CDN" -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      website:
+        description: manifest prefix to warm
+        default: jaftim
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Warm jaftim shard ${{ matrix.shard }}
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          STORAGE_ZONE: suprememotors-media
+          PZDIR: pullzone__sm-jaftim__6114037
+          POOL: '25'
+        run: bash scripts/warm-shard-jaftim.sh ".github/warm-manifest/${{ github.event.inputs.website || 'jaftim' }}-${{ matrix.shard }}.txt"
