@@ -149,33 +149,39 @@ class JaftimParser
         ];
     }
 
-    /** real gallery list off a detail page: f.jpg + 1..N.jpg in order */
+    /**
+     * Real gallery list off a detail page, in order. Images may be .jpg OR .jpeg
+     * (jaftim mixes both — matching only .jpg silently dropped every .jpeg car).
+     * Returns [] when the page truly has no photos (caller treats that as image-less).
+     */
     public function parseGalleryImages(string $detailHtml, string $stockId): array
     {
         $base = self::IMG_BASE . $stockId . '/';
-        preg_match_all('#' . preg_quote($base, '#') . '([a-z0-9]+)\.jpg#i', $detailHtml, $m);
+        preg_match_all('#' . preg_quote($base, '#') . '([a-z0-9]+\.jpe?g)#i', $detailHtml, $m);
         $seen = [];
-        $order = [];
-        foreach ($m[1] as $name) {
-            if (!isset($seen[$name])) {
-                $seen[$name] = true;
-                $order[] = $name;
+        $files = [];
+        foreach ($m[1] as $file) {
+            $file = strtolower($file);
+            if (!isset($seen[$file])) {
+                $seen[$file] = true;
+                $files[] = $file;
             }
         }
-        // front first, then numeric ascending
-        usort($order, function ($a, $b) {
-            if ($a === 'f') {
+        // front (f.*) first, then numeric ascending
+        usort($files, function ($a, $b) {
+            $an = preg_replace('/\.[a-z]+$/', '', $a);
+            $bn = preg_replace('/\.[a-z]+$/', '', $b);
+            if ($an === 'f') {
                 return -1;
             }
-            if ($b === 'f') {
+            if ($bn === 'f') {
                 return 1;
             }
 
-            return (int) $a <=> (int) $b;
+            return (int) $an <=> (int) $bn;
         });
-        $urls = array_map(fn ($n) => $base . $n . '.jpg', $order);
 
-        return $urls !== [] ? $urls : [$base . 'f.jpg'];
+        return array_map(fn ($f) => $base . $f, $files);
     }
 
     private function transmission(?string $t): ?string
