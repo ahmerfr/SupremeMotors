@@ -219,7 +219,7 @@ const pageLinks = [
                     >{{ searching ? 'Searching…' : 'Search' }}</button>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 22px; flex-shrink: 0">
+                <div class="sm-headright" style="display: flex; align-items: center; gap: 22px; flex-shrink: 0">
                     <Link href="/contact-us" class="sm-helplink" style="display: flex; align-items: center; gap: 10px; white-space: nowrap; transition: opacity 0.15s; text-decoration: none">
                         <svg width="22" height="22" viewBox="0 0 20 20" fill="none"><path d="M4 12v-2a6 6 0 0 1 12 0v2" stroke="#c2cfe2" stroke-width="1.6" stroke-linecap="round" /><rect x="2.6" y="11" width="3.4" height="5" rx="1.6" stroke="#c2cfe2" stroke-width="1.5" /><rect x="14" y="11" width="3.4" height="5" rx="1.6" stroke="#c2cfe2" stroke-width="1.5" /><path d="M16 16v.6a2 2 0 0 1-2 2h-2.4" stroke="#c2cfe2" stroke-width="1.5" stroke-linecap="round" /></svg>
                         <span style="line-height: 1.3">
@@ -294,7 +294,7 @@ const pageLinks = [
         </div>
 
         <!-- Mobile menu -->
-        <div v-if="menuOpen" style="border-top: 1px solid rgba(255, 255, 255, 0.08); background: #0b1e3b; padding: 14px 24px 20px">
+        <div v-if="menuOpen" style="border-top: 1px solid rgba(255, 255, 255, 0.08); background: #0b1e3b; padding: 14px 24px 20px; max-height: calc(100vh - 150px); overflow-y: auto; -webkit-overflow-scrolling: touch">
             <div style="position: relative; margin-bottom: 14px">
                 <input
                     v-model="search"

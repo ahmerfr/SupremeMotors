@@ -80,18 +80,10 @@ class Products extends Model
      */
     public function getShowPriceAttribute(): bool
     {
-        if (($this->price ?? 0) <= 0) {
-            return false;
-        }
-        $site = $this->website ?? '';
-
-        foreach (self::PRICE_VISIBLE_SITES as $visible) {
-            if (str_contains($site, $visible)) {
-                return true;
-            }
-        }
-
-        return false;
+        // show the price for EVERY car that has one (>0). Cars with no/zero price
+        // still fall back to "Enquire". (Was previously restricted to a whitelist
+        // of sources — the store now displays all real prices.)
+        return ($this->price ?? 0) > 0;
     }
 
     public function category()
