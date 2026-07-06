@@ -27,6 +27,7 @@ class ScrapeJaftim extends Command
         {--preview=0 : fetch N cars (page 1) + galleries and render a preview page — NO DB writes}
         {--run : fetch all pages and INSERT new jaftim rows into the LOCAL db}
         {--export-chunk : dump website=jaftim rows to db-export/jaftim-*.zip for live import}
+        {--fix-images : re-fetch galleries for image-poor jaftim rows + point images to the Bunny CDN}
         {--per-page=500 : cars per listing request}
         {--pool=25 : concurrent detail-gallery fetches}
         {--gallery-limit=12 : store front + up to this many gallery images}
@@ -63,6 +64,9 @@ class ScrapeJaftim extends Command
 
         if ($this->option('export-chunk')) {
             return $this->exportChunk();
+        }
+        if ($this->option('fix-images')) {
+            return $this->fixImages();
         }
         if ((int) $this->option('preview') > 0) {
             return $this->preview((int) $this->option('preview'));
@@ -289,6 +293,73 @@ class ScrapeJaftim extends Command
         $this->info('EXPORTED ' . number_format($n) . ' jaftim rows -> ' . $zip
             . ' (' . round(filesize($zip) / 1024 / 1024, 1) . ' MB)');
         $this->line('Import on live: phpMyAdmin -> Import -> jaftim-products.zip  (pure INSERTs, adds only new rows)');
+
+        return self::SUCCESS;
+    }
+
+    /* ------------------------------------------------------------- fix images */
+
+    /**
+     * Re-fetch real galleries for jaftim rows that only got the fallback f.jpg
+     * (their detail fetch failed during the flaky scrape), and point every jaftim
+     * image at the sm-jaftim Bunny pull-zone so visitors never hit erp directly.
+     */
+    private function fixImages(): int
+    {
+        $cdn = 'https://sm-jaftim.b-cdn.net';
+        $erp = 'https://erp.jaftim.com';
+        $pool = min(max(4, (int) $this->option('pool')), 8); // gentle — jaftim throttles
+        $limit = (int) $this->option('gallery-limit');
+
+        $rows = DB::table('products')->where('website', 'jaftim')
+            ->whereRaw('JSON_LENGTH(other_images) <= 1')
+            ->select('id', 'product_link')->get()->all();
+        $this->info(count($rows) . ' image-poor rows to re-fetch (gentle pool ' . $pool . ')');
+
+        $fixed = 0;
+        $noimg = 0;
+        foreach (array_chunk($rows, $pool * 3) as $batch) {
+            // two passes so a flaky miss gets another shot
+            $pending = $batch;
+            for ($pass = 1; $pass <= 3 && $pending !== []; $pass++) {
+                $req = [];
+                foreach ($pending as $r) {
+                    $req[$r->id] = ['method' => 'GET', 'url' => $r->product_link, 'headers' => $this->headers()];
+                }
+                $res = $this->curl->parallel($req, $this->jar, $pool, 40);
+                $next = [];
+                foreach ($pending as $r) {
+                    [$status, $html] = $res[$r->id] ?? [0, ''];
+                    if ($status !== 200 || $html === '') {
+                        $next[] = $r;
+
+                        continue;
+                    }
+                    $sid = preg_match('~/(\d+)/?$~', $r->product_link, $m) ? $m[1] : '';
+                    $imgs = $sid ? $this->parser->parseGalleryImages($html, $sid) : [];
+                    $imgs = array_values(array_filter(array_map(fn ($u) => str_replace($erp, $cdn, $u), $imgs)));
+                    $real = array_values(array_filter($imgs, fn ($u) => !str_ends_with($u, '/f.jpg')));
+                    if ($real !== []) {
+                        $keep = array_slice($imgs, 0, $limit + 1);
+                        DB::table('products')->where('id', $r->id)->update([
+                            'front_image' => $keep[0],
+                            'other_images' => json_encode($keep, JSON_UNESCAPED_SLASHES),
+                            'other_images_source' => json_encode(array_map(fn ($u) => str_replace($cdn, $erp, $u), $keep), JSON_UNESCAPED_SLASHES),
+                        ]);
+                        $fixed++;
+                    } else {
+                        $noimg++;   // detail page genuinely has no photos
+                    }
+                }
+                $pending = $next;
+                if ($pending !== []) {
+                    usleep(1500000);
+                }
+            }
+            usleep(400000); // gentle pace between batches
+            $this->info("  progress: fixed {$fixed}, no-image {$noimg}");
+        }
+        $this->info("FIX-IMAGES DONE: {$fixed} galleries recovered, {$noimg} genuinely image-less. All jaftim images now point to {$cdn}.");
 
         return self::SUCCESS;
     }
