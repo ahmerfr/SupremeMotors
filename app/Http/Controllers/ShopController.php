@@ -180,7 +180,11 @@ class ShopController extends Controller
             // sort first but are few; keeping it a pure ORDER BY preserves the
             // sort-independent count cache.
             'mileage_asc' => $query->orderBy('mileage_km'),
-            default => $query->orderByDesc('created_at'),
+            // DEFAULT: stable random shuffle so the grid isn't row-after-row of the
+            // same price (AutoTrader was scraped in price-band order, so created_at
+            // clustered identical prices together). Served off products_shuffle_idx
+            // / (country|category_id, shuffle_key) composites — no filesort.
+            default => $query->orderBy('shuffle_key'),
         };
     }
 

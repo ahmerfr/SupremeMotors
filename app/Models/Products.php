@@ -48,7 +48,19 @@ class Products extends Model
         'other_images_source',
         'product_details',
         'specifications',
+        'shuffle_key',
     ];
+
+    /** Give every new row a stable random shuffle_key so the default inventory
+     *  order stays well-mixed (not clustered by scrape/price-band insertion). */
+    protected static function booted(): void
+    {
+        static::creating(function (self $p) {
+            if ($p->shuffle_key === null) {
+                $p->shuffle_key = random_int(0, 4294967295);
+            }
+        });
+    }
 
     protected $casts = [
         'price' => 'float',
