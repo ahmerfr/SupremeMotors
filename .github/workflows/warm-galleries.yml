@@ -1,0 +1,45 @@
+name: Warm galleries into Bunny CDN
+
+# Free multi-egress image warmer. 20 parallel runners (= 20 different egress
+# IPs) each download their manifest shard from m.atcdn and PUT the images
+# straight into the Bunny perma-cache storage zone, so the pull-zone then serves
+# every gallery image as a cache HIT with no origin pull. ~2M images finish in
+# ~2-3h instead of the ~16-30h a single home IP takes (origin-rate-capped).
+#
+# SETUP (one-time):
+#   1. Push this repo to GitHub (the .github/warm-manifest/*.txt files must be
+#      committed — generate them with:  php artisan products:export-warm-manifest).
+#   2. Repo → Settings → Secrets and variables → Actions → New secret:
+#        name  = BUNNY_STORAGE_KEY
+#        value = the suprememotors-media storage-zone password (Bunny → Storage
+#                → suprememotors-media → FTP & API Access → Password).
+#   3. Actions tab → "Warm galleries into Bunny CDN" → Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      website:
+        description: manifest prefix to warm
+        default: autotraderuk
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Warm shard ${{ matrix.shard }}
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          STORAGE_ZONE: suprememotors-media
+          PZDIR: pullzone__sm-autotraderuk__56344427
+          POOL: '25'
+        run: bash scripts/warm-shard.sh ".github/warm-manifest/${{ github.event.inputs.website || 'autotraderuk' }}-${{ matrix.shard }}.txt.gz"
