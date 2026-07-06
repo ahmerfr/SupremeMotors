@@ -272,7 +272,7 @@ const specGroups = computed(() => [
 
 const drawerOpen = ref(false);
 const staged = ref(emptyState());
-const openSections = reactive({ body: true, year: true, mileage: true, spec: false, commercial: false });
+const openSections = reactive({ body: true, price: true, origin: false, year: true, mileage: true, spec: false, commercial: false });
 const sectionEls = {};
 const bindSection = (name) => (el) => { if (el) sectionEls[name] = el; };
 
@@ -655,6 +655,21 @@ watch(drawerOpen, (open) => {
                                     <span style="flex: 1">{{ c.cat_title }}</span>
                                     <span class="sm-fcount">{{ Number(c.products_count).toLocaleString() }}</span>
                                 </label>
+                                <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin: 14px 0 6px">MAKE</div>
+                                <input
+                                    v-model="makeSearch"
+                                    type="text"
+                                    placeholder="Search makes…"
+                                    style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
+                                />
+                                <label v-for="m in sidebarMakes" :key="'dm' + m.id" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="staged.make.includes(String(m.id))" @change="toggleIn(staged.make, String(m.id))" />
+                                    <span style="flex: 1">{{ m.cat_title }}</span>
+                                    <span class="sm-fcount">{{ Number(m.products_count).toLocaleString() }}</span>
+                                </label>
+                                <button v-if="!showAllMakes && !makeSearch && makes.length > 8" type="button" class="sm-smore" @click="showAllMakes = true">
+                                    Show all {{ makes.length }} makes
+                                </button>
                                 <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8895ab; margin: 14px 0 6px">BODY TYPE</div>
                                 <div class="sm-ftiles">
                                     <button
@@ -670,6 +685,39 @@ watch(drawerOpen, (open) => {
                                         <div class="sm-ftile-count">{{ Number(b.count).toLocaleString() }}</div>
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Price (mobile parity with desktop sidebar) -->
+                        <div class="sm-fsec">
+                            <button type="button" class="sm-fsec-head" @click="openSections.price = !openSections.price">
+                                <span>Price</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.price ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                            </button>
+                            <div v-if="openSections.price" class="sm-fsec-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+                                <select v-model="staged.price_min" class="sm-fselect">
+                                    <option value="">No min</option>
+                                    <option v-for="p in priceSteps" :key="'dpmin' + p" :value="p">{{ kFmt(p) }}</option>
+                                </select>
+                                <select v-model="staged.price_max" class="sm-fselect">
+                                    <option value="">No max</option>
+                                    <option v-for="p in priceSteps" :key="'dpmax' + p" :value="p">{{ kFmt(p) }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Origin (mobile parity with desktop sidebar) -->
+                        <div class="sm-fsec">
+                            <button type="button" class="sm-fsec-head" @click="openSections.origin = !openSections.origin">
+                                <span>Origin</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.4" stroke-linecap="round" :style="{ transform: openSections.origin ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                            </button>
+                            <div v-if="openSections.origin" class="sm-fsec-body">
+                                <label v-for="c in facets.countries ?? []" :key="'dco' + c.value" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="staged.country.includes(c.value)" @change="toggleIn(staged.country, c.value)" />
+                                    <span style="flex: 1">{{ c.value }}</span>
+                                    <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
+                                </label>
                             </div>
                         </div>
 

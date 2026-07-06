@@ -28,7 +28,7 @@ const chips = (p) => [p.year, p.fuel, p.transmission, p.mileage_km ? `${Number(p
     <Head title="Products" />
     <AdminLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col p-6">
-            <PageHeader title="Products" :subtitle="`${products.total.toLocaleString()} products on suprememotors`">
+            <PageHeader title="Products" :subtitle="`${products.total.toLocaleString()} products in catalogue`">
                 <template #actions>
                     <div class="relative">
                         <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />

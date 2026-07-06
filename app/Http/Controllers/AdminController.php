@@ -260,11 +260,11 @@ class AdminController extends Controller
     public function products_listing()
     {
         $keywords = request()->keywords;
+        // admin manages the WHOLE catalogue, not just own-brand rows — order by id
+        // (PK, fast) so the 800k+ list paginates instantly instead of sorting on
+        // the unindexed created_at.
         $products = Products::query()
-            ->where(function ($query) {
-                $query->where('website', 'suprememotors');
-            })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->with('category')->with('make');
         if ($keywords) {
             $products->where(function ($query) use ($keywords) {
@@ -272,7 +272,7 @@ class AdminController extends Controller
                     ->orWhere('description', 'like', '%' . $keywords . '%');
             });
         }
-        $products = $products->paginate(15);
+        $products = $products->paginate(24)->withQueryString();
         return $products;
     }
     public function products_create()
