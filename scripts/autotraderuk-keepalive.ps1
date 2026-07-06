@@ -108,20 +108,17 @@ if ($allBandsDone -and $nullLeft -eq 0 -and (BankedCount) -gt 0 -and -not (Test-
     Log 'DATA COMPLETE - all bands scraped and every car enriched'
 }
 
-# --- 3. Warm images into Bunny — 6 PARALLEL id-range shards (front + 9 gallery
-# per car). One worker is origin-pull-bound (~30 img/s -> ~18h); sharding the id
-# range scales ~linearly (measured 100-120 concurrent = 0 origin throttle) ->
-# ~1800 cars/min -> ~4h. Each shard owns its own cursor + warm-<shard>.done, so
-# it resumes after a crash/reboot. Bulk-pulling ALL ~8M gallery images throttled
-# the m.atcdn origin (the "1932/1932 failed" loop) — gallery-limit=9 keeps volume
-# sane; the deep-gallery tail caches on-demand via Bunny pull-on-miss.
+# --- 3. Warm front + 9 gallery pics per car into Bunny. HARD LIMIT: Bunny pulls
+# each cold image from the m.atcdn origin, which serves cold objects at a capped
+# rate — pushing past ~2 workers / ~40 concurrent OVERWHELMS the origin and the
+# pulls serve-but-don't-persist (cache stays MISS), so more concurrency is NET
+# NEGATIVE. Two workers at pool 15 (~30 concurrent) is the caching-effective
+# ceiling (~30 img/s -> full ~2M gallery pics in ~18h). The deep-gallery tail +
+# anything not yet warmed caches on-demand via Bunny pull-on-miss (0.2s origin),
+# so users never see an un-served image regardless of warm progress.
 $warmShards = @(
-    @{ n = 'ukw1'; mn = 545008; mx = 620738 },
-    @{ n = 'ukw2'; mn = 620738; mx = 696468 },
-    @{ n = 'ukw3'; mn = 696468; mx = 772198 },
-    @{ n = 'ukw4'; mn = 772198; mx = 847928 },
-    @{ n = 'ukw5'; mn = 847928; mx = 923658 },
-    @{ n = 'ukw6'; mn = 923658; mx = 999999 }
+    @{ n = 'ukwA'; mn = 545008; mx = 772198 },
+    @{ n = 'ukwB'; mn = 772198; mx = 999999 }
 )
 $warmAllDone = $true
 foreach ($w in $warmShards) { if (-not (Test-Path (Join-Path $state ('warm-' + $w.n + '.done')))) { $warmAllDone = $false } }
@@ -130,7 +127,7 @@ if ((BankedCount) -gt 0 -and -not $warmAllDone) {
         if (Test-Path (Join-Path $state ('warm-' + $w.n + '.done'))) { continue }
         $running = $phps | Where-Object { $_.CommandLine -like ('*products:warm-cdn*--shard=' + $w.n + ' *') }
         if (-not $running) {
-            Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9',('--min-id=' + $w.mn),('--max-id=' + $w.mx),('--shard=' + $w.n),'--pool=20','--timeout=30') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir ('warm-' + $w.n + '.log')) -RedirectStandardError (Join-Path $logDir ('warm-' + $w.n + '.err.log'))
+            Start-Process -FilePath $php -ArgumentList (@('artisan','products:warm-cdn','--website=autotraderuk','--gallery-limit=9',('--min-id=' + $w.mn),('--max-id=' + $w.mx),('--shard=' + $w.n),'--pool=15','--timeout=40') -join ' ') -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir ('warm-' + $w.n + '.log')) -RedirectStandardError (Join-Path $logDir ('warm-' + $w.n + '.err.log'))
             Log ('warm shard ' + $w.n + ' launched')
         }
     }
