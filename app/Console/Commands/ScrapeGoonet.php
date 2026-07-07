@@ -32,6 +32,8 @@ class ScrapeGoonet extends Command
         {--shards=1 : split the brand work-list into this many shards (one per GitHub runner)}
         {--shard=1 : which shard (1..shards) this process handles}
         {--jsonl-out= : with --run, write normalised rows as JSON-lines to this file instead of inserting to the DB (for GitHub-runner crawls with no DB)}
+        {--strip : with --run, hash each car's gallery and drop promo/ad images (seed+auto blocklist), keeping the cover — feasible on GitHub runners across 20 IPs}
+        {--import-jsonl= : load crawl JSONL file(s) (a dir or one file) into the DB, insert-only + dedup-safe}
         {--pool=6 : concurrent detail fetches (the site rate-limits above ~8)}
         {--gallery-limit=40 : store front + up to this many gallery images}
         {--jpy-usd=0.00622 : JPY->USD rate (goo-net implies ~0.00622 = 160.6 JPY/USD)}
@@ -74,6 +76,9 @@ class ScrapeGoonet extends Command
         }
         if ($this->option('run')) {
             return $this->runInsert();
+        }
+        if ($this->option('import-jsonl')) {
+            return $this->importJsonl();
         }
         if ($this->option('export-chunk')) {
             return $this->exportChunk();
@@ -466,6 +471,8 @@ class ScrapeGoonet extends Command
         $pool = max(2, min((int) $this->option('pool'), 8));
         $limit = (int) $this->option('gallery-limit');
         $maxPages = (int) $this->option('max-pages');
+        $strip = (bool) $this->option('strip');
+        $blockset = $strip ? $this->loadBlocklist() : [];
 
         // brand work-list: from --enumerate file if present, else the homepage
         $brands = [];
@@ -530,6 +537,11 @@ class ScrapeGoonet extends Command
                         continue;
                     }
                     $row['images'] = array_slice($row['images'], 0, $limit + 1);
+                    if ($strip) {
+                        $s = 0;
+                        $row['images'] = $this->stripPromos($row['images'], $blockset, $pool, $s);
+                        $row['front_image'] = $row['images'][0] ?? $row['front_image'];
+                    }
                     if ($jh !== null) {
                         fwrite($jh, json_encode($row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
                         $this->inserted++;
@@ -584,6 +596,44 @@ class ScrapeGoonet extends Command
         } catch (\Throwable $e) {
             $this->warn('insert failed ' . $r['product_link'] . ': ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Load crawl JSONL (one normalised row per line, as written by --run --jsonl-out
+     * on the GitHub runners) into the DB. Insert-only + dedup-safe on product_link.
+     */
+    private function importJsonl(): int
+    {
+        $path = (string) $this->option('import-jsonl');
+        $files = is_dir($path) ? glob(rtrim($path, '/\\') . '/*.jsonl') : [$path];
+        if ($files === [] || $files === false) {
+            $this->error("no .jsonl found at {$path}");
+
+            return self::FAILURE;
+        }
+        $existing = DB::table('products')->where('website', 'goonet')->pluck('product_link')->flip();
+        $this->info(count($existing) . ' goonet rows already present. Importing ' . count($files) . ' file(s)...');
+
+        foreach ($files as $f) {
+            $fh = fopen($f, 'r');
+            while (($line = fgets($fh)) !== false) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                $row = json_decode($line, true);
+                if (!is_array($row) || empty($row['product_link']) || isset($existing[$row['product_link']])) {
+                    continue;
+                }
+                $this->insertRow($row);
+                $existing[$row['product_link']] = true;
+            }
+            fclose($fh);
+            $this->info('  ' . basename($f) . ": running total {$this->inserted}");
+        }
+        $this->info("IMPORT DONE: inserted {$this->inserted} goonet rows.");
+
+        return self::SUCCESS;
     }
 
     /* ------------------------------------------------------------ chunk export */

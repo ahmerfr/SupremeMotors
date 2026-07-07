@@ -93,6 +93,7 @@ jobs:
           --shards=${{ github.event.inputs.shards || '20' }}
           --shard=${{ matrix.shard }}
           --jsonl-out=goonet-shard-${{ matrix.shard }}.jsonl
+          --strip
           --pool=6
       - uses: actions/upload-artifact@v4
         with:
