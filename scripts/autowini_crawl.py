@@ -271,7 +271,7 @@ def parse_car(url):
         "engine_cc": engine, "drive_type": drive, "doors": doors,
         "seats": seats, "steering": steering,
         "price_usd": price, "price": price,
-        "category_id": 20, "country": COUNTRY, "trade_port": port,
+        "category_id": 20, "country": country, "trade_port": port,
         "product_link": detail_url,
         "front_image": images[0] if images else None, "images": images,
         "product_details": details,
