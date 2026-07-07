@@ -7,6 +7,7 @@ use App\Services\GoonetParser;
 use App\Services\SchannelCurl;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Scrape goo-net-exchange.com — Japanese used-car export inventory.
@@ -28,6 +29,7 @@ class ScrapeGoonet extends Command
         {--preview=0 : fetch N cars (listing+detail) and render public/goonet-preview.html — NO DB writes}
         {--run : crawl all brands and INSERT new goonet rows into the LOCAL db}
         {--export-chunk : dump website=goonet rows to db-export/goonet-*.zip for live import}
+        {--chunk-rows=15000 : rows per SQL chunk file for --export-chunk}
         {--brand= : restrict --preview/--run to one brand_cd (default: all; preview default Toyota 1010)}
         {--shards=1 : split the brand work-list into this many shards (one per GitHub runner)}
         {--shard=1 : which shard (1..shards) this process handles}
@@ -688,41 +690,133 @@ class ScrapeGoonet extends Command
 
     /* ------------------------------------------------------------ chunk export */
 
+    /**
+     * Export goonet inventory as upload-friendly SQL chunks for shared hosting
+     * (phpMyAdmin/File-Manager). One ~600 MB dump chokes those tools, so we split
+     * into N files of --chunk-rows each, batched extended-inserts (300 rows/stmt),
+     * each file wrapped in its own transaction. Chunk 1 carries the DELETE; a final
+     * finalize file regenerates stock_code. Import the files in numeric order.
+     *
+     * `id` (auto-inc) and `stock_code` are omitted so re-inserting can't collide
+     * with existing non-goonet ids on live; stock_code is rebuilt from the new id.
+     */
     private function exportChunk(): int
     {
         $n = DB::table('products')->where('website', 'goonet')->count();
         if ($n === 0) {
-            $this->error('no goonet rows — run --run first');
+            $this->error('no goonet rows — import first');
 
             return self::FAILURE;
         }
+        $chunkRows = max(1000, (int) ($this->option('chunk-rows') ?: 15000));
+        $perStmt = 300; // rows per extended-INSERT statement (stays well under max_allowed_packet)
+
+        // export every column except the auto-inc id and the id-derived stock_code
+        $cols = array_values(array_filter(
+            Schema::getColumnListing('products'),
+            fn ($c) => !in_array($c, ['id', 'stock_code'], true)
+        ));
+        $colList = implode(', ', array_map(fn ($c) => "`$c`", $cols));
+        $pdo = DB::connection()->getPdo();
+        $q = fn ($v) => $v === null ? 'NULL' : $pdo->quote((string) $v);
+
         $dir = base_path('db-export');
-        @mkdir($dir, 0777, true);
-        $sql = $dir . '/goonet-products.sql';
-        $dump = 'C:\\xampp\\mysql\\bin\\mysqldump.exe';
-        $cmd = '"' . $dump . '" -h 127.0.0.1 -P 3307 -u root --single-transaction --quick'
-            . ' --no-create-info --skip-triggers --no-tablespaces --skip-lock-tables'
-            . ' --skip-add-locks --skip-disable-keys'
-            . ' --where="website=\'goonet\'" supreme_motors products';
-        exec($cmd . ' > "' . $sql . '" 2>&1', $out, $rc);
-        if ($rc !== 0 || !is_file($sql)) {
-            $this->error('mysqldump failed: ' . implode("\n", $out));
-
-            return self::FAILURE;
+        $work = $dir . '/goonet-chunks';
+        if (is_dir($work)) {
+            array_map('unlink', (array) glob($work . '/*'));
         }
-        $header = "-- Supreme Motors — goo-net inventory chunk (atomic replace).\n"
-            . "START TRANSACTION;\n"
-            . "DELETE FROM `products` WHERE `website`='goonet';\n\n";
-        file_put_contents($sql, $header . file_get_contents($sql) . "\nCOMMIT;\n");
+        @mkdir($work, 0777, true);
 
-        $zip = $dir . '/goonet-products.zip';
+        $files = (int) ceil($n / $chunkRows);
+        $this->info("Exporting " . number_format($n) . " rows -> {$files} chunk(s) of {$chunkRows} + finalize...");
+
+        $fileIdx = 0;
+        $written = 0;
+        $fh = null;
+        $rowInStmt = 0;
+
+        // chunks are written gzip-compressed (.sql.gz): phpMyAdmin imports them
+        // directly and the upload stays tiny — a raw .sql would blow the host's
+        // upload_max_filesize (the gallery JSON is large and stored twice).
+        $openFile = function () use (&$fh, &$fileIdx, &$rowInStmt, $work, $files, $colList) {
+            $fileIdx++;
+            $name = sprintf('%s/goonet-%02dof%02d.sql.gz', $work, $fileIdx, $files);
+            $fh = gzopen($name, 'wb6');
+            gzwrite($fh, "-- Supreme Motors goo-net inventory — chunk {$fileIdx}/{$files}. Import in order.\n");
+            gzwrite($fh, "SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\nSTART TRANSACTION;\n");
+            if ($fileIdx === 1) {
+                gzwrite($fh, "DELETE FROM `products` WHERE `website`='goonet';\n");
+            }
+            $rowInStmt = 0;
+        };
+        $closeStmt = function () use (&$fh, &$rowInStmt) {
+            if ($rowInStmt > 0) {
+                gzwrite($fh, ";\n");
+                $rowInStmt = 0;
+            }
+        };
+        $closeFile = function () use (&$fh, $closeStmt) {
+            if ($fh) {
+                $closeStmt();
+                gzwrite($fh, "COMMIT;\nSET FOREIGN_KEY_CHECKS=1;\n");
+                gzclose($fh);
+                $fh = null;
+            }
+        };
+
+        $openFile();
+        DB::table('products')->where('website', 'goonet')->orderBy('id')
+            ->each(function ($r) use (&$fh, &$written, &$rowInStmt, $cols, $colList, $q, $chunkRows, $perStmt, $openFile, $closeFile, $closeStmt) {
+                if ($written > 0 && $written % $chunkRows === 0) {
+                    $closeFile();
+                    $openFile();
+                }
+                if ($rowInStmt === 0) {
+                    gzwrite($fh, "INSERT INTO `products` ({$colList}) VALUES\n");
+                } else {
+                    gzwrite($fh, ",\n");
+                }
+                $vals = implode(', ', array_map(fn ($c) => $q($r->{$c} ?? null), $cols));
+                gzwrite($fh, "({$vals})");
+                $rowInStmt++;
+                $written++;
+                if ($rowInStmt >= $perStmt) {
+                    $closeStmt();
+                }
+            });
+        $closeFile();
+
+        // finalize: rebuild stock_code from the freshly-assigned ids
+        $fin = sprintf('%s/goonet-%02dof%02d-finalize.sql', $work, $files + 1, $files);
+        file_put_contents($fin,
+            "-- Run LAST: rebuild stock_code from new ids.\n"
+            . "UPDATE `products` SET `stock_code`=CONCAT('GN', id) "
+            . "WHERE `website`='goonet' AND (`stock_code` IS NULL OR `stock_code`='');\n");
+
+        // README + zip everything
+        file_put_contents($work . '/README.txt',
+            "Supreme Motors — goo-net inventory (" . number_format($n) . " cars)\n"
+            . str_repeat('=', 52) . "\n\n"
+            . "Files are gzipped SQL (.sql.gz). phpMyAdmin's Import tab reads .gz\n"
+            . "directly (small upload, decompressed server-side); or via CLI:\n"
+            . "    zcat goonet-01of{$files}.sql.gz | mysql -u USER -p DBNAME\n\n"
+            . "Import IN ORDER. Each file is its own transaction, safe one at a time:\n\n"
+            . "  1. goonet-01of{$files}.sql.gz   <- clears old goonet rows, then inserts\n"
+            . "  2. goonet-02of{$files}.sql.gz ... goonet-{$files}of{$files}.sql.gz\n"
+            . "  3. goonet-" . sprintf('%02d', $files + 1) . "of{$files}-finalize.sql  <- run LAST (rebuilds stock codes)\n\n"
+            . "If your host's upload limit is very low, regenerate smaller chunks:\n"
+            . "    php artisan scrape:goonet --export-chunk --chunk-rows=5000\n\n"
+            . "After importing, clear caches on live:  php artisan cache:clear\n");
+
+        $zip = $dir . '/goonet-products-chunks.zip';
         $z = new \ZipArchive;
         $z->open($zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-        $z->addFile($sql, 'goonet-products.sql');
+        foreach ((array) glob($work . '/*') as $f) {
+            $z->addFile($f, basename($f));
+        }
         $z->close();
-        @unlink($sql);
-        $this->info('EXPORTED ' . number_format($n) . ' goonet rows -> ' . $zip
-            . ' (' . round(filesize($zip) / 1024 / 1024, 1) . ' MB)');
+        $this->info('EXPORTED ' . number_format($written) . " rows -> {$zip} "
+            . '(' . round(filesize($zip) / 1024 / 1024, 1) . " MB, {$files} chunks + finalize)");
 
         return self::SUCCESS;
     }
