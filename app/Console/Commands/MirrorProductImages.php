@@ -86,6 +86,23 @@ class MirrorProductImages extends Command
     }
 
     /**
+     * Headers for downloading a source image. Some CDNs hotlink-protect their
+     * images (403 without a matching Referer) — autowini.com is one, so it must
+     * be fetched with a Referer of its own site or every image comes back 403 and
+     * gets marked dead. Add other hotlink-protected hosts here as needed.
+     */
+    private function downloadHeaders(string $url): array
+    {
+        $headers = ['User-Agent' => self::USER_AGENT];
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if (str_contains($host, 'autowini.com')) {
+            $headers['Referer'] = 'https://www.autowini.com/';
+        }
+
+        return $headers;
+    }
+
+    /**
      * Mirror the front image and every gallery image of one product.
      * Returns true if anything was mirrored.
      */
@@ -116,7 +133,7 @@ class MirrorProductImages extends Command
         foreach (array_chunk($jobs, self::POOL, true) as $slice) {
             $responses = Http::pool(fn ($pool) => collect($slice)->map(
                 fn ($job, $k) => $pool->as((string) $k)
-                    ->withHeaders(['User-Agent' => self::USER_AGENT])->timeout(25)->get($job['url'])
+                    ->withHeaders($this->downloadHeaders($job['url']))->timeout(25)->get($job['url'])
             )->all());
             foreach ($slice as $k => $job) {
                 $resp = $responses[(string) $k] ?? null;

@@ -1,0 +1,41 @@
+name: autowini crawl (sharded)
+
+# Crawls all ~207,855 autowini.com car listings, sharded across 20 runner IPs
+# (each a distinct egress IP, so autowini's per-IP rate limit doesn't bite). Each
+# runner reads its committed link shard, parses via scripts/autowini_crawl.py
+# (public /items JSON + detail-page spec block + gallery), and uploads JSONL.
+# Merge locally, then import + chunk via `php artisan scrape:autowini`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pool:
+        description: threads per runner
+        default: '8'
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Crawl shard ${{ matrix.shard }}
+        run: >
+          python scripts/autowini_crawl_shard.py
+          scripts/autowini-shards/links-${{ matrix.shard }}.txt.gz
+          autowini-${{ matrix.shard }}.jsonl
+          ${{ github.event.inputs.pool || '8' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autowini-${{ matrix.shard }}
+          path: autowini-${{ matrix.shard }}.jsonl
+          if-no-files-found: error
