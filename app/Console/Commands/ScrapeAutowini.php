@@ -72,9 +72,9 @@ class ScrapeAutowini extends Command
                 }
                 $existing[$row['product_link']] = true;
                 $batch[] = $this->rowToInsert($row);
-                if (count($batch) >= 500) {
+                if (count($batch) >= 100) {
                     $flush();
-                    if ($this->inserted % 20000 < 500) {
+                    if ($this->inserted % 20000 < 100) {
                         $this->info("  inserted {$this->inserted}");
                     }
                 }
