@@ -523,4 +523,6 @@ if __name__ == "__main__":
                int(sys.argv[4]) if len(sys.argv) > 4 else 1,
                int(sys.argv[5]) if len(sys.argv) > 5 else 12)
     elif mode == "strip":
-        do_strip(sys.argv[2], sys.argv[3], pool=int(sys.argv[4]) if len(sys.argv) > 4 else 100)
+        do_strip(sys.argv[2], sys.argv[3],
+                 cap=int(sys.argv[5]) if len(sys.argv) > 5 else 10,
+                 pool=int(sys.argv[4]) if len(sys.argv) > 4 else 100)
