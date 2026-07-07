@@ -1,0 +1,44 @@
+name: goo-net re-enrich (Repaired + fixes + gallery sizes)
+
+# Re-fetches all 254k detail pages (sharded by committed product-link lists) to
+# capture the Repaired/accident-history field, apply the fixed drive/doors/body/
+# make normalizers, and HEAD-size the first-30 gallery images (so promos can be
+# stripped at a cap of 30 instead of 10). Each runner = a distinct egress IP, so
+# no single-IP throttle. Outputs rows-NN.jsonl (enriched) + sizes-NN.tsv.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pool:
+        description: threads per runner
+        default: '24'
+
+jobs:
+  reenrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Re-enrich shard ${{ matrix.shard }}
+        run: >
+          python scripts/goonet_reenrich_shard.py
+          scripts/reenrich-shards/links-${{ matrix.shard }}.txt.gz
+          rows-${{ matrix.shard }}.jsonl
+          sizes-${{ matrix.shard }}.tsv
+          ${{ github.event.inputs.pool || '24' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reenrich-${{ matrix.shard }}
+          path: |
+            rows-${{ matrix.shard }}.jsonl
+            sizes-${{ matrix.shard }}.tsv
+          if-no-files-found: error

@@ -131,18 +131,68 @@ def _norm_fuel(f):
 
 
 def _norm_trans(t):
-    u = (t or "").upper()
-    if not u: return None
-    if u.startswith("AT") or "AUTO" in u or u == "CVT": return "Automatic"
+    u = (t or "").strip().upper()
+    if not u or u in ("-", "--", "?"): return None
+    if u.startswith("AT") or "AUTO" in u or u in ("CVT", "DCT", "AMT", "DSG", "EAT"): return "Automatic"
     if u.startswith("MT") or "MANUAL" in u: return "Manual"
     return _title_case(u)
 
 
 def _norm_drive(d):
-    u = (d or "").upper()
-    if u in ("4WD", "AWD"): return "Four Wheel Drive"
-    if u in ("2WD", "FF", "FR"): return "2WD"
+    u = (d or "").strip().upper()
+    if not u or u in ("-", "--", "?"): return None
+    if u == "4WD": return "Four Wheel Drive"
+    if u == "AWD": return "AWD"
+    if u in ("FF", "FWD"): return "FWD"
+    if u in ("FR", "RWD", "MR", "RR"): return "RWD"
+    if u == "2WD": return "2WD"
+    return _title_case(u)
+
+
+# goo-net puts a body descriptor in the "Doors" field for some cars (OPEN, COUPE,
+# 4DHT, etc). Split it into a numeric door count (when present) and a body hint.
+_DOORS_BODY = {"OPEN": ("Convertible", 2), "COUPE": ("Coupe", 2), "CONVERTIBLE": ("Convertible", 2),
+               "CABRIOLET": ("Convertible", 2), "HARDTOP": ("Hardtop", None), "WAGON": ("Wagon", None),
+               "HATCHBACK": ("Hatchback", None), "SEDAN": ("Sedan", None), "SUV": ("SUV", None),
+               "MINIVAN": ("Minivan", None), "TRUCK": ("Pickup", None)}
+
+def _doors_body(raw):
+    """Return (doors:int|None, body_hint:str|None) from the raw Doors field."""
+    if not raw:
+        return None, None
+    u = raw.strip().upper()
+    # e.g. "4DHT" = 4-door hardtop, "2D" = 2-door
+    dm = re.match(r"(\d)\s*D", u)
+    doors = int(dm.group(1)) if dm else None
+    if "HT" in u and "D" in u:
+        return doors, "Hardtop"
+    for k, (b, d) in _DOORS_BODY.items():
+        if k in u:
+            return (doors if doors else d), b
+    return doors, None
+
+
+def _norm_repaired(r):
+    """goo-net repair/accident history. -> 'No' | 'Yes' | 'Repaired' | None."""
+    u = (r or "").strip().upper()
+    if not u or u in ("-", "?"): return None
+    if "NO REPAIR" in u or u == "NO": return "No"
+    if "MAJOR" in u: return "Repaired (Major)"
+    if "YES" in u or "REPAIR" in u: return "Repaired"
     return None
+
+
+# region prefixes that leak into the maker token on some goo-net URLs
+# (e.g. AMERICA_MITSUBISHI, CANADA_HONDA, THAILAND_OTHER). Strip when a real
+# make follows; keep the token intact if stripping would leave nothing.
+_REGION_PREFIX = {"America", "Canada", "Thailand", "Europe", "Australia", "England",
+                  "Germany", "France", "Italy", "China", "Korea", "India"}
+
+def _clean_make(make):
+    parts = (make or "").split()
+    if len(parts) >= 2 and parts[0] in _REGION_PREFIX:
+        return " ".join(parts[1:])
+    return make
 
 
 def _norm_steer(s):
@@ -186,7 +236,7 @@ def parse_detail(html, url):
     m = re.search(r"/usedcars/([A-Z0-9_]+)/([A-Za-z0-9_%-]+)/(\d{15,25})/", url)
     if not m:
         return None
-    make = _title_case(m.group(1).replace("_", " "))
+    make = _clean_make(_title_case(m.group(1).replace("_", " ")))
     model = _title_case(m.group(2).replace("_", " ").replace("%20", " "))
     stock = m.group(3)
     pm = re.search(r'"price"\s*:\s*"?(\d+)"?', html)
@@ -202,33 +252,38 @@ def parse_detail(html, url):
     cov = cover(stock)
     images = [cov] + [g for g in gal if g != cov]
     fuel = _norm_fuel(_dd(html, "Fuel"))
+    doors, body_hint = _doors_body(_dd(html, "Doors"))
+    body_style = _body(model) or body_hint
+    repaired = _norm_repaired(_dd(html, "Repaired"))
+    trans = _norm_trans(_dd(html, "Transmission"))
+    drive = _norm_drive(_dd(html, "Drive System"))
+    steer = _norm_steer(_dd(html, "Steering"))
+    color = _clean(_dd(html, "Color"))
     title = " ".join(str(x) for x in [make, model, year] if x) or ("Goo-net " + stock)
     return {
         "stock_id": stock, "title": title[:255], "make": make, "model": model,
         "grade": grade, "year": year, "mileage_km": _int(_dd(html, "Mileage")) or None,
-        "fuel": fuel, "transmission": _norm_trans(_dd(html, "Transmission")),
-        "condition": "Used", "color": _clean(_dd(html, "Color")),
-        "body_style": _body(model),
+        "fuel": fuel, "transmission": trans,
+        "condition": "Used", "color": color,
+        "body_style": body_style,
         "engine_cc": (_int(_dd(html, "Displacement")) or None),
-        "drive_type": _norm_drive(_dd(html, "Drive System")),
-        "doors": (_int(_dd(html, "Doors")) or None),
-        "steering": _norm_steer(_dd(html, "Steering")),
+        "drive_type": drive,
+        "doors": doors,
+        "steering": steer,
+        "repaired": repaired,
         "price_jpy": price_jpy, "price_usd": int(round(price_jpy * JPY_USD)) if price_jpy else 0,
         "category_id": _category(model, fuel), "country": "Japan",
         "product_link": url, "front_image": images[0] if images else None,
         "images": images,
         "product_details": _details(grade, reg, _dd(html, "Displacement"), fuel,
-                                    _norm_trans(_dd(html, "Transmission")),
-                                    _norm_drive(_dd(html, "Drive System")),
-                                    _dd(html, "Doors"), _norm_steer(_dd(html, "Steering")),
-                                    _clean(_dd(html, "Color")), year),
+                                    trans, drive, doors, steer, color, year, repaired, body_style),
     }
 
 
-def _details(grade, reg, cc, fuel, trans, drive, doors, steer, color, year):
+def _details(grade, reg, cc, fuel, trans, drive, doors, steer, color, year, repaired=None, body=None):
     rows = [("Grade", grade), ("Reg. (M/Y)", reg), ("Year", year), ("Engine", cc),
-            ("Fuel", fuel), ("Transmission", trans), ("Drive", drive),
-            ("Doors", doors), ("Steering", steer), ("Colour", color)]
+            ("Fuel", fuel), ("Transmission", trans), ("Drive", drive), ("Body", body),
+            ("Doors", doors), ("Steering", steer), ("Colour", color), ("Repair History", repaired)]
     li = ""
     for k, v in rows:
         v = _clean(str(v)) if v not in (None, "") else None
