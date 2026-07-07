@@ -26,8 +26,15 @@ from curl_cffi import requests
 SITE = "https://www.autowini.com"
 API = "https://v2api.autowini.com"
 IMG_HOST = "image.autowini.com"
-COUNTRY = "South Korea"
 USD = 1.0  # itemPrice is already USD
+
+# autowini tags each car's trade country; normalize to full names. Most stock is
+# Korean; a minority are Japanese re-exports (kei cars via Tokyo). Accurate per car.
+_COUNTRY = {"S.KOREA": "South Korea", "KOREA": "South Korea", "JAPAN": "Japan"}
+def _norm_country(c):
+    if not c:
+        return "South Korea"
+    return _COUNTRY.get(c.strip().upper(), c.strip())
 
 _tl = threading.local()
 def sess():
@@ -221,6 +228,7 @@ def parse_car(url):
     price = _int(g("itemPrice")) or 0
     mileage = _int(g("mileage"))
     port = g("tradePortName")
+    country = _norm_country(g("tradeCountryName"))
     detail_url = g("detailUrl") or url
     thumb = g("imageUrl")
 
