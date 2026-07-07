@@ -32,7 +32,7 @@ class ScrapeGoonet extends Command
         {--shards=1 : split the brand work-list into this many shards (one per GitHub runner)}
         {--shard=1 : which shard (1..shards) this process handles}
         {--jsonl-out= : with --run, write normalised rows as JSON-lines to this file instead of inserting to the DB (for GitHub-runner crawls with no DB)}
-        {--strip : with --run, hash each car's gallery and drop promo/ad images (seed+auto blocklist), keeping the cover — feasible on GitHub runners across 20 IPs}
+        {--strip : with --run, hash each gallery and drop promo/ad images (seed+auto blocklist), keeping the cover — feasible on GitHub runners across 20 IPs}
         {--import-jsonl= : load crawl JSONL file(s) (a dir or one file) into the DB, insert-only + dedup-safe}
         {--pool=6 : concurrent detail fetches (the site rate-limits above ~8)}
         {--gallery-limit=40 : store front + up to this many gallery images}
