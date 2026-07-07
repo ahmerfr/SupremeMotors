@@ -1530,7 +1530,7 @@ storage/app/public/stock/31392/3.jpeg
 storage/app/public/stock/31485/5.jpeg
 storage/app/public/stock/34008/7.jpeg
 storage/app/public/stock/16734/f.jpeg
-storage/app/public/stock/20635/2.png
+storage/app/public/stock/20635/2.jpeg
 storage/app/public/stock/12840/4.jpeg
 storage/app/public/stock/33844/6.jpeg
 storage/app/public/stock/32440/8.jpeg

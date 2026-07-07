@@ -285,8 +285,12 @@ class ScrapeJaftim extends Command
         $sql = $dir . '/jaftim-products.sql';
         $dump = 'C:\\xampp\\mysql\\bin\\mysqldump.exe';
         // INSERT-only dump of just the jaftim rows (no CREATE — table exists on live)
+        // --skip-add-locks + --skip-disable-keys drop the LOCK TABLES and
+        // ALTER TABLE ... DISABLE KEYS statements, which force an implicit COMMIT
+        // and would break the atomic transaction wrap added below.
         $cmd = '"' . $dump . '" -h 127.0.0.1 -P 3307 -u root --single-transaction --quick'
             . ' --no-create-info --skip-triggers --no-tablespaces --skip-lock-tables'
+            . ' --skip-add-locks --skip-disable-keys'
             . ' --where="website=\'jaftim\'" supreme_motors products';
         $out = [];
         exec($cmd . ' > "' . $sql . '" 2>&1', $out, $rc);
@@ -295,12 +299,16 @@ class ScrapeJaftim extends Command
 
             return self::FAILURE;
         }
-        // Prepend a DELETE so importing this chunk REPLACES the live jaftim
-        // inventory (drops any now-sold rows) instead of stacking duplicates.
-        $header = "-- Supreme Motors — jaftim inventory chunk.\n"
-            . "-- Replaces every website='jaftim' row on import (removes sold cars).\n"
+        // Wrap the whole replace in ONE transaction so it is atomic: the DELETE
+        // and all INSERTs commit together, or (on a mysqld crash / column-mismatch
+        // error mid-import) roll back entirely — live jaftim inventory is never
+        // left half-empty. products is InnoDB, so DML rolls back cleanly.
+        $header = "-- Supreme Motors — jaftim inventory chunk (atomic replace).\n"
+            . "-- Wrapped in a transaction: a mid-import failure rolls back and leaves\n"
+            . "-- the live jaftim inventory untouched. Safe to re-run.\n"
+            . "START TRANSACTION;\n"
             . "DELETE FROM `products` WHERE `website`='jaftim';\n\n";
-        file_put_contents($sql, $header . file_get_contents($sql));
+        file_put_contents($sql, $header . file_get_contents($sql) . "\nCOMMIT;\n");
         $zip = $dir . '/jaftim-products.zip';
         $z = new \ZipArchive;
         $z->open($zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
