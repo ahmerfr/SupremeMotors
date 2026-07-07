@@ -28,10 +28,17 @@ class SchannelCurl
 
     private string $workDir;
 
-    /** @param string|null $bin override for tests; defaults to the OS curl.exe */
+    /**
+     * @param string|null $bin override for tests; defaults to the OS curl:
+     *   Windows -> the Schannel-built System32 curl.exe (passes Cloudflare);
+     *   Linux/macOS (e.g. GitHub Actions runners) -> plain `curl` on PATH. goo-net
+     *   is not behind Cloudflare, so the platform curl works there.
+     */
     public function __construct(?string $bin = null, ?string $workDir = null)
     {
-        $this->bin = $bin ?? 'C:\\Windows\\System32\\curl.exe';
+        $this->bin = $bin ?? (PHP_OS_FAMILY === 'Windows'
+            ? 'C:\\Windows\\System32\\curl.exe'
+            : 'curl');
         $this->workDir = $workDir ?? sys_get_temp_dir();
         if (!is_dir($this->workDir)) {
             @mkdir($this->workDir, 0777, true);

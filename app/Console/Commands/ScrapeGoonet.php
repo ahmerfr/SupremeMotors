@@ -29,6 +29,9 @@ class ScrapeGoonet extends Command
         {--run : crawl all brands and INSERT new goonet rows into the LOCAL db}
         {--export-chunk : dump website=goonet rows to db-export/goonet-*.zip for live import}
         {--brand= : restrict --preview/--run to one brand_cd (default: all; preview default Toyota 1010)}
+        {--shards=1 : split the brand work-list into this many shards (one per GitHub runner)}
+        {--shard=1 : which shard (1..shards) this process handles}
+        {--jsonl-out= : with --run, write normalised rows as JSON-lines to this file instead of inserting to the DB (for GitHub-runner crawls with no DB)}
         {--pool=6 : concurrent detail fetches (the site rate-limits above ~8)}
         {--gallery-limit=40 : store front + up to this many gallery images}
         {--jpy-usd=0.00622 : JPY->USD rate (goo-net implies ~0.00622 = 160.6 JPY/USD)}
@@ -479,9 +482,26 @@ class ScrapeGoonet extends Command
             $brands = [$this->option('brand')];
         }
 
-        $existing = DB::table('products')->where('website', 'goonet')
-            ->pluck('product_link')->flip();
-        $this->info(count($existing) . ' goonet rows already present (will skip). Brands: ' . count($brands));
+        // Shard the brand work-list across N runners (GitHub matrix): runner K
+        // takes every Nth brand. Deterministic, gap-free, no coordination needed.
+        $shards = max(1, (int) $this->option('shards'));
+        $shard = max(1, min((int) $this->option('shard'), $shards));
+        if ($shards > 1) {
+            $brands = array_values(array_filter($brands, fn ($cd, $i) => $i % $shards === $shard - 1, ARRAY_FILTER_USE_BOTH));
+        }
+
+        // JSONL mode = write rows to a file, no DB (for GitHub-runner crawls). Galleries
+        // are emitted RAW; the promo blocklist is applied later (import/warm), where every
+        // image is hashed once — hashing 10M images inline would blow the 6h runner cap.
+        $jsonlOut = (string) $this->option('jsonl-out');
+        $jh = null;
+        $existing = collect();
+        if ($jsonlOut !== '') {
+            $jh = fopen($jsonlOut, 'w');
+        } else {
+            $existing = DB::table('products')->where('website', 'goonet')->pluck('product_link')->flip();
+        }
+        $this->info(count($existing) . " goonet rows present. Shard {$shard}/{$shards}, brands: " . count($brands) . ($jh ? " -> JSONL {$jsonlOut}" : ''));
 
         foreach ($brands as $cd) {
             $empty = 0;
@@ -510,13 +530,21 @@ class ScrapeGoonet extends Command
                         continue;
                     }
                     $row['images'] = array_slice($row['images'], 0, $limit + 1);
-                    $this->insertRow($row);
-                    $existing[$u] = true;
+                    if ($jh !== null) {
+                        fwrite($jh, json_encode($row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+                        $this->inserted++;
+                    } else {
+                        $this->insertRow($row);
+                        $existing[$u] = true;
+                    }
                 }
                 if ($page % 10 === 0) {
                     $this->info("  brand {$cd} page {$page}: inserted total {$this->inserted}");
                 }
             }
+        }
+        if ($jh !== null) {
+            fclose($jh);
         }
         $this->info("RUN DONE: inserted {$this->inserted} goonet cars.");
 
