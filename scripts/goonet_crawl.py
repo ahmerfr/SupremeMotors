@@ -14,9 +14,19 @@ Modes:
                                    (raw galleries; promo-strip is a separate pass)
 JSONL rows feed:  php artisan scrape:goonet --import-jsonl=<dir>
 """
-import sys, re, json, os, hashlib, time, html as ihtml
+import sys, re, json, os, hashlib, time, html as ihtml, threading, math, glob as _glob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from curl_cffi import requests
+
+_tls = threading.local()
+
+
+def sess_local():
+    """One reused Chrome-impersonated session per worker thread (avoids a TLS
+    handshake per request — critical for throughput)."""
+    if not hasattr(_tls, "s"):
+        _tls.s = new_session()
+    return _tls.s
 
 SITE = "https://www.goo-net-exchange.com"
 SUMMARY = SITE + "/php/search/summary.php"
@@ -305,33 +315,107 @@ def do_preview(n, brand):
               f"{len(r['images'])} imgs (stripped {r['stripped']})")
 
 
-def do_run(out, shards, shard):
+def do_run(out, shards, shard, pool=12):
     sess = new_session()
     brands = list(parse_brands(fetch(sess, SITE + "/")).keys())
     if shards > 1:
         brands = [b for i, b in enumerate(brands) if i % shards == shard - 1]
-    print(f"shard {shard}/{shards}: {len(brands)} brands -> {out}")
+    print(f"shard {shard}/{shards}: {len(brands)} brands, pool {pool}", flush=True)
+
+    # Phase 1 — enumerate every listing page (concurrent), collect detail URLs.
+    pages = []
+    for cd in brands:
+        total = parse_total(fetch(sess, f"{SUMMARY}?brand_cd={cd}&offset=0")) or 0
+        pages += [(cd, p * 20) for p in range(math.ceil(total / 20) + 1)]
+    print(f"  {len(pages)} listing pages to enumerate...", flush=True)
+
+    def enum_page(bo):
+        return listing_urls(fetch(sess_local(), f"{SUMMARY}?brand_cd={bo[0]}&offset={bo[1]}"))
+
+    all_urls = []
+    with ThreadPoolExecutor(max_workers=pool) as ex:
+        for i, urls in enumerate(ex.map(enum_page, pages)):
+            all_urls += urls
+            if i % 300 == 0:
+                print(f"  enum {i}/{len(pages)} pages, {len(all_urls)} urls", flush=True)
+    all_urls = list(dict.fromkeys(all_urls))
+    print(f"  {len(all_urls)} unique detail URLs; fetching details...", flush=True)
+
+    # Phase 2 — fetch + parse detail pages (concurrent), stream to JSONL.
+    def fetch_parse(u):
+        return parse_detail(fetch(sess_local(), u), u)
+
     n = 0
-    with open(out, "w", encoding="utf-8") as fh, ThreadPoolExecutor(max_workers=16) as ex:
-        for cd in brands:
-            empty = 0
-            for page in range(3000):
-                urls = listing_urls(fetch(sess, f"{SUMMARY}?brand_cd={cd}&offset={page*20}"))
-                if not urls:
-                    empty += 1
-                    if empty >= 2:
-                        break
-                    continue
-                empty = 0
-                futs = {ex.submit(fetch, new_session(), u): u for u in urls}
-                for f in as_completed(futs):
-                    row = parse_detail(f.result(), futs[f])
-                    if row:
-                        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        n += 1
-                if page % 20 == 0:
-                    print(f"  brand {cd} page {page}: total {n}")
-    print(f"RUN DONE: {n} rows -> {out}")
+    with open(out, "w", encoding="utf-8") as fh, ThreadPoolExecutor(max_workers=pool) as ex:
+        for i, row in enumerate(ex.map(fetch_parse, all_urls)):
+            if row:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                n += 1
+            if i % 2000 == 0:
+                print(f"  detail {i}/{len(all_urls)}, wrote {n}", flush=True)
+    print(f"RUN DONE: {n} rows -> {out}", flush=True)
+
+
+def do_strip(inp, out, cap=15, minc=6, pool=80):
+    """Remove promo/ad images from each car's gallery. Only the first `cap` gallery
+    entries are considered (the big tail-promo block is excluded by the cap); the
+    cover is always kept. Images are hashed on the UNTHROTTLED image CDN at high
+    concurrency, then any content on >= minc distinct cars (corpus-wide) OR in the
+    verified seed blocklist is dropped. Two passes: hash-all, then filter."""
+    seed = load_blocklist()
+    rows = [json.loads(l) for l in open(inp, encoding="utf-8") if l.strip()]
+    print(f"strip: {len(rows)} cars, cap {cap}, pool {pool}", flush=True)
+
+    todo = {}
+    for r in rows:
+        for u in r.get("images", [])[1:cap + 1]:
+            todo[u] = None
+    urls = list(todo.keys())
+    print(f"  hashing {len(urls)} unique gallery images (CDN, pool {pool})...", flush=True)
+
+    def h(u):
+        for _ in range(3):
+            try:
+                rr = sess_local().get(u, timeout=25)   # session carries the Referer the CDN needs
+                if rr.status_code == 200 and len(rr.content) > 1024:
+                    return (u, hashlib.md5(rr.content).hexdigest())
+                if rr.status_code != 200:
+                    time.sleep(0.5); continue
+                return (u, None)
+            except Exception:
+                time.sleep(0.5)
+        return (u, None)
+
+    umd5, done = {}, 0
+    with ThreadPoolExecutor(max_workers=pool) as ex:
+        for u, md5 in ex.map(h, urls):
+            umd5[u] = md5
+            done += 1
+            if done % 25000 == 0:
+                print(f"  hashed {done}/{len(urls)}", flush=True)
+
+    freq = {}
+    for r in rows:
+        seen = set()
+        for u in r.get("images", [])[1:cap + 1]:
+            m = umd5.get(u)
+            if m and m not in seen:
+                seen.add(m)
+                freq[m] = freq.get(m, 0) + 1
+    auto = {m for m, c in freq.items() if c >= minc}
+    block = seed | auto
+    print(f"  blocklist: {len(seed)} seed + {len(auto)} corpus(>={minc} cars) = {len(block)}", flush=True)
+
+    stripped = 0
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in rows:
+            imgs = r.get("images", [])
+            clean = [u for u in imgs[1:cap + 1] if umd5.get(u) not in block]
+            stripped += (min(cap, max(0, len(imgs) - 1)) - len(clean))
+            r["images"] = imgs[0:1] + clean
+            r["front_image"] = r["images"][0] if r["images"] else r.get("front_image")
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(f"STRIP DONE: stripped {stripped} promo images across {len(rows)} cars -> {out}", flush=True)
 
 
 if __name__ == "__main__":
@@ -339,4 +423,8 @@ if __name__ == "__main__":
     if mode == "preview":
         do_preview(int(sys.argv[2]) if len(sys.argv) > 2 else 20, sys.argv[3] if len(sys.argv) > 3 else "1010")
     elif mode == "run":
-        do_run(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 1, int(sys.argv[4]) if len(sys.argv) > 4 else 1)
+        do_run(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 1,
+               int(sys.argv[4]) if len(sys.argv) > 4 else 1,
+               int(sys.argv[5]) if len(sys.argv) > 5 else 12)
+    elif mode == "strip":
+        do_strip(sys.argv[2], sys.argv[3], pool=int(sys.argv[4]) if len(sys.argv) > 4 else 100)
