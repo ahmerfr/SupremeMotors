@@ -1,0 +1,46 @@
+name: Warm images into Bunny perma-cache
+
+# Durable image mirror: 20 runner IPs download every gallery image (goo-net direct,
+# autowini with a Referer) and PUT the bytes into the source's Bunny perma-cache
+# pull-zone. After this, images are served from YOUR Bunny storage forever — even
+# if goo-net / autowini delete them. Manifests live in .github/warm-manifest/.
+#
+# ONE-TIME SETUP: repo Secret BUNNY_STORAGE_KEY = suprememotors-media storage
+# password (already set for the other warmers).
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: goonet | autowini
+        default: goonet
+      pool:
+        description: threads per runner
+        default: '25'
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Warm ${{ github.event.inputs.source }} shard ${{ matrix.shard }}
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          STORAGE_ZONE: suprememotors-media
+          # PZDIR + REFERER per source (perma-cache dirs from the created pull-zones)
+          PZDIR: ${{ github.event.inputs.source == 'autowini' && 'pullzone__sm-autowini__6120837' || 'pullzone__sm-goonet__6120836' }}
+          REFERER: ${{ github.event.inputs.source == 'autowini' && 'https://www.autowini.com/' || '' }}
+        run: >
+          python scripts/warm_image_shard.py
+          .github/warm-manifest/${{ github.event.inputs.source }}-${{ matrix.shard }}.txt.gz
+          ${{ github.event.inputs.pool || '25' }}

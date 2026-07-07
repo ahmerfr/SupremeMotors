@@ -195,6 +195,21 @@ def _clean_make(make):
     return make
 
 
+def _make_title(make, model, year):
+    """goo-net's model token often repeats the make (make='Mazda',
+    model='Mazda Speed Axela'; or make='Chrysler Jeep', model='Jeep Patriot').
+    Collapse adjacent duplicate words so the title reads clean and the stored
+    model drops the redundant make prefix. Returns (title, clean_model)."""
+    mw = (make or "").split()
+    ded = []
+    for w in (mw + (model or "").split()):
+        if not ded or ded[-1].lower() != w.lower():
+            ded.append(w)
+    clean_model = " ".join(ded[len(mw):]) or (model or None)
+    title = " ".join(ded + ([str(year)] if year else []))
+    return title, clean_model
+
+
 def _norm_steer(s):
     u = (s or "").lower()
     if "right" in u: return "Right"
@@ -259,7 +274,9 @@ def parse_detail(html, url):
     drive = _norm_drive(_dd(html, "Drive System"))
     steer = _norm_steer(_dd(html, "Steering"))
     color = _clean(_dd(html, "Color"))
-    title = " ".join(str(x) for x in [make, model, year] if x) or ("Goo-net " + stock)
+    title, model = _make_title(make, model, year)
+    if not title:
+        title = "Goo-net " + stock
     return {
         "stock_id": stock, "title": title[:255], "make": make, "model": model,
         "grade": grade, "year": year, "mileage_km": _int(_dd(html, "Mileage")) or None,

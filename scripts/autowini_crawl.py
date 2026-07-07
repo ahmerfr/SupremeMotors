@@ -259,7 +259,12 @@ def parse_car(url):
         if om:
             mileage = _int(om.group(1))
     odo_flag = "Actual" if re.search(r"\(\s*Actual\s*\)", odo) else ("Not actual" if "not actual" in odo.lower() else None)
-    title = " ".join(str(v) for v in [year, make, model] if v) or (g("itemName") or f"autowini {lid}")
+    # collapse adjacent duplicate words (e.g. make 'Hyundai' + model 'Hyundai Coupe')
+    _seq, _ded = ([make, model]), []
+    for _w in " ".join(x for x in [make, model] if x).split():
+        if not _ded or _ded[-1].lower() != _w.lower():
+            _ded.append(_w)
+    title = " ".join(([str(year)] if year else []) + _ded) or (g("itemName") or f"autowini {lid}")
 
     details = _details(grade, year, engine, fuel, trans, drive, seats, steering,
                        color, body, doors, size, odo_flag, port)
