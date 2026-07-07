@@ -6,6 +6,15 @@ const page = usePage();
 const header = computed(() => page.props.headerData || { total: 0, addedToday: 0, categories: [] });
 const currentUrl = computed(() => page.url);
 
+// Signed-in user (shared as auth.user). Admin/editor also get a dashboard link.
+const user = computed(() => page.props.auth?.user || null);
+const canAdmin = computed(() => ['admin', 'editor'].includes(user.value?.role));
+const acctOpen = ref(false);
+const logout = () => {
+    acctOpen.value = false;
+    router.post('/logout');
+};
+
 const menuOpen = ref(false);
 const search = ref('');
 const searching = ref(false);
@@ -113,6 +122,7 @@ const setLanguage = async (code) => {
 
 const onDocClick = (e) => {
     if (!e.target.closest('.sm-langwrap')) langOpen.value = false;
+    if (!e.target.closest('.sm-acctwrap')) acctOpen.value = false;
 };
 
 // Live clocks for the sourcing markets ("4:12 AM" per the design)
@@ -227,6 +237,46 @@ const pageLinks = [
                             <span style="display: block; font-size: 14.5px; font-weight: 700; color: #fff">Talk to sales</span>
                         </span>
                     </Link>
+                    <!-- Account / Login -->
+                    <template v-if="user">
+                        <div class="sm-acctwrap sm-headright-acct" style="position: relative; flex-shrink: 0">
+                            <button
+                                class="scp0"
+                                style="display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 9px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.16); background: transparent; cursor: pointer; font-family: Manrope; white-space: nowrap"
+                                @click="acctOpen = !acctOpen"
+                            >
+                                <span style="width: 30px; height: 30px; border-radius: 50%; background: #e01f26; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; text-transform: uppercase">{{ (user.name || 'U').charAt(0) }}</span>
+                                <span style="font-size: 14px; font-weight: 700; color: #fff; max-width: 110px; overflow: hidden; text-overflow: ellipsis">{{ (user.name || 'Account').split(' ')[0] }}</span>
+                                <svg width="8" height="5" viewBox="0 0 8 5" fill="none" :style="{ transform: acctOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }"><path d="M1 1l3 3 3-3" stroke="#c2cfe2" stroke-width="1.4" stroke-linecap="round" /></svg>
+                            </button>
+                            <div
+                                v-if="acctOpen"
+                                style="position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; background: #fff; border: 1px solid #e6eaf0; border-radius: 13px; box-shadow: rgba(8, 23, 48, 0.18) 0 18px 40px; padding: 6px; min-width: 190px"
+                            >
+                                <div style="padding: 10px 12px 8px; border-bottom: 1px solid #f1f3f7; margin-bottom: 4px">
+                                    <div style="font-size: 13.5px; font-weight: 800; color: #0b1e3b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ user.name }}</div>
+                                    <div style="font-size: 12px; font-weight: 600; color: #8494ab; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ user.email }}</div>
+                                </div>
+                                <Link v-if="canAdmin" href="/admin/dashboard" class="scp0" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 700; color: #33445e; text-decoration: none; font-family: Manrope" @click="acctOpen = false">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a5a72" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>
+                                    Dashboard
+                                </Link>
+                                <button class="scp0" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 700; color: #e01f26; background: transparent; border: none; cursor: pointer; text-align: left; font-family: Manrope" @click="logout">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e01f26" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
+                                    Log out
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                    <Link
+                        v-else
+                        href="/login"
+                        class="scp0 sm-headright-acct"
+                        style="display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.18); padding: 13px 22px; border-radius: 11px; white-space: nowrap; text-decoration: none; flex-shrink: 0"
+                    >
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c2cfe2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                        Login
+                    </Link>
                     <Link
                         href="/inventory"
                         class="scp6 sm-headcta"
@@ -318,6 +368,13 @@ const pageLinks = [
                 @click="menuOpen = false"
             >{{ l.label }}</Link>
             <Link href="/inventory" style="display: block; text-align: center; margin-top: 16px; font-weight: 700; color: #fff; background: #e01f26; padding: 13px; border-radius: 10px; text-decoration: none" @click="menuOpen = false">Browse Inventory</Link>
+
+            <!-- Account / Login (mobile) -->
+            <template v-if="user">
+                <Link v-if="canAdmin" href="/admin/dashboard" style="display: block; text-align: center; margin-top: 10px; font-weight: 700; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); padding: 13px; border-radius: 10px; text-decoration: none" @click="menuOpen = false">Dashboard</Link>
+                <button style="display: block; width: 100%; text-align: center; margin-top: 10px; font-weight: 700; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); padding: 13px; border-radius: 10px; cursor: pointer; font-family: Manrope" @click="menuOpen = false; logout()">Log out ({{ (user.name || 'Account').split(' ')[0] }})</button>
+            </template>
+            <Link v-else href="/login" style="display: block; text-align: center; margin-top: 10px; font-weight: 700; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); padding: 13px; border-radius: 10px; text-decoration: none" @click="menuOpen = false">Login</Link>
         </div>
     </header>
 </template>

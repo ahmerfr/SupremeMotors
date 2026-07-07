@@ -217,7 +217,7 @@ html {
     .sm-catnav { gap: 15px !important; }
 }
 @media (max-width: 820px) {
-    .sm-headsearch, .sm-headcta, .sm-catright { display: none !important; }
+    .sm-headsearch, .sm-headcta, .sm-catright, .sm-headright-acct { display: none !important; }
     .sm-catnav { overflow-x: auto; }
     /* search (the flex spacer) is hidden here, so push the burger to the far right */
     .sm-headright { margin-left: auto; }
