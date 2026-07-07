@@ -612,8 +612,16 @@ class ScrapeGoonet extends Command
             return self::FAILURE;
         }
         $existing = DB::table('products')->where('website', 'goonet')->pluck('product_link')->flip();
-        $this->info(count($existing) . ' goonet rows already present. Importing ' . count($files) . ' file(s)...');
+        $this->info(count($existing) . ' goonet rows already present. Importing ' . count($files) . ' file(s) (batched)...');
 
+        $batch = [];
+        $flush = function () use (&$batch) {
+            if ($batch !== []) {
+                DB::table('products')->insert($batch);
+                $this->inserted += count($batch);
+                $batch = [];
+            }
+        };
         foreach ($files as $f) {
             $fh = fopen($f, 'r');
             while (($line = fgets($fh)) !== false) {
@@ -625,15 +633,57 @@ class ScrapeGoonet extends Command
                 if (!is_array($row) || empty($row['product_link']) || isset($existing[$row['product_link']])) {
                     continue;
                 }
-                $this->insertRow($row);
                 $existing[$row['product_link']] = true;
+                $batch[] = $this->rowToInsert($row);
+                if (count($batch) >= 500) {
+                    $flush();
+                    if ($this->inserted % 20000 < 500) {
+                        $this->info("  inserted {$this->inserted}");
+                    }
+                }
             }
             fclose($fh);
-            $this->info('  ' . basename($f) . ": running total {$this->inserted}");
         }
+        $flush();
+        // stock_code needs the auto-inc id, so set it in one pass after insert
+        DB::statement("UPDATE products SET stock_code = CONCAT('GN', id) WHERE website='goonet' AND (stock_code IS NULL OR stock_code = '')");
         $this->info("IMPORT DONE: inserted {$this->inserted} goonet rows.");
 
         return self::SUCCESS;
+    }
+
+    /** map a crawl JSONL row to a products insert tuple (stock_code set in a later pass). */
+    private function rowToInsert(array $r): array
+    {
+        $now = now();
+
+        return [
+            'title' => mb_substr($r['title'] ?? '', 0, 255),
+            'model' => !empty($r['model']) ? mb_substr($r['model'], 0, 255) : null,
+            'year' => $r['year'] ?? null,
+            'mileage_km' => $r['mileage_km'] ?? null,
+            'fuel' => $r['fuel'] ?? null,
+            'transmission' => $r['transmission'] ?? null,
+            'condition' => $r['condition'] ?? 'Used',
+            'color' => $r['color'] ?? null,
+            'body_style' => $r['body_style'] ?? null,
+            'engine_cc' => $r['engine_cc'] ?? null,
+            'drive_type' => $r['drive_type'] ?? null,
+            'doors' => $r['doors'] ?? null,
+            'steering' => $r['steering'] ?? null,
+            'category_id' => $r['category_id'] ?? 20,
+            'price' => (float) ($r['price_usd'] ?? 0),
+            'website' => 'goonet',
+            'country' => $r['country'] ?? 'Japan',
+            'product_link' => $r['product_link'],
+            'front_image' => $r['front_image'] ?? null,
+            'front_image_source' => $r['front_image'] ?? null,
+            'other_images' => json_encode($r['images'] ?? [], JSON_UNESCAPED_SLASHES),
+            'other_images_source' => json_encode($r['images'] ?? [], JSON_UNESCAPED_SLASHES),
+            'product_details' => $r['product_details'] ?? '',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     /* ------------------------------------------------------------ chunk export */

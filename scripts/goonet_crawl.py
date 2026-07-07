@@ -356,61 +356,102 @@ def do_run(out, shards, shard, pool=12):
     print(f"RUN DONE: {n} rows -> {out}", flush=True)
 
 
-def do_strip(inp, out, cap=15, minc=6, pool=80):
-    """Remove promo/ad images from each car's gallery. Only the first `cap` gallery
-    entries are considered (the big tail-promo block is excluded by the cap); the
-    cover is always kept. Images are hashed on the UNTHROTTLED image CDN at high
-    concurrency, then any content on >= minc distinct cars (corpus-wide) OR in the
-    verified seed blocklist is dropped. Two passes: hash-all, then filter."""
-    seed = load_blocklist()
+def do_strip(inp, out, cap=10, minc=6, pool=64):
+    """Remove promo/ad images. HEAD each first-`cap` gallery image for its byte SIZE
+    (promos are byte-identical -> identical size; HEAD sends no body so it dodges the
+    CDN's bandwidth throttle that made GET-every-image infeasible). Sizes recurring
+    across >= minc distinct cars are candidate promos; each candidate is CONFIRMED by
+    GET-hashing 2 images of that size from different cars (identical md5 = genuine
+    shared promo), so a coincidental size collision can never strip a real photo.
+    Cover always kept; tail-promo block excluded by the cap. Resumable via checkpoint."""
     rows = [json.loads(l) for l in open(inp, encoding="utf-8") if l.strip()]
-    print(f"strip: {len(rows)} cars, cap {cap}, pool {pool}", flush=True)
+    print(f"strip(HEAD+size): {len(rows)} cars, cap {cap}, pool {pool}", flush=True)
 
     todo = {}
     for r in rows:
         for u in r.get("images", [])[1:cap + 1]:
             todo[u] = None
     urls = list(todo.keys())
-    print(f"  hashing {len(urls)} unique gallery images (CDN, pool {pool})...", flush=True)
 
-    def h(u):
+    def hd(u):
         for _ in range(3):
             try:
-                rr = sess_local().get(u, timeout=25)   # session carries the Referer the CDN needs
-                if rr.status_code == 200 and len(rr.content) > 1024:
-                    return (u, hashlib.md5(rr.content).hexdigest())
-                if rr.status_code != 200:
-                    time.sleep(0.5); continue
-                return (u, None)
+                rr = sess_local().head(u, timeout=15)
+                if rr.status_code == 200:
+                    cl = rr.headers.get("Content-Length")
+                    return (u, int(cl) if cl else 0)
+                time.sleep(0.3)
             except Exception:
-                time.sleep(0.5)
-        return (u, None)
+                time.sleep(0.3)
+        return (u, 0)
 
-    umd5, done = {}, 0
+    ckpt = out + ".sizes"
+    usize = {}
+    if os.path.isfile(ckpt):
+        for l in open(ckpt, encoding="utf-8"):
+            try:
+                u, s = l.rstrip("\n").split("\t")
+                usize[u] = int(s)
+            except Exception:
+                pass
+    remaining = [u for u in urls if u not in usize]
+    print(f"  {len(usize)} from checkpoint, HEADing {len(remaining)} of {len(urls)}...", flush=True)
+    cf = open(ckpt, "a", encoding="utf-8")
+    done = len(usize)
+    # process in chunks so we don't pre-submit millions of futures (which stalls startup)
     with ThreadPoolExecutor(max_workers=pool) as ex:
-        for u, md5 in ex.map(h, urls):
-            umd5[u] = md5
-            done += 1
-            if done % 25000 == 0:
-                print(f"  hashed {done}/{len(urls)}", flush=True)
+        for i in range(0, len(remaining), 5000):
+            for u, s in ex.map(hd, remaining[i:i + 5000]):
+                usize[u] = s
+                cf.write(f"{u}\t{s}\n")
+                done += 1
+            cf.flush()
+            print(f"  headed {done}/{len(urls)}", flush=True)
+    cf.close()
 
     freq = {}
     for r in rows:
         seen = set()
         for u in r.get("images", [])[1:cap + 1]:
-            m = umd5.get(u)
-            if m and m not in seen:
-                seen.add(m)
-                freq[m] = freq.get(m, 0) + 1
-    auto = {m for m, c in freq.items() if c >= minc}
-    block = seed | auto
-    print(f"  blocklist: {len(seed)} seed + {len(auto)} corpus(>={minc} cars) = {len(block)}", flush=True)
+            s = usize.get(u, 0)
+            if s and s not in seen:
+                seen.add(s)
+                freq[s] = freq.get(s, 0) + 1
+    cand = [s for s, c in freq.items() if c >= minc]
+    print(f"  {len(cand)} candidate promo sizes (>= {minc} cars); confirming content...", flush=True)
+
+    samples = {}
+    for r in rows:
+        for u in r.get("images", [])[1:cap + 1]:
+            s = usize.get(u, 0)
+            if s in freq and freq[s] >= minc:
+                lst = samples.setdefault(s, [])
+                if len(lst) < 2 and u not in lst:
+                    lst.append(u)
+
+    def confirm(s):
+        hs = set()
+        for u in samples.get(s, []):
+            try:
+                rr = sess_local().get(u, timeout=25)
+                if rr.status_code == 200 and len(rr.content) > 500:
+                    hs.add(hashlib.md5(rr.content).hexdigest())
+            except Exception:
+                pass
+        return (s, len(samples.get(s, [])) >= 2 and len(hs) == 1)
+
+    block_sizes = set()
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        for s, ok in ex.map(confirm, cand):
+            if ok:
+                block_sizes.add(s)
+    print(f"  confirmed {len(block_sizes)} promo sizes (of {len(cand)} candidates)", flush=True)
 
     stripped = 0
     with open(out, "w", encoding="utf-8") as fh:
         for r in rows:
             imgs = r.get("images", [])
-            clean = [u for u in imgs[1:cap + 1] if umd5.get(u) not in block]
+            clean = [u for u in imgs[1:cap + 1] if usize.get(u, 0) not in block_sizes]
             stripped += (min(cap, max(0, len(imgs) - 1)) - len(clean))
             r["images"] = imgs[0:1] + clean
             r["front_image"] = r["images"][0] if r["images"] else r.get("front_image")
