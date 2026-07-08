@@ -35,12 +35,9 @@ jobs:
       - run: pip install curl_cffi
       - name: Warm ${{ github.event.inputs.source }} shard ${{ matrix.shard }}
         env:
-          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
-          STORAGE_ZONE: suprememotors-media
-          # PZDIR + REFERER per source (perma-cache dirs from the created pull-zones)
-          # NOTE: perma-cache dir suffix is the pull-zone's CacheVersion, NOT its Id.
-          PZDIR: ${{ github.event.inputs.source == 'autowini' && 'pullzone__sm-autowini__56383043' || 'pullzone__sm-goonet__56383042' }}
-          REFERER: ${{ github.event.inputs.source == 'autowini' && 'https://www.autowini.com/' || '' }}
+          # GET each image through its pull-zone; Bunny pulls origin (autowini via a
+          # Referer edge rule on the zone) and perma-caches it. No storage key needed.
+          CDN_HOST: ${{ github.event.inputs.source == 'autowini' && 'sm-autowini.b-cdn.net' || 'sm-goonet.b-cdn.net' }}
         run: >
           python scripts/warm_image_shard.py
           .github/warm-manifest/${{ github.event.inputs.source }}-${{ matrix.shard }}.txt.gz
