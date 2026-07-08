@@ -38,7 +38,8 @@ jobs:
           BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
           STORAGE_ZONE: suprememotors-media
           # PZDIR + REFERER per source (perma-cache dirs from the created pull-zones)
-          PZDIR: ${{ github.event.inputs.source == 'autowini' && 'pullzone__sm-autowini__6120837' || 'pullzone__sm-goonet__6120836' }}
+          # NOTE: perma-cache dir suffix is the pull-zone's CacheVersion, NOT its Id.
+          PZDIR: ${{ github.event.inputs.source == 'autowini' && 'pullzone__sm-autowini__56383043' || 'pullzone__sm-goonet__56383042' }}
           REFERER: ${{ github.event.inputs.source == 'autowini' && 'https://www.autowini.com/' || '' }}
         run: >
           python scripts/warm_image_shard.py
