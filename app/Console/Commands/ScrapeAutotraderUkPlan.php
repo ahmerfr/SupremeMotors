@@ -22,6 +22,7 @@ use Illuminate\Console\Command;
 class ScrapeAutotraderUkPlan extends Command
 {
     protected $signature = 'scrape:autotraderuk-plan
+        {--channel=cars : AutoTrader channel: cars|vans|bikes|motorhomes|caravans|trucks|farm|plant}
         {--threshold=1800 : Max cars per band (must stay under the ~2,000 the 100-page cap exposes)}
         {--postcode=SW1A 1AA : Search-centre postcode (UK-wide results either way)}
         {--max-price=10000000 : Upper price bound to partition under (GBP)}
@@ -137,7 +138,7 @@ class ScrapeAutotraderUkPlan extends Command
             'operationName' => 'SearchResultsListingsGridQuery',
             'variables' => [
                 'filters' => $filters,
-                'channel' => 'cars',
+                'channel' => (string) ($this->option('channel') ?: 'cars'),
                 'page' => 1,
                 'sortBy' => 'relevance',
                 'listingType' => null,
