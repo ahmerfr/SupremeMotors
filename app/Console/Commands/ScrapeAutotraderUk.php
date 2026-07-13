@@ -51,6 +51,7 @@ class ScrapeAutotraderUk extends Command
         {--max-pages=0 : Stop after this many pages this run (0 = all, capped at 100)}
         {--limit=0 : Stop after upserting this many products (0 = all)}
         {--postcode=SW1A 1AA : Search-centre postcode (UK-wide results either way)}
+        {--channel=cars : AutoTrader channel: cars|vans|bikes|motorhomes|caravans|trucks|farm|plant}
         {--make= : Restrict this shard to one make (e.g. Ford) — for sharding past the 100-page cap}
         {--min-price= : Restrict to cars at/above this price (GBP) — price-band shard}
         {--max-price= : Restrict to cars at/below this price (GBP) — price-band shard}
@@ -648,7 +649,7 @@ class ScrapeAutotraderUk extends Command
             'operationName' => self::OP_NAME,
             'variables' => [
                 'filters' => $filters,
-                'channel' => 'cars',
+                'channel' => (string) ($this->option('channel') ?: 'cars'),
                 'page' => $page,
                 'sortBy' => 'relevance',
                 'listingType' => null,
@@ -1288,10 +1289,19 @@ class ScrapeAutotraderUk extends Command
         return str_replace('https://' . self::ORIGIN_HOST, 'https://' . self::CDN_HOST, $url);
     }
 
+    /** channel -> category name; the channel IS the category for non-car crawls */
+    private const CHANNEL_CATEGORY = [
+        'vans' => 'Vans', 'bikes' => 'Bikes', 'motorhomes' => 'Motorhomes',
+        'caravans' => 'Caravans', 'trucks' => 'Trucks', 'farm' => 'Farm', 'plant' => 'Plant',
+    ];
+
     /** route body_style + title into a real category (Cars fallback), cached */
     private function categoryIdFor(?string $bodyStyle, ?string $title): ?int
     {
-        $name = app(\App\Services\CategoryRouter::class)->resolve($bodyStyle, $title);
+        $channel = (string) ($this->option('channel') ?: 'cars');
+        // non-car channels ARE their category — skip the body-style guesser
+        $name = self::CHANNEL_CATEGORY[$channel]
+            ?? app(\App\Services\CategoryRouter::class)->resolve($bodyStyle, $title);
 
         return $this->categoryIds[$name] ??= (
             Categories::where('cat_title', $name)->where('type', 'category')->value('id')
