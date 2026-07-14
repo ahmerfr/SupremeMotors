@@ -1120,7 +1120,12 @@ class ScrapeAutotraderUk extends Command
                     $di = $detail['images'] ?? [];
                     $ei = $existingData['images'] ?? [];
                     $merged['images'] = count($di) >= count($ei) ? $di : $ei;
-                    Products::where('product_link', $url)->update($this->mapToProduct($merged) + ['enriched' => true]);
+                    // enrich must NEVER re-categorise: this path has no --channel context,
+                    // so categoryIdFor() would fall back to the body-style router and move
+                    // channel rows into Cars/Commercial. Keep the row's existing category.
+                    $upd = $this->mapToProduct($merged);
+                    unset($upd['category_id']);
+                    Products::where('product_link', $url)->update($upd + ['enriched' => true]);
                     $this->imagesScraped += count($merged['images']);
                 }
                 $filled++;
