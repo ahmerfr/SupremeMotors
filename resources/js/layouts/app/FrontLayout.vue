@@ -6,7 +6,7 @@ import Footer from "@/components/Front/Footer.vue";
 import { ref } from 'vue';
 
 const message = ref('Hello! I would like to chat with you.');
-const phoneNumber = ref('85253221678');
+const phoneNumber = ref('19803645548');
 
 const showTooltip = ref(false);
 

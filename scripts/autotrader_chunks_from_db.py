@@ -113,7 +113,9 @@ for cat_name, do_delete in CHANNELS:
     with open(f"{OUT}/{slug}-zz-finalize.sql", "w", encoding="utf-8") as f:
         f.write("SET @cat=(SELECT id FROM `categories` WHERE `cat_title`=" + q(cat_name)
                 + " AND `type`='category' LIMIT 1);\n")
-        f.write("UPDATE `products` SET `stock_code`=CONCAT('SM',id) "
+        # 'ATU' prefix = a clean undo marker for the whole scraped-channel batch:
+        #   DELETE FROM products WHERE stock_code LIKE 'ATU%';  (never touches SM cars)
+        f.write("UPDATE `products` SET `stock_code`=CONCAT('ATU',id) "
                 "WHERE `website`='autotraderuk' AND `category_id`=@cat AND (`stock_code` IS NULL OR `stock_code`='');\n")
     print(f"{cat_name}: {nrows} rows -> {fidx} chunk(s)")
 

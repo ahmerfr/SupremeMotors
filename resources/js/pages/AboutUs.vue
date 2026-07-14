@@ -213,7 +213,7 @@ onBeforeUnmount(() => io?.disconnect());
                                         </span>
                                         <div>
                                             <div style="font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; color: #8ea0bc">PHONE</div>
-                                            <div style="font-size: 14.5px; font-weight: 600; color: #e6ecf5; margin-top: 3px">+852 5322 1678</div>
+                                            <div style="font-size: 14.5px; font-weight: 600; color: #e6ecf5; margin-top: 3px">+1 980 364 5548</div>
                                         </div>
                                     </div>
                                     <div style="display: flex; gap: 13px; align-items: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 18px 20px">
