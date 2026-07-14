@@ -46,7 +46,9 @@ def q(v):
     return "'" + s + "'"
 
 def row_values(r, make_name):
-    vals = [q(r[c]) for c in SELECT_COLS]
+    # cap color at 40 to fit live's existing varchar(40) — only ~18 bike dual-tone
+    # colors are affected, and it avoids a table-rebuilding ALTER the host can't run.
+    vals = [q(str(r[c])[:40] if c == "color" and r[c] is not None else r[c]) for c in SELECT_COLS]
     vals.append("@cat")
     vals.append("(SELECT id FROM `categories` WHERE `cat_title`=" + q(make_name) + " AND `type`='make' LIMIT 1)"
                 if make_name else "NULL")
