@@ -55,7 +55,8 @@ class HandleInertiaRequests extends Middleware
             ],
             // Header strip: live stock stats + top-level category nav.
             'headerData' => Cache::flexible('header_data', [1800, 86400], function () {
-                $order = ['Cars', 'Trucks', 'Electric Vehicles', 'Tractors', 'Buses', 'Heavy Machinery', 'Equipment'];
+                $order = ['Cars', 'Vans', 'Trucks', 'Bikes', 'Motorhomes', 'Caravans',
+                    'Tractors', 'Heavy Machinery', 'Buses', 'Electric Vehicles', 'Equipment'];
 
                 // "Added today" is a marketing figure: a stable daily number
                 // between 10,000 and 15,000 (seeded by the date so every
