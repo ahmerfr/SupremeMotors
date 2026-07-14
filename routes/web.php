@@ -45,9 +45,12 @@ Route::prefix('inventory')->name('inventory.')->group(function () {
 
 Route::get('/search/products', [ShopController::class, 'search_products'])->name('search.products');
 
+// Blogs: the controller renders Inertia pages ('Blogs' / 'BlogDetails') that do
+// not exist in resources/js/pages, so these routes rendered a blank page. Until
+// those page components are built, send visitors home instead of a dead screen.
 Route::prefix('blogs')->name('blogs.')->group(function () {
-    Route::get('/', [DashboardController::class, 'blogs_page'])->name('index');
-    Route::get('/{slug}', [DashboardController::class, 'blog_detail'])->name('detail');
+    Route::get('/', fn () => redirect('/'))->name('index');
+    Route::get('/{slug}', fn () => redirect('/'))->name('detail');
 });
 
 

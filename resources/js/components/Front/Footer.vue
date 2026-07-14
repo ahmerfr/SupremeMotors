@@ -29,7 +29,6 @@ const footCols = [
         head: 'Company',
         items: [
             { label: 'About Us', href: '/about-us' },
-            { label: 'Blog', href: '/blogs' },
             { label: 'Our Inventory', href: '/inventory' },
             { label: 'FAQs', href: '/faqs' },
             { label: 'Terms & Conditions', href: '/terms-condition' },
