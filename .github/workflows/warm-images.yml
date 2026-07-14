@@ -37,7 +37,7 @@ jobs:
         env:
           # GET each image through its pull-zone; Bunny pulls origin (autowini via a
           # Referer edge rule on the zone) and perma-caches it. No storage key needed.
-          CDN_HOST: ${{ github.event.inputs.source == 'autowini' && 'sm-autowini.b-cdn.net' || 'sm-goonet.b-cdn.net' }}
+          CDN_HOST: ${{ github.event.inputs.source == 'autowini' && 'sm-autowini.b-cdn.net' || github.event.inputs.source == 'autotraderukch' && 'sm-autotraderuk.b-cdn.net' || 'sm-goonet.b-cdn.net' }}
         run: >
           python scripts/warm_image_shard.py
           .github/warm-manifest/${{ github.event.inputs.source }}-${{ matrix.shard }}.txt.gz
