@@ -21,7 +21,7 @@ ROLL_BYTES = 280 * 1024 * 1024      # ~35 MB gz
 PERSTMT = 50
 # (category name, do_delete) — Trucks reuses the shared existing category
 CHANNELS = [("Vans", True), ("Bikes", True), ("Motorhomes", True),
-            ("Caravans", True), ("Farm", True), ("Plant", True), ("Trucks", False)]
+            ("Caravans", True), ("Tractors", True), ("Heavy Machinery", True), ("Trucks", False)]
 
 # insert columns: all product cols EXCEPT id, mongo_id, stock_code.
 # category_id + make_id are emitted as expressions, not literals.
@@ -68,7 +68,7 @@ for cat_name, do_delete in CHANNELS:
         "LEFT JOIN categories m ON m.id=p.make_id AND m.type='make' "
         "WHERE p.website='autotraderuk' AND c.cat_title=%s", (cat_name,))
     fidx = 0; fh = None; instmt = 0; nrows = 0; bytes_in_file = 0
-    slug = cat_name.lower()
+    slug = cat_name.lower().replace(" ", "-")
 
     def close_stmt():
         global instmt

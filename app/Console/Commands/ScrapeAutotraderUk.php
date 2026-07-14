@@ -1297,7 +1297,7 @@ class ScrapeAutotraderUk extends Command
     /** channel -> category name; the channel IS the category for non-car crawls */
     private const CHANNEL_CATEGORY = [
         'vans' => 'Vans', 'bikes' => 'Bikes', 'motorhomes' => 'Motorhomes',
-        'caravans' => 'Caravans', 'trucks' => 'Trucks', 'farm' => 'Farm', 'plant' => 'Plant',
+        'caravans' => 'Caravans', 'trucks' => 'Trucks', 'farm' => 'Tractors', 'plant' => 'Heavy Machinery',
     ];
 
     /** route body_style + title into a real category (Cars fallback), cached */
