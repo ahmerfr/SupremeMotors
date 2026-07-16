@@ -267,11 +267,16 @@ class AdminController extends Controller
         // the unindexed created_at.
         $products = Products::query()->with('category')->with('make');
         if ($keywords) {
-            // 'description' does not exist on products (caused a 500). Use the
-            // products_search_ft FULLTEXT index on (title, product_details) — also
-            // far faster than LIKE '%..%' across the 800k+ catalogue. No id order
-            // here so results come back FULLTEXT-relevance-ranked (best match first).
+            // Strict AND search: every typed word must appear in the title, so
+            // "Lexus NX 2017" returns only 2017 Lexus NX — nothing looser.
+            // ('description' doesn't exist on products — referencing it caused the 500.)
+            // The FULLTEXT index (products_search_ft on title+product_details) narrows
+            // the set fast; the per-word LIKE on title then enforces exactness and
+            // catches short tokens like "NX" that FULLTEXT won't index.
             $products->whereFullText(['title', 'product_details'], $keywords);
+            foreach (array_filter(preg_split('/\s+/', trim($keywords))) as $word) {
+                $products->where('title', 'like', '%' . $word . '%');
+            }
         } else {
             // whole-catalogue browse: order by id (PK, fast) so 800k+ paginate
             // instantly instead of sorting on the unindexed created_at.
