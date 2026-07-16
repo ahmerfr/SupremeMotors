@@ -269,10 +269,10 @@ class AdminController extends Controller
             ->orderBy('id', 'desc')
             ->with('category')->with('make');
         if ($keywords) {
-            $products->where(function ($query) use ($keywords) {
-                $query->where('title', 'like', '%' . $keywords . '%')
-                    ->orWhere('description', 'like', '%' . $keywords . '%');
-            });
+            // 'description' does not exist on products (caused a 500). Use the
+            // products_search_ft FULLTEXT index on (title, product_details) — also
+            // far faster than LIKE '%..%' across the 800k+ catalogue.
+            $products->whereFullText(['title', 'product_details'], $keywords);
         }
         $products = $products->paginate(24)->withQueryString();
         return $products;
