@@ -1,6 +1,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import axios from 'axios';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     makes: { type: Array, default: () => [] },
@@ -22,6 +23,27 @@ const make = ref('');
 const bodyStyle = ref('');
 const price = ref('');
 
+/* searchable model dropdown (scoped to the picked brand) */
+const model = ref('');
+const modelQuery = ref('');
+const modelOptions = ref([]);
+const modelOpen = ref(false);
+let modelTimer = null;
+const fetchModels = () => {
+    clearTimeout(modelTimer);
+    modelTimer = setTimeout(async () => {
+        try {
+            const { data } = await axios.get('/inventory/models', {
+                params: { make_id: make.value || '', q: modelQuery.value.trim() },
+            });
+            modelOptions.value = data.models ?? [];
+        } catch { modelOptions.value = []; }
+    }, 220);
+};
+watch(make, () => { model.value = ''; modelQuery.value = ''; modelOptions.value = []; });
+const onModelInput = () => { model.value = ''; modelOpen.value = true; fetchModels(); };
+const pickModel = (m) => { model.value = m; modelQuery.value = m; modelOpen.value = false; };
+
 const bodyTypes = ['Sedan', 'SUV', 'Hatchback', 'Coupe', 'Wagon', 'Van / Minivan', 'Mini Vehicle', 'Truck', 'Convertible'];
 const priceRanges = [
     { label: 'Under 20k', min: '', max: '20000' },
@@ -34,6 +56,7 @@ const submit = () => {
     const params = { type: 'search' };
     if (search.value) params.search = search.value;
     if (make.value) params.make = make.value;
+    if (model.value) params.model = model.value;
     if (bodyStyle.value) params.body_style = bodyStyle.value;
     if (price.value !== '') {
         const range = priceRanges[price.value];
@@ -126,6 +149,23 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                                 <option value="">All Types</option>
                                 <option v-for="t in bodyTypes" :key="t" :value="t">{{ t }}</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Model (searchable, scoped to the picked brand) -->
+                    <div style="margin-top: 14px; position: relative">
+                        <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">MODEL</label>
+                        <input
+                            v-model="modelQuery"
+                            type="text"
+                            :placeholder="make ? 'Search this brand’s models…' : 'Search any model…'"
+                            style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none"
+                            @input="onModelInput"
+                            @focus="modelOpen = true; fetchModels()"
+                            @blur="modelOpen = false"
+                        />
+                        <div v-if="modelOpen && modelOptions.length" style="position: absolute; z-index: 30; top: 100%; left: 0; right: 0; margin-top: 6px; max-height: 230px; overflow-y: auto; background: #fff; border: 1px solid #e6eaf0; border-radius: 12px; box-shadow: rgba(0, 0, 0, 0.14) 0 16px 34px">
+                            <button v-for="m in modelOptions" :key="m" type="button" style="display: block; width: 100%; text-align: left; padding: 11px 15px; font-size: 14.5px; font-weight: 600; color: #0b1e3b; background: none; border: none; border-bottom: 1px solid #f1f4f8; cursor: pointer" @mousedown.prevent="pickModel(m)">{{ m }}</button>
                         </div>
                     </div>
 

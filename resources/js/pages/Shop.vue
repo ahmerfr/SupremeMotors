@@ -25,6 +25,7 @@ const emptyState = () => ({
     search: '',
     category: [],
     make: [],
+    model: [],
     body_style: [],
     country: [],
     fuel: [],
@@ -33,6 +34,7 @@ const emptyState = () => ({
     steering: [],
     condition: [],
     emission_standard: [],
+    color: [],
     price_min: '', price_max: '',
     year_from: '', year_to: '',
     mileage_min: '', mileage_max: '',
@@ -130,6 +132,7 @@ const appliedChips = computed(() => {
 
     listChip('category', a.category, categoryName);
     listChip('make', a.make, makeName);
+    listChip('model', a.model);
     listChip('body_style', a.body_style);
     listChip('country', a.country);
     listChip('fuel', a.fuel);
@@ -138,6 +141,7 @@ const appliedChips = computed(() => {
     listChip('steering', a.steering);
     listChip('condition', a.condition);
     listChip('emission_standard', a.emission_standard);
+    listChip('color', a.color);
 
     const range = (id, min, max, fmt, keys) => {
         if (min === '' && max === '') return;
@@ -217,6 +221,7 @@ const sideOpen = reactive({
     category: true,
     body: true,
     make: true,
+    model: false,
     price: false,
     origin: false,
 });
@@ -224,6 +229,7 @@ const sideOpen = reactive({
 const a0 = fromParams(props.filters);
 if (a0.price_min !== '' || a0.price_max !== '') sideOpen.price = true;
 if (a0.country.length) sideOpen.origin = true;
+if (a0.model.length) sideOpen.model = true;
 
 /* ---------------- sidebar option lists ---------------- */
 
@@ -266,7 +272,27 @@ const specGroups = computed(() => [
     { key: 'steering', label: 'STEERING', options: props.facets.steerings ?? [] },
     { key: 'condition', label: 'CONDITION', options: props.facets.conditions ?? [] },
     { key: 'emission_standard', label: 'EMISSION STANDARD', options: props.facets.emission_standards ?? [] },
+    { key: 'color', label: 'COLOR', options: props.facets.colors ?? [] },
 ].filter((g) => g.options.length > 0));
+
+/* ---------------- model dropdown (async, scoped to selected make) ---------------- */
+const modelSearch = ref('');
+const modelOptions = ref([]);
+let modelTimer = null;
+const fetchModels = () => {
+    clearTimeout(modelTimer);
+    modelTimer = setTimeout(async () => {
+        try {
+            const { data } = await axios.get('/inventory/models', {
+                params: { make_id: applied.value.make[0] || '', q: modelSearch.value.trim() },
+            });
+            modelOptions.value = data.models ?? [];
+        } catch { modelOptions.value = []; }
+    }, 220);
+};
+// refetch when the search text or the selected make changes
+watch([modelSearch, () => applied.value.make.join(',')], fetchModels);
+onMounted(fetchModels);
 
 /* ---------------- advanced drawer (staged) ---------------- */
 
@@ -478,6 +504,32 @@ watch(drawerOpen, (open) => {
                                 <button v-if="!showAllMakes && !makeSearch && makes.length > 8" type="button" class="sm-smore" @click="showAllMakes = true">
                                     Show all {{ makes.length }} makes
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- Model (searchable; scoped to the picked make) -->
+                        <div class="sm-ssec">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.model" @click="sideOpen.model = !sideOpen.model">
+                                <span>Model</span>
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.model.length" class="sm-sreset" role="button" @click.stop="resetKeys('model')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.model ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
+                            </button>
+                            <div v-show="sideOpen.model" class="sm-ssec-body">
+                                <input
+                                    v-model="modelSearch"
+                                    type="text"
+                                    :placeholder="applied.make.length ? 'Search this make’s models…' : 'Type a model to search…'"
+                                    style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
+                                />
+                                <label v-for="m in modelOptions" :key="m" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.model.includes(m)" @change="toggleApplied(applied.model, m)" />
+                                    <span style="flex: 1">{{ m }}</span>
+                                </label>
+                                <p v-if="!modelOptions.length" style="font-size: 12.5px; color: #8895ab; padding: 4px 2px; margin: 0">
+                                    {{ applied.make.length ? 'No models found.' : 'Pick a make above, or type to search.' }}
+                                </p>
                             </div>
                         </div>
 

@@ -39,6 +39,7 @@ Route::prefix('inventory')->name('inventory.')->group(function () {
     Route::get('/', [ShopController::class, 'home'])->name('index');
     Route::get('/listing', [ShopController::class, 'listing'])->name('listing');
     Route::get('/count', [ShopController::class, 'count'])->name('count');
+    Route::get('/models', [ShopController::class, 'models'])->name('models');
     Route::get('/product-detail/{id}', [ShopController::class, 'product_detail'])->name('product-detail');
     Route::get('/product-detail-filter-country', [ShopController::class, 'filter_country_products'])->name('product-detail.filter-country');
 });

@@ -81,6 +81,14 @@ class ShopController extends Controller
                 'steerings' => $facet('steering'),
                 'drive_types' => $facet('drive_type'),
                 'emission_standards' => $facet('emission_standard'),
+                // colors: hundreds of distinct (scraped) values, so cap to the
+                // common ones by count — White/Black/Silver/… dominate.
+                'colors' => Products::query()
+                    ->whereNotNull('color')->where('color', '!=', '')
+                    ->groupBy('color')
+                    ->selectRaw('`color` as value, COUNT(*) as count')
+                    ->orderByDesc('count')->limit(40)
+                    ->get()->toArray(),
                 'year_bounds' => [
                     'min' => (int) Products::whereNotNull('year')->where('year', '>', 1950)->min('year'),
                     'max' => (int) Products::whereNotNull('year')->max('year'),
@@ -259,7 +267,7 @@ class ShopController extends Controller
         $range('load_capacity_kg', $data['load_min'] ?? null, $data['load_max'] ?? null);
         $range('running_hours', $data['hours_min'] ?? null, $data['hours_max'] ?? null);
 
-        foreach (['fuel', 'transmission', 'condition', 'steering', 'drive_type', 'emission_standard'] as $column) {
+        foreach (['fuel', 'transmission', 'condition', 'steering', 'drive_type', 'emission_standard', 'color', 'model'] as $column) {
             $value = $data[$column] ?? null;
             if ($value !== null && $value !== '') {
                 $query->whereIn($column, array_map('trim', explode(',', $value)));
@@ -357,6 +365,29 @@ class ShopController extends Controller
         return Products::whereIn('id', $ids)
             ->with(['category:id,cat_title', 'make:id,cat_title'])
             ->get(self::CARD_COLUMNS);
+    }
+
+    /**
+     * Distinct models for the searchable model dropdown (catalog filters + hero).
+     * Scoped to a make when one is picked, and filterable by a typed prefix so
+     * the 62k make|model catalogue is queried on demand instead of shipped whole.
+     */
+    public function models(Request $request)
+    {
+        $makeId = (int) $request->query('make_id');
+        $q = trim((string) $request->query('q', ''));
+        $key = "shop_models_{$makeId}_" . md5($q);
+
+        $models = Cache::remember($key, 1800, function () use ($makeId, $q) {
+            return Products::query()
+                ->whereNotNull('model')->where('model', '!=', '')
+                ->when($makeId > 0, fn ($b) => $b->where('make_id', $makeId))
+                ->when($q !== '', fn ($b) => $b->where('model', 'like', $q . '%'))
+                ->distinct()->orderBy('model')
+                ->limit(50)->pluck('model');
+        });
+
+        return response()->json(['models' => $models]);
     }
 
     public function search_products(Request $request)

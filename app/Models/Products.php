@@ -104,21 +104,28 @@ class Products extends Model
     public function scopeSearch(Builder $query, string $term): Builder
     {
         $term = trim($term);
-        // Split on hyphens too: FULLTEXT indexes "Mercedes-Benz" as two
-        // tokens, so "+mercedesbenz*" would match nothing.
-        $boolean = collect(preg_split('/[\s\-]+/', $term))
+        // Strict AND: every typed word must be present, so "audi a6" returns only
+        // Audi A6 — never A8. Split on hyphens (FULLTEXT tokenises "Mercedes-Benz"
+        // as two words).
+        $words = collect(preg_split('/[\s\-]+/', $term))
             ->map(fn ($word) => preg_replace('/[+\-<>()~*"@]+/', '', $word))
-            ->filter(fn ($word) => mb_strlen($word) >= 3)
-            ->map(fn ($word) => '+'.$word.'*')
-            ->implode(' ');
+            ->filter(fn ($word) => $word !== '');
 
-        if ($boolean === '' || ! in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
-            return $query->where(function (Builder $q) use ($term) {
-                $q->where('title', 'like', "%{$term}%")
-                    ->orWhere('product_details', 'like', "%{$term}%");
-            });
+        // FULLTEXT boolean prefix on the >=3-char tokens narrows the set fast via
+        // the products_search_ft index. Short model tokens like "a6"/"q5" aren't
+        // indexable, so FULLTEXT alone can't carry them — the LIKE loop below does.
+        $boolean = $words->filter(fn ($word) => mb_strlen($word) >= 3)
+            ->map(fn ($word) => '+'.$word.'*')->implode(' ');
+        if ($boolean !== '' && in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $query->whereRaw('MATCH(title, product_details) AGAINST(? IN BOOLEAN MODE)', [$boolean]);
         }
 
-        return $query->whereRaw('MATCH(title, product_details) AGAINST(? IN BOOLEAN MODE)', [$boolean]);
+        // Require EVERY word to appear in the title — enforces AND and captures the
+        // short tokens FULLTEXT dropped.
+        foreach ($words as $word) {
+            $query->where('title', 'like', '%'.$word.'%');
+        }
+
+        return $query;
     }
 }
