@@ -222,6 +222,7 @@ const sideOpen = reactive({
     body: true,
     make: true,
     model: false,
+    color: false,
     price: false,
     origin: false,
 });
@@ -230,6 +231,7 @@ const a0 = fromParams(props.filters);
 if (a0.price_min !== '' || a0.price_max !== '') sideOpen.price = true;
 if (a0.country.length) sideOpen.origin = true;
 if (a0.model.length) sideOpen.model = true;
+if (a0.color.length) sideOpen.color = true;
 
 /* ---------------- sidebar option lists ---------------- */
 
@@ -242,6 +244,18 @@ const sidebarMakes = computed(() => {
         list = list.filter((m) => m.cat_title.toLowerCase().includes(q));
     }
     return showAllMakes.value || makeSearch.value ? list : list.slice(0, 8);
+});
+
+/* colour filter — surfaced in the sidebar (not buried in the advanced drawer) */
+const colorSearch = ref('');
+const showAllColors = ref(false);
+const sidebarColors = computed(() => {
+    let list = props.facets.colors ?? [];
+    if (colorSearch.value.trim()) {
+        const q = colorSearch.value.trim().toLowerCase();
+        list = list.filter((c) => String(c.value).toLowerCase().includes(q));
+    }
+    return showAllColors.value || colorSearch.value ? list : list.slice(0, 8);
 });
 
 const showAllBodies = ref(false);
@@ -530,6 +544,33 @@ watch(drawerOpen, (open) => {
                                 <p v-if="!modelOptions.length" style="font-size: 12.5px; color: #8895ab; padding: 4px 2px; margin: 0">
                                     {{ applied.make.length ? 'No models found.' : 'Pick a make above, or type to search.' }}
                                 </p>
+                            </div>
+                        </div>
+
+                        <!-- Colour -->
+                        <div class="sm-ssec">
+                            <button type="button" class="sm-ssec-head" :aria-expanded="sideOpen.color" @click="sideOpen.color = !sideOpen.color">
+                                <span>Colour</span>
+                                <span class="sm-ssec-tools">
+                                    <span v-if="applied.color.length" class="sm-sreset" role="button" @click.stop="resetKeys('color')">Reset</span>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8494ab" stroke-width="2.6" stroke-linecap="round" :style="{ transform: sideOpen.color ? 'rotate(180deg)' : 'none', transition: '0.2s' }"><path d="m6 9 6 6 6-6" /></svg>
+                                </span>
+                            </button>
+                            <div v-show="sideOpen.color" class="sm-ssec-body">
+                                <input
+                                    v-model="colorSearch"
+                                    type="text"
+                                    placeholder="Search colours…"
+                                    style="width: 100%; height: 38px; border-radius: 11px; background: #f8fafc; border: 1px solid #e6eaf0; padding: 0 12px; font-size: 13.5px; font-weight: 600; color: #0b1e3b; outline: none; margin-bottom: 6px"
+                                />
+                                <label v-for="c in sidebarColors" :key="c.value" class="sm-frow">
+                                    <input type="checkbox" class="sm-fcheck" :checked="applied.color.includes(c.value)" @change="toggleApplied(applied.color, c.value)" />
+                                    <span style="flex: 1">{{ c.value }}</span>
+                                    <span class="sm-fcount">{{ Number(c.count).toLocaleString() }}</span>
+                                </label>
+                                <button v-if="!showAllColors && !colorSearch && (facets.colors ?? []).length > 8" type="button" class="sm-smore" @click="showAllColors = true">
+                                    Show all {{ (facets.colors ?? []).length }} colours
+                                </button>
                             </div>
                         </div>
 

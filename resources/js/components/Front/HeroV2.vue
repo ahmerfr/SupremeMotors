@@ -1,7 +1,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     makes: { type: Array, default: () => [] },
@@ -23,7 +23,7 @@ const make = ref('');
 const bodyStyle = ref('');
 const price = ref('');
 
-/* searchable model dropdown (scoped to the picked brand) */
+/* searchable model dropdown (scoped to the picked make) */
 const model = ref('');
 const modelQuery = ref('');
 const modelOptions = ref([]);
@@ -40,7 +40,9 @@ const fetchModels = () => {
         } catch { modelOptions.value = []; }
     }, 220);
 };
-watch(make, () => { model.value = ''; modelQuery.value = ''; modelOptions.value = []; });
+// prefetch the popular models so the dropdown always has options to show
+onMounted(fetchModels);
+watch(make, () => { model.value = ''; modelQuery.value = ''; fetchModels(); });
 const onModelInput = () => { model.value = ''; modelOpen.value = true; fetchModels(); };
 const pickModel = (m) => { model.value = m; modelQuery.value = m; modelOpen.value = false; };
 
@@ -137,9 +139,9 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px">
                         <div>
-                            <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">BRAND</label>
+                            <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">MAKE</label>
                             <select v-model="make" style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none; cursor: pointer">
-                                <option value="">All Brands</option>
+                                <option value="">All Makes</option>
                                 <option v-for="m in props.makes" :key="m.id" :value="m.id">{{ m.cat_title }}</option>
                             </select>
                         </div>
@@ -152,13 +154,13 @@ const searchPopular = (term) => router.get('/inventory', { type: 'search', searc
                         </div>
                     </div>
 
-                    <!-- Model (searchable, scoped to the picked brand) -->
+                    <!-- Model (searchable, scoped to the picked make) -->
                     <div style="margin-top: 14px; position: relative">
                         <label style="display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin-bottom: 9px; padding-left: 2px">MODEL</label>
                         <input
                             v-model="modelQuery"
                             type="text"
-                            :placeholder="make ? 'Search this brand’s models…' : 'Search any model…'"
+                            :placeholder="make ? 'Search this make’s models…' : 'Search any model…'"
                             style="width: 100%; border: 1px solid #e6eaf0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px; font-weight: 600; font-family: Manrope; color: #33445e; background: #f8fafc; outline: none"
                             @input="onModelInput"
                             @focus="modelOpen = true; fetchModels()"

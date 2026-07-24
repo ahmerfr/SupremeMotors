@@ -383,7 +383,14 @@ class ShopController extends Controller
                 ->whereNotNull('model')->where('model', '!=', '')
                 ->when($makeId > 0, fn ($b) => $b->where('make_id', $makeId))
                 ->when($q !== '', fn ($b) => $b->where('model', 'like', $q . '%'))
-                ->distinct()->orderBy('model')
+                ->groupBy('model')
+                // Scraped truck/plant listings dump whole descriptions into `model`
+                // ("Atego 1224 2 kontenery tylko 184000km!!!"). Real models recur
+                // thousands of times; that junk is unique — so require a few hits.
+                ->havingRaw('COUNT(*) >= 3')
+                // most common first, so an empty query shows real models (GOLF,
+                // Polo, Fiesta…) instead of alphabetical punctuation.
+                ->orderByRaw('COUNT(*) DESC')
                 ->limit(50)->pluck('model');
         });
 

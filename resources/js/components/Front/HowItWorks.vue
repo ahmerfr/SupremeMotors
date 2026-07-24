@@ -1,6 +1,6 @@
 <script setup>
 const steps = [
-    { num: '01', icon: '🔍', title: 'Search Inventory', desc: 'Browse curated listings and filter by brand, type, and price to shortlist your favourites.' },
+    { num: '01', icon: '🔍', title: 'Search Inventory', desc: 'Browse curated listings and filter by make, type, and price to shortlist your favourites.' },
     { num: '02', icon: '💬', title: 'Compare & Enquire', desc: 'Compare specs side by side and send a quick enquiry to our helpful support team.' },
     { num: '03', icon: '🚗', title: 'Drive With Confidence', desc: 'Finalise the details with clarity and drive away in a vehicle you can trust.' },
 ];

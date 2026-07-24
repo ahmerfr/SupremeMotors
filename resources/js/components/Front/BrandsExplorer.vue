@@ -26,10 +26,10 @@ const fmt = (n) => Number(n).toLocaleString();
                 <!-- Left: heading + popular brand cards -->
                 <div>
                     <h2 style="font-family: Archivo; font-weight: 800; font-size: 34px; letter-spacing: -0.02em; color: #0b1e3b; line-height: 1.15">
-                        Explore the Most<br />Popular Brands
+                        Explore the Most<br />Popular Makes
                     </h2>
 
-                    <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin: 28px 0 12px">MOST POPULAR BRANDS:</div>
+                    <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin: 28px 0 12px">MOST POPULAR MAKES:</div>
                     <div style="display: flex; flex-direction: column; gap: 12px">
                         <Link
                             v-for="(m, i) in popular"
@@ -60,10 +60,10 @@ const fmt = (n) => Number(n).toLocaleString();
                 <div>
                     <p style="font-size: 14.5px; line-height: 1.7; color: #8494ab; font-weight: 600; max-width: 520px">
                         Browse our wide range of trucks, cars and heavy machinery and find the perfect vehicle to match your work and needs.
-                        <br />We offer various brands across Japan, China and Europe.
+                        <br />We offer various makes across Japan, China and Europe.
                     </p>
 
-                    <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin: 28px 0 14px">OTHER BRANDS:</div>
+                    <div style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; color: #8494ab; margin: 28px 0 14px">OTHER MAKES:</div>
                     <div class="sm-whygrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 56px">
                         <div v-for="(col, ci) in others" :key="ci">
                             <Link

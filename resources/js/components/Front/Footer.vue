@@ -46,7 +46,7 @@ const footCols = [
         ],
     },
     {
-        head: 'Our Brands',
+        head: 'Our Makes',
         items: ['Toyota', 'Porsche', 'Audi', 'BMW', 'Ford', 'Nissan', 'Peugeot', 'Volkswagen'].map((b) => ({
             label: b,
             href: `/inventory?type=search&search=${b}`,
