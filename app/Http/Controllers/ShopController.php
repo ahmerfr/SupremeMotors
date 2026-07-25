@@ -381,13 +381,17 @@ class ShopController extends Controller
         $models = Cache::remember($key, 1800, function () use ($makeId, $q) {
             return Products::query()
                 ->whereNotNull('model')->where('model', '!=', '')
+                // Scraped truck/plant listings dump whole descriptions into `model`
+                // ("Atego 1224 2 kontenery tylko 184000km!!!"). Count>=1 now shows
+                // even rare models, so keep the obvious description-junk out by shape:
+                // must start alphanumeric, be a sane length, and carry no shout-marks.
+                ->whereRaw("model REGEXP '^[A-Za-z0-9]'")
+                ->whereRaw('CHAR_LENGTH(model) <= 30')
+                ->where('model', 'not like', '%!!!%')
                 ->when($makeId > 0, fn ($b) => $b->where('make_id', $makeId))
                 ->when($q !== '', fn ($b) => $b->where('model', 'like', $q . '%'))
                 ->groupBy('model')
-                // Scraped truck/plant listings dump whole descriptions into `model`
-                // ("Atego 1224 2 kontenery tylko 184000km!!!"). Real models recur
-                // thousands of times; that junk is unique — so require a few hits.
-                ->havingRaw('COUNT(*) >= 3')
+                ->havingRaw('COUNT(*) >= 1')
                 // most common first, so an empty query shows real models (GOLF,
                 // Polo, Fiesta…) instead of alphabetical punctuation.
                 ->orderByRaw('COUNT(*) DESC')

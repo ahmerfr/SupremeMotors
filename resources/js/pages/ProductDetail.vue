@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import DOMPurify from 'dompurify';
 import { computed, onMounted, ref } from 'vue';
 import FrontLayout from '@/layouts/app/FrontLayout.vue';
 import ProductCard from '@/components/Front/ProductCard.vue';
@@ -72,7 +73,7 @@ const keySpecs = computed(() => [
 
 const whatsappHref = computed(() => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
-    return `https://wa.me/447516916622?text=${encodeURIComponent(`Hello, I'm interested in ${p.title} (stock ${p.stock_code ?? p.id}). Product link: ${url}`)}`;
+    return `https://wa.me/19803645548?text=${encodeURIComponent(`Hello, I'm interested in ${p.title} (stock ${p.stock_code ?? p.id}). Product link: ${url}`)}`;
 });
 
 /* ---------------- full specification ---------------- */
@@ -152,7 +153,9 @@ const hasDescription = computed(() => {
 });
 
 const sections = computed(() => [
-    ...(hasDescription.value ? [{ title: 'Product description', html: p.product_details }] : []),
+    // product_details is scraped, untrusted HTML — sanitize before v-html to stop
+    // stored XSS (a listing description carrying <script>/onerror would otherwise run).
+    ...(hasDescription.value ? [{ title: 'Product description', html: DOMPurify.sanitize(p.product_details) }] : []),
     {
         title: 'Payment',
         body: 'Payment is by bank transfer to our registered Hong Kong business account — the exact details are on our Bank Details page and on every invoice. Details never change outside a re-issued invoice.',
