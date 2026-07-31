@@ -181,7 +181,7 @@ const pageLinks = [
         <div style="background: #0b1e3b">
             <!-- utility row -->
             <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.08)">
-                <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 20px">
+                <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 35px; display: flex; align-items: center; justify-content: space-between; gap: 20px">
                     <div style="display: flex; align-items: center; gap: 20px">
                         <div style="font-size: 13px; font-weight: 500; color: #7d8ea8; white-space: nowrap; letter-spacing: 0.01em">
                             In stock <span style="color: #fff; font-weight: 700; margin-left: 3px">{{ fmt(header.total) }}</span>
@@ -208,9 +208,9 @@ const pageLinks = [
             </div>
 
             <!-- main row -->
-            <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 104px; display: flex; align-items: center; gap: 36px">
+            <div style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 95px; display: flex; align-items: center; gap: 36px">
                 <Link href="/" style="display: flex; align-items: center; flex-shrink: 0">
-                    <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 80px; width: auto; object-fit: contain" />
+                    <img src="/assets/images/site-logo.png" alt="Supreme Motors Ltd" style="height: 70px; width: auto; object-fit: contain" />
                 </Link>
 
                 <div class="sm-headsearch" style="flex: 1; position: relative; max-width: 620px; margin: 0 auto">
@@ -296,8 +296,8 @@ const pageLinks = [
         </div>
 
         <!-- Category strip: distinct white surface, active tab = navy block -->
-        <div style="background: #fff; border-bottom: 1px solid #f1f3f7">
-            <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: stretch; gap: 15px">
+        <div style="background: #fff">
+            <div class="sm-catnav" style="max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 50px; display: flex; align-items: stretch; gap: 15px">
                 <Link
                     v-for="c in catTabs"
                     :key="c.id"

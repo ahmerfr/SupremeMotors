@@ -223,15 +223,27 @@ html {
     .sm-headright { margin-left: auto; }
 }
 @media (max-width: 920px) {
-    .sm-herogrid { grid-template-columns: 1fr !important; gap: 40px !important; padding-bottom: 70px !important; }
-    .sm-h1 { font-size: 44px !important; }
+    .sm-herogrid { grid-template-columns: 1fr !important; gap: 32px !important; padding: 40px 20px 56px !important; }
+    /* mobile: search card above the headline/copy */
+    .sm-herogrid > div:last-child { order: -1; }
+    .sm-h1 { font-size: 40px !important; }
     .sm-whygrid, .sm-newsgrid { grid-template-columns: 1fr !important; }
     .sm-footgrid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
     .sm-howwrap { padding: 44px 28px !important; }
     .sm-steps { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 560px) {
-    .sm-h1 { font-size: 36px !important; }
+    /* hero: tighten type so it reads as a mobile layout, not a shrunk desktop */
+    .sm-h1 { font-size: 30px !important; line-height: 1.12 !important; }
+    .sm-herogrid p { font-size: 15px !important; margin-top: 18px !important; }
+    .sm-herogrid .scp2, .sm-herogrid .scp3 { font-size: 13.5px !important; padding: 13px 20px !important; }
+    .sm-search { padding: 20px !important; border-radius: 18px !important; }
+    .sm-search input, .sm-search select { font-size: 14px !important; padding: 12px 13px !important; }
+    .sm-search label { font-size: 11px !important; }
+    .sm-search > div:first-child > div:first-child { font-size: 20px !important; }
+    /* header: smaller category nav + top-strip on phones */
+    .sm-catnav { height: 46px !important; }
+    .sm-catnav a { font-size: 12.5px !important; }
     .sm-footgrid { grid-template-columns: 1fr !important; }
     .sm-newsgrid, .sm-howwrap { padding: 32px 22px !important; }
 }
