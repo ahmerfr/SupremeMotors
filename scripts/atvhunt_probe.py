@@ -29,7 +29,11 @@ def get(url, method="GET"):
         r = S.request(method, url, timeout=(8, 20), allow_redirects=False, impersonate="chrome")
     except Exception as e:
         return {"url": url, "t": round(time.time() - T0, 2), "err": str(e)[:150]}, ""
+    # `bytes` is DECOMPRESSED (curl_cffi auto-inflates), which is 6-8x the number a metered
+    # residential proxy bills. `wire` is the Content-Length of the still-gzipped body -- that
+    # is the unit Evomi charges for, and the only one the GB budget may be sized off.
     return {"url": url, "m": method, "code": r.status_code, "bytes": len(r.content),
+            "wire": r.headers.get("content-length"), "enc": r.headers.get("content-encoding"),
             "ms": int((time.time() - t) * 1000), "loc": r.headers.get("location"),
             "t": round(time.time() - T0, 2), "epoch": round(time.time(), 1)}, r.text
 
