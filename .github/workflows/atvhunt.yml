@@ -1,0 +1,163 @@
+name: atvhunt crawl (enumeration-driven)
+
+# Sizing comes from atvhunt-probe.yml, not from guesses:
+#   rps    = (ok_before_429 / 60) / 3, clamped to [0.5, 3.0]
+#   shards = 18 * ceil( W / (rps * budget) / 18 ), minimum 36   (W = the facet page's OWN
+#            reported result count. Working target is 176,000. The 60,314 figure that
+#            circulated is a PRICE-DEALS counter, not a listing count -- do not size off it.)
+#
+# Wall clock at W=176,000 on 18 runners (crawl only | end-to-end incl. probe+harvest+merge,
+# excluding the Laravel importer which does not exist yet):
+#   rps 3.0 -> 36 shards, 2 waves, 0.95h | 1.45h        rps 1.0 -> 72 shards, 4 waves, 2.80h | 3.63h
+#   rps 2.0 -> 36 shards, 2 waves, 1.40h | 1.90h        rps 0.89 -> 72 shards, 4 waves, 3.14h | 4.05h
+#   rps 1.5 -> 54 shards, 3 waves, 1.87h | 2.71h        rps 0.50 -> 126 shards, 7 waves, 5.58h | 6.49h  OVER
+#
+# GO/NO-GO: if W / (18 * rps) > 11,000 s, do not run this. At W=176,000 that is rps >= 0.89,
+# i.e. a measured sustainable ceiling >= 2.67 req/s. Cloud Armor's own documented example
+# threshold is 1.67 req/s, so the margin is ~1.9x -- the probe's rate reading is a GATE here,
+# not a formality. If it fails, fall back to Evomi (already wired up in the rockauto repo).
+#
+# max-parallel is 18, not 20: the concurrency cap is 20 per ACCOUNT and shared across ALL
+# repositories (this repo alone has 9 workflows). Two spare slots absorb a stray lint/tests
+# run instead of pushing a shard into an extra wave. Do not push while this runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: sitemap | facets   (from the probe)
+        type: choice
+        options: [sitemap, facets]
+        default: facets
+      rps:
+        description: req/s per runner = one third of the measured sustainable rate
+        default: '1.5'
+      shards:
+        description: MUST be a multiple of 18
+        default: '36'
+      budget:
+        description: seconds of crawling per shard (job timeout is budget + 15 min)
+        default: '3000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atvhunt
+  cancel-in-progress: false
+
+jobs:
+  # ------------------------------------------------------------------ harvest live ids
+  ids:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        part: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
+    steps:
+      # Fail in 5 s, not after 18 harvest jobs have burned 25 min: the `plan` job asserts
+      # shards % 18 == 0, but it only runs once harvesting is already done.
+      - name: Validate inputs
+        run: |
+          test $(( ${{ inputs.shards }} % 18 )) -eq 0 \
+            || { echo '::error::shards must be a multiple of 18 (max-parallel), got ${{ inputs.shards }}'; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - name: Preflight (2 requests) - a non-US or blocked draw must fail in ~15 s
+        run: python scripts/atvhunt_probe.py preflight preflight-ids-${{ matrix.part }}.json
+      - name: Harvest
+        run: |
+          python scripts/atvhunt_ids.py ${{ inputs.mode }} ${{ matrix.part }} 18 ${{ inputs.rps }} > ids-${{ matrix.part }}.txt
+          wc -l ids-${{ matrix.part }}.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ids-${{ matrix.part }}
+          path: ids-${{ matrix.part }}.txt
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ---------------------------------------- one canonical id list + the shard matrix
+  plan:
+    needs: ids
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.g.outputs.matrix }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'ids-*', merge-multiple: true, path: raw }
+      - id: g
+        run: |
+          cat raw/ids-*.txt | sort -un > ids.txt
+          echo "canonical ids: $(wc -l < ids.txt)"
+          test -s ids.txt || { echo '::error::enumeration produced ZERO ids - see decision rule gate 3'; exit 1; }
+          gzip -9 ids.txt
+          python3 -c "import json,os;n=int('${{ inputs.shards }}');assert n%18==0,'shards must be a multiple of 18';print('matrix='+json.dumps(list(range(n))))" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atvhunt-ids
+          path: ids.txt.gz
+          retention-days: 30
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------- the crawl
+  crawl:
+    needs: plan
+    runs-on: ubuntu-latest
+    # budget 3000 s + 15 min of slack. Platform cap is 360 min; nothing here approaches it.
+    # Short jobs are deliberate: N VM lifetimes = up to N IP draws at identical runner-minute
+    # cost, and a Cloud Armor rate-based-ban becomes a cheap rotation instead of a dead runner.
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - uses: actions/download-artifact@v4
+        with: { name: atvhunt-ids }
+      - name: Preflight - abort a non-US / blocked IP, free the slot, let the ids fall into missing.txt
+        run: python scripts/atvhunt_probe.py preflight out/pre_${{ matrix.shard }}.json
+      - name: Crawl shard ${{ matrix.shard }}
+        run: >
+          python scripts/atvhunt_crawl.py out --ids ids.txt.gz
+          --shard ${{ matrix.shard }} --of ${{ inputs.shards }}
+          --rps ${{ inputs.rps }} --budget ${{ inputs.budget }} --conc 8
+      - uses: actions/upload-artifact@v4
+        if: always()          # a timed-out or 403-aborted shard MUST still ship its partial
+        with:                 # rows and its coverage file, or the loss is invisible
+          name: atvhunt-${{ matrix.shard }}
+          path: out/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ------------------------------------------------------- merge + prove completeness
+  merge:
+    needs: [plan, crawl]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: atvhunt-ids }
+      - uses: actions/download-artifact@v4
+        with: { pattern: 'atvhunt-*', merge-multiple: true, path: dl }
+      - run: python scripts/atvhunt_merge.py dl ids.txt.gz atvhunt-all.jsonl.gz missing.txt.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atvhunt-merged
+          path: |
+            atvhunt-all.jsonl.gz
+            missing.txt.gz
+          retention-days: 30
