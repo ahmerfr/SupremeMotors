@@ -1,0 +1,32 @@
+name: atvhunt verify gate
+
+# One job. Fetches known-good listing ids and asserts the ATV/UTV gate lets them through.
+# A fleet run that reports list=0 costs thousands of jobs to discover; this costs one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: comma-separated known listing ids
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_verify.py "${{ inputs.ids }}"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify
+          path: verify.json
+          if-no-files-found: warn
