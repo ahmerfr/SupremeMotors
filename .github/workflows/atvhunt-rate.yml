@@ -9,7 +9,7 @@ on:
     inputs:
       n:
         description: requests per runner
-        default: '300'
+        default: '2500'
 
 permissions:
   contents: read
@@ -17,11 +17,11 @@ permissions:
 jobs:
   rate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        conc: [1, 8, 32, 64]
+        conc: [8, 16]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
