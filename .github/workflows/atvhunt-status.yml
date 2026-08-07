@@ -1,0 +1,35 @@
+name: atvhunt status check
+
+# Is atvhunt actually refusing us, and on how many IPs? Reports RAW HTTP status codes from
+# 6 independent runners. An unparseable count is NOT evidence of a block -- a changed page,
+# a 429, a challenge page and a real block all look identical to a regex that fails.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_probe.py status st-${{ matrix.n }}.json
+      - if: always()
+        run: cat st-${{ matrix.n }}.json || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: st-${{ matrix.n }}
+          path: st-${{ matrix.n }}.json
+          if-no-files-found: warn
