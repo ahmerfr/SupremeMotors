@@ -272,6 +272,40 @@ def api(rep):
                        "totals": re.findall(r"([\d,]{3,})\s*(?:ATVs?|UTVs?|results?|listings?|matches|vehicles)", txt)[:8]}
 
 
+def inspect(rep):
+    """READ the browse page and its JS to find the REAL pager. The api role guessed
+    endpoint names and got 404s, which proves nothing -- the site pages 177,164 listings
+    for ordinary users, so the mechanism exists and is discoverable in the markup."""
+    u = f"{A}/atv-utv-for-sale"
+    m, txt = get(u)
+    rep["page"] = m
+    rep["len"] = len(txt)
+    # the count the user can see on the page
+    rep["counts"] = re.findall(r"([\d][\d,]{4,})\s*(?:ATVs?|UTVs?|results?|listings?|vehicles?|matches)", txt)[:10]
+    rep["count_ctx"] = [txt[max(0, i.start() - 90):i.start() + 60]
+                        for i in list(re.finditer(r"17[0-9],\d\d\d", txt))[:3]]
+    rep["ids_on_page"] = len(set(re.findall(r"/l/(\d+)/", txt)))
+    # every script the page loads -- the pager lives in one of them
+    rep["scripts"] = re.findall(r'<script[^>]+src="([^"]+)"', txt)[:25]
+    # inline hints
+    rep["inline_urls"] = sorted(set(re.findall(r'["\'](/[a-zA-Z0-9_\-/]{3,40}(?:\.json|/search|/listings|/results|/api/[a-zA-Z0-9_\-/]{0,30}))["\']', txt)))[:25]
+    rep["fetch_calls"] = re.findall(r'(?:fetch|axios\.\w+|\$\.(?:get|post|ajax))\s*\(\s*["\'`]([^"\'`]{3,120})', txt)[:20]
+    rep["forms"] = re.findall(r'<form[^>]+action="([^"]{0,120})"', txt)[:10]
+    # anything that looks like a next/more control, with its attributes
+    rep["more_ctrls"] = re.findall(r'<(?:a|button|div)[^>]{0,300}?(?:next|more|pagination|pager|load-more)[^>]{0,300}?>', txt, re.I)[:8]
+    rep["ldjson_blocks"] = len(re.findall(r'application/ld\+json', txt))
+    # pull the biggest same-origin script and grep IT for endpoints
+    rep["bundles"] = []
+    for s in [x for x in rep["scripts"] if x.startswith("/") or "atvhunt" in x][:4]:
+        su = s if s.startswith("http") else A + s
+        bm, body = get(su)
+        bm["endpoints"] = sorted(set(re.findall(r'["\'`](/[a-zA-Z0-9_\-/]{2,40}\?[a-zA-Z0-9_\-=&{}$.]{0,60})["\'`]', body)))[:30]
+        bm["paths"] = sorted(set(re.findall(r'["\'`](/(?:api|search|listing|results|ajax|data)[a-zA-Z0-9_\-/]{0,40})["\'`]', body)))[:30]
+        bm["params"] = sorted(set(re.findall(r'["\'](start|n|page|offset|limit|per_page|from|size)["\']', body)))[:20]
+        bm.pop("loc", None)
+        rep["bundles"].append(bm)
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -287,6 +321,8 @@ def main():
                 enum(rep)
             elif role == "api":
                 api(rep)
+            elif role == "inspect":
+                inspect(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
