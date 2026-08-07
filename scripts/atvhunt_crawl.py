@@ -121,16 +121,33 @@ def read_ids(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("outdir")
-    ap.add_argument("--ids", required=True, help="canonical id list (.txt or .txt.gz)")
+    ap.add_argument("--ids", help="canonical id list (.txt or .txt.gz)")
+    ap.add_argument("--range", nargs=2, type=int, metavar=("LO", "HI"),
+                    help="sweep an id range instead of a list (no enumeration needed)")
+    ap.add_argument("--acct", type=int, default=0, help="this account's index in the fleet")
+    ap.add_argument("--nacct", type=int, default=1, help="accounts in the fleet; acct takes id %% nacct == acct")
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--of", type=int, default=1)
     ap.add_argument("--rps", type=float, default=1.5, help="one third of the probe's ceiling")
     ap.add_argument("--conc", type=int, default=8)   # 24 threads at <=3 req/s was theatre
     ap.add_argument("--budget", type=float, default=0, help="seconds of crawling; 0 = no cap")
+    ap.add_argument("--maxreq", type=int, default=0,
+                    help="stop after N HTTP attempts. MEASURED: a runner IP serves ~800 "
+                         "successful requests then is blackholed (first 429 at #785). A "
+                         "short job on a fresh IP beats a long job on a spent one.")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     tag = f"{a.shard:03d}of{a.of}"
-    ids = read_ids(a.ids)[a.shard::a.of]             # STRIDE: every shard samples the whole list
+    if a.range:
+        # Pure arithmetic, O(1) memory: slicing a range yields a range, so a 930k-id
+        # account slice never materialises as a list. Account k owns id %% nacct == k, so
+        # the four accounts are disjoint by construction -- no id files to ship around and
+        # no coordination service. Deliberately NOT bucket-filtered: 11% of listings have
+        # zero images, so a candidate list built from the image bucket would miss them.
+        lo, hi = a.range
+        ids = range(lo + ((a.acct - lo) % a.nacct), hi + 1, a.nacct)[a.shard::a.of]
+    else:
+        ids = read_ids(a.ids)[a.shard::a.of]         # STRIDE: every shard samples the whole list
     covp = os.path.join(a.outdir, f"cov_{tag}.txt")
     done = set(read_ids(covp)) if os.path.exists(covp) else set()
     todo = [i for i in ids if i not in done]         # resume = set difference, not a watermark
@@ -145,9 +162,16 @@ def main():
     deadline = time.time() + a.budget if a.budget else float("inf")
     t0 = time.time()
 
+    http = [0]
+    hlock = threading.Lock()
+
     def work(i):
         if time.time() > deadline:
             return                                   # budget spent: the rest drain instantly
+        with hlock:
+            if a.maxreq and http[0] >= a.maxreq:
+                return                               # IP quota spent: stop cleanly
+            http[0] += 1
         htmltext, covered = fetch(sess_local(), i, gov)
         with wlock:
             n[0] += 1
@@ -194,6 +218,18 @@ def selftest():
     ids = list(range(100))
     parts = [ids[s::4] for s in range(4)]
     assert sorted(sum(parts, [])) == ids and len(set(map(len, parts))) == 1
+    # 4-account x 36-shard range split must be DISJOINT and COMPLETE, and stay a range
+    lo, hi, NA, OF = 10_000_000, 10_000_999, 4, 36
+    cover = []
+    for acct in range(NA):
+        acct_ids = range(lo + ((acct - lo) % NA), hi + 1, NA)
+        assert isinstance(acct_ids, range)
+        for sh in range(OF):
+            sl = acct_ids[sh::OF]
+            assert isinstance(sl, range), "slice must stay O(1) memory"
+            cover += list(sl)
+    assert sorted(cover) == list(range(lo, hi + 1)), (len(cover), hi - lo + 1)
+    assert len(cover) == len(set(cover)), "shards must not overlap"
     print("GOVERNOR SELFTEST PASSED")
 
 
