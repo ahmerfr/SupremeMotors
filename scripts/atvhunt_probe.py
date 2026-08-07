@@ -468,6 +468,31 @@ def modelparam(rep):
                         "&displacement_from=999&displacement_to=999")
 
 
+def status(rep):
+    """What is ACTUALLY coming back? Report raw HTTP status, bytes and a body snippet for
+    each URL -- an unparseable count means nothing on its own (a changed page, a 429, a
+    challenge and a real block all look identical to a regex that just fails to match)."""
+    rep["egress"] = egress()
+    rep["checks"] = []
+    for lab, u in (("browse", f"{A}/atv-utv-for-sale"),
+                   ("browse+make", f"{A}/atv-utv-for-sale?make=Polaris"),
+                   ("listing", f"{A}/l/{ANCHOR}/x"),
+                   ("robots", f"{A}/robots.txt")):
+        m, txt = get(u)
+        m["label"] = lab
+        m["has_count"] = bool(re.search(r"<h1>\s*<b>[\d,]+</b>", txt))
+        m["has_listing_links"] = len(re.findall(r"/l/(\d+)/", txt))
+        m["snippet"] = re.sub(r"\s+", " ", txt[:260])
+        rep["checks"].append(m)
+    # repeat the browse page a few times: a transient ban shows as a mix
+    codes = []
+    for _ in range(8):
+        m, _t = get(f"{A}/atv-utv-for-sale")
+        codes.append(m.get("code") or m.get("err", "ERR"))
+        time.sleep(2)
+    rep["repeat_codes"] = codes
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -491,6 +516,8 @@ def main():
                 filters(rep)
             elif role == "coverage":
                 coverage(rep)
+            elif role == "status":
+                status(rep)
             elif role == "models":
                 models(rep)
             elif role == "modeldump":
