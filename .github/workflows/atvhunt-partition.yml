@@ -34,7 +34,7 @@ jobs:
       - run: pip install curl_cffi
       - run: python scripts/atvhunt_probe.py preflight pre-${{ matrix.part }}.json
       - name: Partition shard ${{ matrix.part }}
-        run: python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt --part ${{ matrix.part }} --total 18 --rps ${{ inputs.rps }} 2> err-${{ matrix.part }}.log
+        run: python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt --part ${{ matrix.part }} --total 18 --rps ${{ inputs.rps }} --conc 32 --budget 1020 2> err-${{ matrix.part }}.log
       - if: always()
         run: tail -5 err-${{ matrix.part }}.log; cat ids-${{ matrix.part }}-stats.json || true
       - uses: actions/upload-artifact@v4
