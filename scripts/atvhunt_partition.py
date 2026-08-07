@@ -70,6 +70,7 @@ class Partitioner:
         self.ids = set()
         self.reqs = 0
         self.leaks = []          # slices still > cap with no dimension left to split
+        self._models = {}        # make -> [vm:NNNNN], fetched once per make
 
     def probe(self, f):
         body = self.get(url_of(f))
@@ -83,6 +84,23 @@ class Partitioner:
                 self.ids |= found
         return n, found
 
+    def models_for(self, make):
+        """Model ids for a make, from the site's own model-selector modal. Values look like
+        data-id="vm:42587" and the browse param that consumes them is modelid -- with the
+        COLON kept (modelid=42587 and modelid=vm42587 both return nothing; modelid=vm:42587
+        returns 940 for Polaris Outlaw, matching the selector's own printed count)."""
+        with self.lock:
+            if make in self._models:
+                return self._models[make]
+        body = self.get(f"{A}/model-selector?make={make.replace(' ', '+')}")
+        with self.lock:
+            self.reqs += 1
+        ids = sorted(set(re.findall(r'data-id="(vm:\d+)"', body)))
+        with self.lock:
+            self._models[make] = ids
+        sys.stderr.write(f"models({make}) = {len(ids)}\n")
+        return ids
+
     def dims(self, f):
         """Split dimensions still available for this slice, coarsest first."""
         out = []
@@ -92,6 +110,12 @@ class Partitioner:
             out.append(("_state", STATES))
         if "typeid" not in f:
             out.append(("typeid", TYPEIDS))
+        # MODEL is the discriminator for cells that pin to a single displacement:
+        # Polaris/Texas/typeid=7/2026/999cc held 1,564 listings with every other axis spent.
+        if "make" in f and "modelid" not in f:
+            ms = self.models_for(f["make"])
+            if ms:
+                out.append(("modelid", ms))
         # NO hasvin: measured non-partitioning. hasvin=1 narrows but hasvin=0 is IGNORED and
         # returns the parent set unchanged (Honda/Texas/2026: 490 for BOTH values), so it
         # duplicates work instead of splitting. The conservation check cannot catch that on
