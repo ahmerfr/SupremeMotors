@@ -155,7 +155,9 @@ jobs:
         with: { pattern: 'atvhunt-*', merge-multiple: true, path: dl }
       - run: python scripts/atvhunt_merge.py dl ids.txt.gz atvhunt-all.jsonl.gz missing.txt.gz
       - uses: actions/upload-artifact@v4
-        with:
+        if: always()   # merge EXITS 1 on <98% coverage -- a soft warning that must never
+        with:          # discard the rows it just merged. Without this the artifact is skipped.
+
           name: atvhunt-merged
           path: |
             atvhunt-all.jsonl.gz

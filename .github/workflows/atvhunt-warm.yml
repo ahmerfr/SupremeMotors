@@ -42,9 +42,13 @@ jobs:
       images: ${{ steps.g.outputs.images }}
     steps:
       - uses: actions/checkout@v4
+      # Read the raw shards, not atvhunt-merged: the merge job exits 1 below 98% coverage,
+      # so depending on its artifact makes warming hostage to a soft warning.
       - uses: actions/download-artifact@v4
         with:
-          name: atvhunt-merged
+          pattern: 'atvhunt-*'
+          merge-multiple: true
+          path: dl
           run-id: ${{ inputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - id: g
@@ -53,12 +57,14 @@ jobs:
           import gzip, json, os, math
           N = int("${{ inputs.shards }}")
           urls, seen = [], set()
-          for line in gzip.open("atvhunt-all.jsonl.gz", "rt", encoding="utf-8"):
-              if not line.strip():
-                  continue
-              for u in (json.loads(line).get("images") or []):
-                  if u not in seen:
-                      seen.add(u); urls.append(u)
+          import glob
+          for f in sorted(glob.glob("dl/**/shard_*.jsonl", recursive=True)):
+              for line in open(f, encoding="utf-8", errors="replace"):
+                  if not line.strip():
+                      continue
+                  for u in (json.loads(line).get("images") or []):
+                      if u not in seen:
+                          seen.add(u); urls.append(u)
           print(f"{len(urls)} unique image urls")
           os.makedirs("manifest", exist_ok=True)
           for s in range(N):                       # stride slice: even split, no ragged tail
