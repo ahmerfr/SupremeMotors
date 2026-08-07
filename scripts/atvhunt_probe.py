@@ -493,6 +493,30 @@ def status(rep):
     rep["repeat_codes"] = codes
 
 
+def drops(rep):
+    """2,391 URLs returned no parseable count and were retried 3x each -- 41% of the run's
+    requests. What do they ACTUALLY return? Empty slices, a different template, or errors?"""
+    B = A + "/atv-utv-for-sale"
+    rep["cases"] = []
+    for lab, u in (
+        ("model pinned",  f"{B}/Texas?make=Polaris&modelid=vm:42660&typeid=7"),
+        ("model only",    f"{B}?make=Polaris&modelid=vm:42660"),
+        ("tiny make",     f"{B}/Alaska?make=Kayo&typeid=6"),
+        ("empty-ish",     f"{B}/Alaska?make=DRR&typeid=7"),
+        ("known good",    f"{B}/Texas?make=Polaris&typeid=7"),
+    ):
+        m, txt = get(u)
+        m["label"] = lab
+        m["has_count_h1"] = bool(re.search(r"<h1>\s*<b>[\d,]+</b>", txt))
+        m["any_h1"] = re.findall(r"<h1[^>]*>(.{0,120}?)</h1>", txt, re.S)[:2]
+        m["listing_links"] = len(set(re.findall(r"/l/(\d+)/", txt)))
+        m["no_results_words"] = [w for w in ("No results", "no listings", "0 ATVs",
+                                             "Sorry", "didn't match", "no matches")
+                                 if w.lower() in txt.lower()]
+        m["snippet"] = re.sub(r"\s+", " ", txt[:200])
+        rep["cases"].append(m)
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -518,6 +542,8 @@ def main():
                 coverage(rep)
             elif role == "status":
                 status(rep)
+            elif role == "drops":
+                drops(rep)
             elif role == "models":
                 models(rep)
             elif role == "modeldump":
