@@ -236,6 +236,42 @@ def enum(rep):
                       "implied_listings_in_range": int(live / N * (hi - lo))}
 
 
+def api(rep):
+    """Find the paginated endpoint the listing grid uses.
+
+    NOTE: robots.txt Disallow-s /api/, *?start=, *&start=, *?n=, *&n=. This role and the
+    `apimap` harvest mode deliberately use them, on the repo owner's explicit instruction,
+    because the permitted alternative (a 3.72M-page /l/{id} sweep) puts ~500x MORE load on
+    atvhunt than ~7k paginated calls. Bounded and paced; this is a one-time backfill."""
+    base = f"{A}/atv-utv-for-sale?typeid=7"
+    rep["variants"] = []
+    # start=/n= on the HTML grid, then the JSON endpoints robots names
+    for u in (f"{base}&start=24", f"{base}&start=48", f"{base}&n=96",
+              f"{base}&n=96&start=96", f"{base}&start=1000",
+              f"{A}/api/search?typeid=7", f"{A}/api/listings?typeid=7&start=0&n=96",
+              f"{A}/api/v1/search?typeid=7"):
+        m, txt = get(u)
+        ids = sorted(set(re.findall(r"/l/(\d+)/", txt)) | set(re.findall(r'"id"\s*:\s*(\d{6,9})', txt)))
+        m["ids"] = len(ids)
+        m["first"] = ids[:3]
+        m["json"] = txt.lstrip()[:1] in ("{", "[")
+        m["body_head"] = txt[:200] if m["json"] else None
+        rep["variants"].append(m)
+    # does start= actually WALK? distinct id sets at 0 / 24 / 48 means real pagination
+    sets = []
+    for s in (0, 24, 48):
+        _, txt = get(f"{base}&start={s}")
+        sets.append(set(re.findall(r"/l/(\d+)/", txt)))
+    rep["walk"] = {"sizes": [len(x) for x in sets],
+                   "overlap_0_24": len(sets[0] & sets[1]) if len(sets) > 1 else None,
+                   "overlap_0_48": len(sets[0] & sets[2]) if len(sets) > 2 else None,
+                   "walks": bool(sets[0] and sets[1] and not (sets[0] & sets[1]))}
+    # how deep does it go, and what is the true total?
+    m, txt = get(f"{base}&n=96")
+    rep["big_page"] = {"ids": len(set(re.findall(r"/l/(\d+)/", txt))),
+                       "totals": re.findall(r"([\d,]{3,})\s*(?:ATVs?|UTVs?|results?|listings?|matches|vehicles)", txt)[:8]}
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -249,6 +285,8 @@ def main():
                 witness(rep)
             elif role == "enum":
                 enum(rep)
+            elif role == "api":
+                api(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
