@@ -42,6 +42,25 @@ def _specs(htmltext):
     return out
 
 
+def _make_of(rest):
+    """(make, rest_without_trailing_make) for the title minus its leading year.
+
+    Most titles lead with the make ("Polaris Sportsman 570"), but a real slice of the
+    catalogue puts it LAST after a dash — "Brute Force 750 EPS LE Camo - Kawasaki",
+    "Outlander MAX Pro XU HD7 - Can-Am". Taking the first token there yields make="Brute"
+    / "Outlander", which is not in MAKE_ID, so those rows silently lose make_id."""
+    m = next((k for k in MAKES_BY_LEN if rest.lower().startswith(k.lower())), None)
+    if m:
+        return m, rest
+    tail = re.search(r'[-–]\s*([A-Za-z][A-Za-z .\-]{1,24})\s*$', rest)
+    if tail:
+        t = tail.group(1).strip().lower()
+        m = next((k for k in MAKES_BY_LEN if t == k.lower()), None)
+        if m:                                      # strip the trailing "- Make" from model
+            return m, rest[:tail.start()].strip()
+    return (rest.split(' ')[0] if rest else None), rest   # unknown make -> first token, no id
+
+
 def parse(htmltext, listing_id=None):
     # Hard-cap parse input: listing data is all near the top; a giant page (huge dealer
     # blurb / embedded blob) must never let any regex run long and freeze the GIL.
@@ -54,9 +73,7 @@ def parse(htmltext, listing_id=None):
     ym = re.match(r'(19|20)\d\d', title)
     year = int(title[:4]) if ym else None
     rest = title[4:].strip() if ym else title
-    make = next((m for m in MAKES_BY_LEN if rest.lower().startswith(m.lower())), None)
-    if not make:                                   # unknown make -> first token, no id
-        make = rest.split(' ')[0] if rest else None
+    make, rest = _make_of(rest)
     model = rest[len(make):].strip() if make and rest.lower().startswith(make.lower()) else rest
 
     # subtitle: "New Utility UTV in City, ST" — search only the top (few New/Used tokens)
@@ -123,8 +140,24 @@ def is_listing(htmltext):
     return '<h1' in htmltext and 'lp-specs-row' in htmltext and 'VIN' in htmltext
 
 
+def _selftest_makes():
+    """Runs without a sample page, so CI can catch a make-parsing regression on every push."""
+    for t, want in (('Polaris Sportsman 570 Trail', 'Polaris'),
+                    ('Brute Force 750 EPS LE Camo - Kawasaki', 'Kawasaki'),
+                    ('Outlander MAX Pro XU HD7 - Can-Am', 'Can-Am'),
+                    ('Arctic Cat Alterra 600', 'Arctic Cat'),
+                    ('KingQuad 400FSi - Suzuki', 'Suzuki'),
+                    ('Weirdbrand 900 XT', 'Weirdbrand')):
+        got, _ = _make_of(t)
+        assert got == want, f'{t!r} -> {got!r}, want {want!r}'
+    assert _make_of('Brute Force 750 - Kawasaki')[1] == 'Brute Force 750'   # suffix stripped
+    print('MAKE PARSE SELFTEST PASSED')
+
+
 if __name__ == '__main__':
     import sys
+    if '--selftest' in sys.argv:
+        _selftest_makes(); sys.exit(0)
     html_in = open(sys.argv[1], encoding='utf-8', errors='replace').read()
     r = parse(html_in, listing_id='13704289')
     print(json.dumps(r, indent=1, ensure_ascii=False)[:1600])
