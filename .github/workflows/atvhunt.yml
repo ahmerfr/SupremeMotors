@@ -25,10 +25,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: sitemap | facets   (from the probe)
+        description: searchmap | facets | sitemap   (searchmap = the ~2,518 facet URLs atvhunt declares in sitemap-search.xml; the widest robots-permitted surface)
         type: choice
-        options: [sitemap, facets]
-        default: facets
+        options: [searchmap, facets, sitemap]
+        default: searchmap
       rps:
         description: req/s per runner = one third of the measured sustainable rate
         default: '1.5'
