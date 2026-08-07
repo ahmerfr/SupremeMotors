@@ -1,0 +1,62 @@
+name: atvhunt enumerate (fresh-IP fleet)
+
+# MEASURED: every runner IP serves ~800 successful requests and is then blackholed --
+# first 429 at request #785 (conc 8) / #805 (conc 16), after which the 200-count flatlines
+# and every further request is a 429. It is a per-IP QUOTA, not a rate limit, so neither
+# concurrency nor rps nor extra accounts help once an IP is spent.
+#
+# Therefore: MANY SHORT JOBS. Each matrix job is a fresh runner = a fresh IP = ~800 good
+# requests, then it exits and its ids are banked. 180 jobs x 750 = 135,000 requests per
+# dispatch, at 18 concurrent that is ~10 waves of ~70s each.
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: matrix size (each job = one fresh IP)
+        default: '180'
+      maxreq:
+        description: successful requests per job (stay under the ~800 wall)
+        default: '750'
+
+permissions:
+  contents: read
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.g.outputs.matrix }}
+    steps:
+      - id: g
+        run: python3 -c "import json;print('matrix='+json.dumps(list(range(${{ inputs.jobs }}))))" >> "$GITHUB_OUTPUT"
+
+  enum:
+    needs: gen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        part: ${{ fromJSON(needs.gen.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Enumerate slice ${{ matrix.part }} until the IP is spent
+        run: >
+          python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt
+          --part ${{ matrix.part }} --total ${{ inputs.jobs }}
+          --rps 60 --conc 12 --budget 600 --maxreq ${{ inputs.maxreq }}
+          2> err-${{ matrix.part }}.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qids-${{ matrix.part }}
+          path: |
+            ids-${{ matrix.part }}.txt
+            ids-${{ matrix.part }}-stats.json
+          if-no-files-found: warn
