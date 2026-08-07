@@ -1,0 +1,31 @@
+name: atvhunt partition validate
+
+# One root with a KNOWN answer (Polaris + Texas = 3,913) so the tree can be verified
+# end-to-end. GitHub returns empty log files for these runs, so stats ride in the artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      make: { description: make, default: 'Polaris' }
+      state: { description: state, default: 'Texas' }
+      rps: { description: req/s, default: '5' }
+
+permissions:
+  contents: read
+
+jobs:
+  val:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_partition.py val.txt --only-make "${{ inputs.make }}" --only-state "${{ inputs.state }}" --rps ${{ inputs.rps }} 2> val.err
+      - if: always()
+        run: |
+          echo "ids: $(wc -l < val.txt)"; cat val-stats.json; echo; tail -30 val.err
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: partval, path: "val*.txt\nval*.json\nval.err" }
