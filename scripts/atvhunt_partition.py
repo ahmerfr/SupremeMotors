@@ -304,10 +304,13 @@ if __name__ == "__main__":
             f0["_state"] = a.only_state
         mine = [f0]
     elif a.total > 1:
-        roots = []
-        for m in MAKES:
-            ms = p.models_for(m)
-            roots += [{"make": m, "modelid": x} for x in ms] or [{"make": m}]
+        # Roots are make x state, NOT make x model. Rooting at make x model meant any
+        # listing whose model is absent from the selector list was never visited at all --
+        # measured on the previous run: 105,728 of 177,161 (60%) unvisited, dwarfing the
+        # 25,071 lost to leaks. It also bypassed the conservation check, which exists to
+        # catch exactly that: when the model split fails to account for its parent, walk()
+        # falls through to typeid and the numeric axes instead of dropping the remainder.
+        roots = [{"make": m, "_state": st} for m in MAKES for st in STATES]
         mine = roots[a.part::a.total]
         sys.stderr.write(f"roots={len(roots)} mine={len(mine)}\n")
     else:
