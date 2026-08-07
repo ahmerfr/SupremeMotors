@@ -1,0 +1,97 @@
+name: atvhunt warm images (Bunny)
+
+# GET every gallery image THROUGH the sm-atvhunt pull zone so Bunny pulls it from the
+# mhimg origin and perma-caches it. Same mechanism as warm-images.yml, but the manifest
+# comes from a crawl run's artifact instead of committed files in .github/warm-manifest/
+# -- at ~5.2 images per listing a full catalogue is ~900k URLs, which has no business
+# living in git.
+#
+# The zone is already live and needs no edge rule (verified: a GET of
+# sm-atvhunt.b-cdn.net/mhimg/p/4289/10014289/32f5_l.jpg returns 200 with the same ETag
+# as the GCS object), so unlike autowini there is no Referer/origin-override to set up.
+#
+#   gh workflow run atvhunt-warm.yml -f run_id=<the atvhunt.yml run that produced rows>
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: run id of the atvhunt.yml crawl whose atvhunt-merged artifact to warm
+        required: true
+      pool:
+        description: threads per runner
+        default: '25'
+      shards:
+        description: warm runners
+        default: '18'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: atvhunt-warm
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.g.outputs.matrix }}
+      images: ${{ steps.g.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: atvhunt-merged
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: g
+        run: |
+          python - <<'PY'
+          import gzip, json, os, math
+          N = int("${{ inputs.shards }}")
+          urls, seen = [], set()
+          for line in gzip.open("atvhunt-all.jsonl.gz", "rt", encoding="utf-8"):
+              if not line.strip():
+                  continue
+              for u in (json.loads(line).get("images") or []):
+                  if u not in seen:
+                      seen.add(u); urls.append(u)
+          print(f"{len(urls)} unique image urls")
+          os.makedirs("manifest", exist_ok=True)
+          for s in range(N):                       # stride slice: even split, no ragged tail
+              with gzip.open(f"manifest/warm-{s:02d}.txt.gz", "wt", encoding="utf-8") as f:
+                  f.write("\n".join(urls[s::N]))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as o:
+              o.write("matrix=" + json.dumps([f"{s:02d}" for s in range(N)]) + "\n")
+              o.write(f"images={len(urls)}\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: warm-manifest
+          path: manifest/
+          retention-days: 7
+          if-no-files-found: error
+
+  warm:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - uses: actions/download-artifact@v4
+        with: { name: warm-manifest }
+      - name: Warm shard ${{ matrix.shard }} of ${{ needs.plan.outputs.images }} images
+        env:
+          CDN_HOST: sm-atvhunt.b-cdn.net
+        run: python scripts/warm_image_shard.py warm-${{ matrix.shard }}.txt.gz ${{ inputs.pool }}
