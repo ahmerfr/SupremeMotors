@@ -306,6 +306,23 @@ def inspect(rep):
         rep["bundles"].append(bm)
 
 
+def dump(rep):
+    """Save the raw browse HTML as an artifact and extract the FORM CONTRACT: the site
+    pages 177,161 listings with a plain GET form (action=/atv-utv-for-sale, no XHR
+    anywhere), so its input names ARE the pagination params. Stop guessing; read them."""
+    m, txt = get(f"{A}/atv-utv-for-sale")
+    rep["page"] = m
+    open("browse.html", "w", encoding="utf-8").write(txt)
+    rep["inputs"] = re.findall(r'<(?:input|select)[^>]{0,240}?name="([^"]+)"[^>]{0,240}?>', txt)[:40]
+    rep["input_tags"] = re.findall(r'<(?:input|select)[^>]{0,300}?>', txt)[:30]
+    # the pagination block itself, verbatim
+    i = txt.lower().find("pagination")
+    rep["pagination_html"] = txt[max(0, i - 400):i + 1600] if i >= 0 else None
+    rep["all_query_links"] = sorted(set(re.findall(r'href="(/atv-utv-for-sale[^"]{1,120})"', txt)))[:40]
+    j = txt.find("177,1")
+    rep["count_block"] = txt[max(0, j - 300):j + 900] if j >= 0 else None
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -323,6 +340,8 @@ def main():
                 api(rep)
             elif role == "inspect":
                 inspect(rep)
+            elif role == "dump":
+                dump(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:

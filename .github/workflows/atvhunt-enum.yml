@@ -31,5 +31,7 @@ jobs:
         if: always()
         with:
           name: probe-enum
-          path: probe-enum.json
+          path: |
+            probe-enum.json
+            browse.html
           retention-days: 30
