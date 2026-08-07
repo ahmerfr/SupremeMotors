@@ -34,4 +34,5 @@ jobs:
           path: |
             probe-enum.json
             browse.html
+            modelsel.html
           retention-days: 30
