@@ -427,6 +427,22 @@ def models(rep):
     rep["q"] = {w: n_of(f"{STUCK}&q={w}") for w in ("rzr", "ranger", "general", "xp")}
 
 
+def modeldump(rep):
+    """/model-selector?make=Polaris returns 140KB. Save it and characterise the format --
+    if it carries real modelid values, that is the discriminator for the displacement-
+    pinned cells (Polaris/TX/t7/2026/999cc = 1,564 listings with every other axis spent)."""
+    m, txt = get(f"{A}/model-selector?make=Polaris")
+    open("modelsel.html", "w", encoding="utf-8").write(txt)
+    rep["meta"] = m
+    rep["head"] = txt[:600]
+    rep["is_json"] = txt.lstrip()[:1] in "[{"
+    rep["modelid_hrefs"] = sorted(set(re.findall(r"modelid=(\d+)", txt)))[:25]
+    rep["n_modelid"] = len(set(re.findall(r"modelid=(\d+)", txt)))
+    rep["options"] = re.findall(r"<option[^>]*>", txt)[:10]
+    rep["links"] = re.findall(r'href="([^"]{0,120})"', txt)[:15]
+    rep["json_ids"] = re.findall(r'"(?:id|modelid|value)"\s*:\s*"?(\d+)"?', txt)[:20]
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -452,6 +468,8 @@ def main():
                 coverage(rep)
             elif role == "models":
                 models(rep)
+            elif role == "modeldump":
+                modeldump(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
