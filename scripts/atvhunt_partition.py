@@ -82,28 +82,49 @@ class Partitioner:
             out.append(("_state", STATES))
         if "typeid" not in f:
             out.append(("typeid", TYPEIDS))
-        if "seatsid" not in f:
-            out.append(("seatsid", ["1", "2", "3", "4", "5", "6"]))
+        if "hasvin" not in f:
+            out.append(("hasvin", ["1", "0"]))     # clean binary split, measured to work
         return out
 
     def walk(self, f, depth=0):
+        """-> the slice's reported count, so a parent can verify its children add up."""
         n, found = self.probe(f)
         if n is None:
-            return
+            return 0
         if n <= self.cap:
-            return                              # ids already banked by probe()
+            return n                            # ids already banked by probe()
         # numeric bisection on YEAR is unbounded-depth, so prefer it once coarse dims run out
         d = self.dims(f)
         if d:
             k, vals = d[0]
+            # CONSERVATION CHECK. seatsid silently returned count=None / 0 ids for every
+            # value, so every listing under such a node was discarded without a word. A
+            # split must account for its parent; if it does not, the dimension is broken
+            # and we must fall through to one that is rather than lose the slice.
+            got = 0
             for v in vals:
-                self.walk({**f, k: v}, depth + 1)
-            return
+                c = self.walk({**f, k: v}, depth + 1)
+                got += c or 0
+            if got < n * 0.9:
+                sys.stderr.write(
+                    f"SPLIT-LOSS {k} on {url_of(f)}: children {got} < parent {n}\n")
+                rest = d[1:]
+                if rest:
+                    k2, vals2 = rest[0]
+                    for v in vals2:
+                        self.walk({**f, k2: v}, depth + 1)
+                else:
+                    self.bisect_year(f, n)
+            return n
+        self.bisect_year(f, n)
+        return n
+
+    def bisect_year(self, f, n):
         lo, hi = int(f.get("year_from", 1980)), int(f.get("year_to", 2030))
         if lo < hi:
             mid = (lo + hi) // 2
-            self.walk({**f, "year_from": lo, "year_to": mid}, depth + 1)
-            self.walk({**f, "year_from": mid + 1, "year_to": hi}, depth + 1)
+            self.walk({**f, "year_from": lo, "year_to": mid})
+            self.walk({**f, "year_from": mid + 1, "year_to": hi})
             return
         with self.lock:                          # nothing left to split: record the loss
             self.leaks.append((url_of(f), n))
@@ -164,8 +185,19 @@ def selftest():
     # is that it never approaches that, because an empty or small slice terminates at once.
     worst = len(MAKES) * len(STATES) * len(TYPEIDS) * 6
     assert p.reqs < worst / 4, f"{p.reqs} requests vs worst-case {worst} - not pruning"
+    # REGRESSION: a dimension that returns nothing (seatsid did exactly this on the live
+    # site) must NOT swallow the listings under it. Conservation check has to catch it.
+    def broken_get(u):
+        if "hasvin=" in u:                       # pretend hasvin is the broken filter
+            return "<h1> <b>0</b> ATVs and UTVs for sale</h1>"
+        return fake_get(u)
+
+    q = Partitioner(broken_get, cap=PAGE_CAP)
+    q.walk({})
+    lost = want - q.ids
+    assert not lost, f"broken dimension silently lost {len(lost)} of {total} ids"
     print(f"PARTITION SELFTEST PASSED ({len(p.ids)}/{total} ids recovered, 0 leaks, "
-          f"{p.reqs} requests vs {worst} worst-case)")
+          f"{p.reqs} requests vs {worst} worst-case; broken-dimension regression clean)")
 
 
 if __name__ == "__main__":
