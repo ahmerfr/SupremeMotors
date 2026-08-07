@@ -42,9 +42,13 @@ TYPEIDS = ["6", "7"]
 
 # Numeric axes bisected after the categorical ones, in order. (from_param, to_param,
 # min, max). All three are real inputs on the browse form and none is robots-disallowed.
+# MEASURED on Honda/Texas/typeid=6/2026 (614 listings):
+#   displacement 0-500 -> 449, 501-2048 -> 165. 449+165 = 614 EXACTLY: a true partition.
+#   mileage 101-131072 -> None/0 (broken upper range), modelid=1 -> None, rad=25 -> no
+#   change. Those three are excluded for the same reason seatsid and hasvin were: a
+#   dimension that does not partition silently swallows everything beneath it.
 NUMERIC = [("year_from", "year_to", 1980, 2030),
-           ("displacement_from", "displacement_to", 0, 2048),
-           ("mileage_from", "mileage_to", 0, 131072)]
+           ("displacement_from", "displacement_to", 0, 2048)]
 
 
 def qs(f):
