@@ -58,7 +58,24 @@ def get(u):
 
 seen = set()
 
-if mode == "searchmap":
+if mode == "statemap":
+    # Each facet serves exactly 24 server-rendered ids and there is NO compliant way to
+    # page deeper (no rel=next, no page=; start=/n=//api/ are all robots Disallow-ed). So
+    # widen sideways instead of deeper: cross the ~2,518 facets atvhunt declares in
+    # sitemap-search.xml with all 50 states -> ~125,900 facet URLs x 24 slots. Every URL
+    # here is robots-permitted (only typeid= and a state path segment).
+    body = get(f"{A}/sitemap-search.xml")
+    facets = [u for u in re.findall(r"<loc>([^<]+)</loc>", body) if "/l/" not in u]
+    urls = []
+    for u in facets:
+        q = u.split("?", 1)
+        if len(q) == 2 and "/atv-utv-for-sale" in q[0]:
+            urls += [f"{A}/atv-utv-for-sale/{s}?{q[1]}" for s in STATES]
+    sys.stderr.write(f"facets={len(facets)} -> state-crossed urls={len(urls)}\n")
+    for u in urls[part::total]:
+        seen.update(ID.findall(get(u)))
+
+elif mode == "searchmap":
     # The site's OWN declared enumeration surface: sitemap-search.xml lists ~2,518 facet
     # URLs (typeid=6, typeid=6_Recreational, ...). Fetch this shard's slice and take the
     # 24 server-rendered ids each exposes. This is the widest route robots.txt permits --

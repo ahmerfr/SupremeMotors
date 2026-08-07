@@ -27,8 +27,8 @@ on:
       mode:
         description: searchmap | facets | sitemap   (searchmap = the ~2,518 facet URLs atvhunt declares in sitemap-search.xml; the widest robots-permitted surface)
         type: choice
-        options: [searchmap, facets, sitemap]
-        default: searchmap
+        options: [statemap, searchmap, facets, sitemap]
+        default: statemap
       rps:
         description: req/s per runner = one third of the measured sustainable rate
         default: '1.5'
