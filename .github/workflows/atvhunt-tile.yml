@@ -54,7 +54,7 @@ jobs:
           else
             SRC="--range ${{ inputs.lo }} $(( ${{ inputs.lo }} + 767999 )) --acct ${{ inputs.acct }} --nacct 4"
           fi
-          python3 atvhunt_crawl.py out $SRC --shard ${{ matrix.shard }} --of 256 --rps ${{ inputs.rps }} --conc 8 --maxreq ${{ inputs.maxreq }} --budget 240
+          python3 atvhunt_crawl.py out $SRC --shard ${{ matrix.shard }} --of 256 --rps ${{ inputs.rps }} --conc 48 --maxreq ${{ inputs.maxreq }} --budget 420
       - uses: actions/upload-artifact@v4
         if: always()
         with:
