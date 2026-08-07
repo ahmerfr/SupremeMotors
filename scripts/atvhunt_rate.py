@@ -25,6 +25,8 @@ def sess():
     return _tl.s
 
 codes, lock = {}, threading.Lock()
+marks = {}
+T0 = time.time()
 lat = []
 
 def one(i):
@@ -39,13 +41,21 @@ def one(i):
     with lock:
         codes[str(c)] = codes.get(str(c), 0) + 1
         lat.append(d)
+        n = sum(codes.values())
+        if c == 429 and "first_429_at" not in marks:
+            marks["first_429_at"] = n
+            marks["first_429_elapsed"] = round(time.time() - T0, 1)
+        if n % 250 == 0:                       # rate profile over the run, not just a mean
+            marks.setdefault("profile", []).append(
+                {"n": n, "elapsed": round(time.time() - T0, 1),
+                 "codes": dict(codes)})
 
 t0 = time.time()
 with ThreadPoolExecutor(max_workers=CONC) as ex:
     list(ex.map(one, range(N)))
 el = time.time() - t0
 lat.sort()
-out = {"conc": CONC, "n": N, "seconds": round(el, 1), "req_per_s": round(N / el, 2),
+out = {"marks": marks, "conc": CONC, "n": N, "seconds": round(el, 1), "req_per_s": round(N / el, 2),
        "codes": codes,
        "latency_p50": round(lat[len(lat)//2], 2) if lat else None,
        "latency_p95": round(lat[int(len(lat)*0.95)], 2) if lat else None,
