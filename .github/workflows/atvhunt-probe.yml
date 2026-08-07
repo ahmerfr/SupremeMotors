@@ -1,0 +1,41 @@
+name: atvhunt probe (ONE recon run)
+
+# Two runners = two egress IPs. `hammer` reads every enumeration surface, then drives a
+# FIXED-rate ladder until the first 429 and times the recovery. `witness` idles at
+# 0.2 req/s on the OTHER IP for the whole window. If witness never 429s while hammer is
+# being 429ed, Cloud Armor's enforce_on_key is IP and IP fan-out works. If witness 429s
+# too, the key is ALL (the Cloud Armor DEFAULT) or origin.asn -- and then NO fan-out helps,
+# paid proxies included. That single bit is worth more than the rest of this repo's
+# crawler engineering combined, and it costs 84 requests.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest        # NEVER ubuntu-slim: that SKU is "hosted in a container
+    timeout-minutes: 20           # on a shared VM", i.e. several jobs behind ONE egress IP
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [hammer, witness]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - name: Probe (${{ matrix.role }})
+        run: python scripts/atvhunt_probe.py ${{ matrix.role }} probe-${{ matrix.role }}.json
+      - name: Report
+        if: always()
+        run: cat probe-${{ matrix.role }}.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()              # a red job's JSON is the most informative artifact of all
+        with:
+          name: probe-${{ matrix.role }}
+          path: probe-${{ matrix.role }}.json
+          retention-days: 30
+          if-no-files-found: warn
