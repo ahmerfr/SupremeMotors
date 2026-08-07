@@ -35,16 +35,42 @@ CAT_RE = re.compile(r'\b(?:New|Used)\s+([A-Za-z0-9][A-Za-z0-9 /-]{1,30}?)\s+in\s
 
 
 def _head(htmltext):
-    """The listing header region: everything before the first spec row. The subtitle is
-    rendered above the specs, so anything matching further down belongs to another car."""
+    """The listing header region: everything before the first spec row.
+
+    MEASURED THE HARD WAY: the subtitle does NOT always render above the specs. Anchoring
+    to this region alone returned body_style=None for every real listing, and because the
+    crawler's ATV/UTV gate drops any row without a body_style, an entire 750-id shard
+    reported list=0 while 53 of its ids were listings we already hold. Callers must use
+    _sub() below, which prefers the header and falls back to the whole page, rather than
+    trusting this region to contain the subtitle."""
     i = htmltext.find('lp-specs-row')
     return htmltext[:i] if i > 0 else htmltext
+
+
+# A cross-sell block is the thing that must not donate body_style/state -- NOT the spec
+# rows. Cutting at the first lp-specs-row (the previous anchor) also cut off the subtitle
+# on every real listing, so the gate rejected all of them.
+XSELL_RE = re.compile(r'similar\s+listings|you\s+may\s+also\s+like|related\s+listings|'
+                      r'recommended\s+for\s+you|similar-listings|lp-similar', re.I)
+
+
+def _own(htmltext):
+    """The part of the page that describes THIS listing: everything before the first
+    cross-sell block, or the whole page when there is none."""
+    m = XSELL_RE.search(htmltext)
+    return htmltext[:m.start()] if m else htmltext
+
+
+def _sub(htmltext, pattern):
+    """Match within this listing's own region. Keeps the cross-sell protection that the
+    header anchor was reaching for, without assuming the subtitle sits above the specs."""
+    return re.search(pattern, _own(htmltext))
 
 
 def category_token(htmltext):
     """The category word from a live page's header, whatever it is ('Sedan', 'Cruiser').
     Written to other_*.txt so a too-tight ATV/UTV gate is fixable without re-fetching."""
-    m = CAT_RE.search(_head(htmltext))
+    m = CAT_RE.search(_own(htmltext))
     return m.group(1).strip() if m else None
 
 
@@ -101,7 +127,7 @@ def parse(htmltext, listing_id=None):
     # page: a "similar listings near you" cross-sell block on a sibling-marketplace page
     # (a car on motohunt) donates an ATV body_style AND a state, which both passes the
     # ATV/UTV gate and corrupts the per-state count that audits the gate.
-    sub = re.search(SUB_RE, _head(htmltext))
+    sub = _sub(htmltext, SUB_RE)
     condition = sub.group(1) if sub else (S.get('Condition') if (S := _specs(htmltext)) else None)
     body_style = _txt(sub.group(2)) if sub else None
     city = _txt(sub.group(3)) if sub else None
@@ -200,6 +226,16 @@ def _selftest_makes():
     novin = ('<h1>2019 Honda Rancher</h1><p>Used Utility ATV in Ada, OK</p>'
              '<div class="row lp-specs-row"><div><b>Color:</b></div><div>Red</div></div>')
     assert is_listing(novin) and parse(novin)['body_style'] == 'Utility ATV'
+    # 3. THE REGRESSION THAT COST A FLEET RUN: subtitle rendered BELOW the first spec row.
+    #    Header-only anchoring returned None here, the ATV gate dropped the row, and a
+    #    750-id shard reported list=0 with 53 known listings inside it.
+    below = ('<h1>2026 Polaris Ranger</h1>'
+             '<div class="row lp-specs-row"><div><b>VIN:</b></div><div>ABC</div></div>'
+             '<p>New Utility UTV in Crossville, TN</p>')
+    rb = parse(below)
+    assert is_listing(below), 'must still be a listing'
+    assert rb['body_style'] == 'Utility UTV', ('subtitle below specs', rb['body_style'])
+    assert rb['state'] == 'TN' and rb['city'] == 'Crossville', (rb['city'], rb['state'])
     assert not is_listing('<h1>Page not found</h1>')
     print('PARSE SELFTEST PASSED (make, body-style class, header anchor, VIN-less listing)')
 
