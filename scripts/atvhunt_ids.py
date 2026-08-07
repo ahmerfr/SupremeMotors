@@ -58,7 +58,18 @@ def get(u):
 
 seen = set()
 
-if mode == "sitemap":
+if mode == "searchmap":
+    # The site's OWN declared enumeration surface: sitemap-search.xml lists ~2,518 facet
+    # URLs (typeid=6, typeid=6_Recreational, ...). Fetch this shard's slice and take the
+    # 24 server-rendered ids each exposes. This is the widest route robots.txt permits --
+    # paging past 24 needs start=/n=//api/, all of which are Disallow-ed.
+    body = get(f"{A}/sitemap-search.xml")
+    facets = [u for u in re.findall(r"<loc>([^<]+)</loc>", body) if "/l/" not in u]
+    sys.stderr.write(f"sitemap-search facets: {len(facets)}\n")
+    for u in facets[part::total]:
+        seen.update(ID.findall(get(u)))
+
+elif mode == "sitemap":
     roots = re.findall(r"(?im)^\s*sitemap:\s*(\S+)", get(f"{A}/robots.txt"))
     roots += [f"{A}/sitemap.xml", f"{A}/sitemap_index.xml", f"{A}/sitemap-listings.xml"]
     kids = []
