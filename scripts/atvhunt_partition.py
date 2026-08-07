@@ -510,9 +510,20 @@ if __name__ == "__main__":
     gov = Governor(a.rps)                             # os._exit on 5x403 (sys.exit is
     deadline = time.time() + a.budget if a.budget else float("inf")
 
+    http = [0]                                        # ACTUAL HTTP attempts, not probes
+    hlock = threading.Lock()
+
     def get(u):                                       # swallowed inside a worker thread)
         for _ in range(4):
-            if time.time() > deadline or (a.maxreq and p.reqs >= a.maxreq):
+            # The IP quota is spent per HTTP ATTEMPT, and a probe retries up to 4x, so
+            # capping probes let a job blow through its ~800-request budget and then spend
+            # the rest of its life collecting 429s: 102,852 of 384,982 requests (27%) in
+            # the last run. Count attempts.
+            with hlock:
+                if a.maxreq and http[0] >= a.maxreq:
+                    return ""
+                http[0] += 1
+            if time.time() > deadline:
                 return ""
             gov.gate()
             try:
@@ -547,6 +558,7 @@ if __name__ == "__main__":
         with open(a.out, "w", encoding="utf-8") as fh:
             fh.write("\n".join(sorted(p.ids, key=int)) + "\n")
         stats = {"part": a.part, "total": a.total, "ids": len(p.ids), "requests": p.reqs,
+                 "http": http[0],
                  "leaks": len(p.leaks), "leaked_listings": sum(n for _, n in p.leaks),
                  "drops": len(p.drops), "errs": p.errs,
                  "dead_dims": sorted(p.dead), "sorts": p.sorts,

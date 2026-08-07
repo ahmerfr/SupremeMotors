@@ -14,7 +14,7 @@ on:
     inputs:
       jobs:
         description: matrix size (each job = one fresh IP)
-        default: '180'
+        default: '256'
       maxreq:
         description: successful requests per job (stay under the ~800 wall)
         default: '750'
@@ -50,7 +50,7 @@ jobs:
         run: >
           python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt
           --part ${{ matrix.part }} --total ${{ inputs.jobs }}
-          --rps 60 --conc 12 --budget 600 --maxreq ${{ inputs.maxreq }}
+          --rps 60 --conc 12 --budget 420 --maxreq ${{ inputs.maxreq }}
           2> err-${{ matrix.part }}.log
       - if: always()
         uses: actions/upload-artifact@v4
