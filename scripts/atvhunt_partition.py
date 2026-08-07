@@ -496,6 +496,12 @@ if __name__ == "__main__":
     ap.add_argument("--rps", type=float, default=10.0, help="per runner; x18 = aggregate")
     ap.add_argument("--conc", type=int, default=32, help="in-flight requests per runner")
     ap.add_argument("--budget", type=float, default=1020, help="seconds; 0 = no cap")
+    ap.add_argument("--maxreq", type=int, default=0,
+                    help="stop after N successful requests. MEASURED: every runner IP is "
+                         "blackholed after ~800 OK requests (first 429 at #785 with conc 8, "
+                         "#805 with conc 16; the 200-count then flatlines and never "
+                         "recovers). Past that a job burns wall-clock collecting 429s, so a "
+                         "short job on a FRESH IP is worth far more than a long one.")
     ap.add_argument("--root", default=None, help="single root, e.g. make=Polaris,_state=Texas")
     a = ap.parse_args()
 
@@ -506,7 +512,7 @@ if __name__ == "__main__":
 
     def get(u):                                       # swallowed inside a worker thread)
         for _ in range(4):
-            if time.time() > deadline:
+            if time.time() > deadline or (a.maxreq and p.reqs >= a.maxreq):
                 return ""
             gov.gate()
             try:
