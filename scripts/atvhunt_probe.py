@@ -331,20 +331,17 @@ def filters(rep):
     cnt = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
     rep["forms"] = []
     for label, u in [
-        ("baseline",            B),
-        ("path make",           f"{B}/Polaris"),
-        ("query make",          f"{B}?make=Polaris"),
-        ("path state",          f"{B}/Texas"),
-        ("query loc",           f"{B}?loc=Texas"),
-        ("path state+q make",   f"{B}/Texas?make=Polaris"),
-        ("query make+loc",      f"{B}?make=Polaris&loc=Texas"),
-        ("query make+loc+rad",  f"{B}?make=Polaris&loc=Texas&rad=500"),
-        ("query make+typeid",   f"{B}?make=Polaris&typeid=7"),
-        ("query make+year",     f"{B}?make=Polaris&year_from=2024&year_to=2024"),
-        ("query make+yr+type",  f"{B}?make=Polaris&year_from=2024&year_to=2024&typeid=7"),
-        ("query seatsid",       f"{B}?make=Polaris&seatsid=2"),
-        ("query hasvin",        f"{B}?make=Polaris&hasvin=1"),
+        ("baseline",              B),
+        ("H/TX/t6/2026",          f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026"),
+        ("  +disp 0-500",         f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&displacement_from=0&displacement_to=500"),
+        ("  +disp 501-2048",      f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&displacement_from=501&displacement_to=2048"),
+        ("  +mile 0-100",         f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&mileage_from=0&mileage_to=100"),
+        ("  +mile 101-131072",    f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&mileage_from=101&mileage_to=131072"),
+        ("  +modelid=1",          f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&modelid=1"),
+        ("  +rad=25",             f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&rad=25"),
+        ("  +q=foreman",          f"{B}/Texas?make=Honda&typeid=6&year_from=2026&year_to=2026&q=foreman"),
     ]:
+        m, txt = get(u)
         m, txt = get(u)
         g = cnt.search(txt)
         rep["forms"].append({"label": label, "url": u, "code": m.get("code"),

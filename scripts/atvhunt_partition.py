@@ -40,6 +40,12 @@ STATES = ("Alabama Alaska Arizona Arkansas California Colorado Connecticut Delaw
           "Wisconsin Wyoming").split()
 TYPEIDS = ["6", "7"]
 
+# Numeric axes bisected after the categorical ones, in order. (from_param, to_param,
+# min, max). All three are real inputs on the browse form and none is robots-disallowed.
+NUMERIC = [("year_from", "year_to", 1980, 2030),
+           ("displacement_from", "displacement_to", 0, 2048),
+           ("mileage_from", "mileage_to", 0, 131072)]
+
 
 def qs(f):
     return "&".join(f"{k}={v}" for k, v in sorted(f.items()) if v not in (None, ""))
@@ -82,8 +88,10 @@ class Partitioner:
             out.append(("_state", STATES))
         if "typeid" not in f:
             out.append(("typeid", TYPEIDS))
-        if "hasvin" not in f:
-            out.append(("hasvin", ["1", "0"]))     # clean binary split, measured to work
+        # NO hasvin: measured non-partitioning. hasvin=1 narrows but hasvin=0 is IGNORED and
+        # returns the parent set unchanged (Honda/Texas/2026: 490 for BOTH values), so it
+        # duplicates work instead of splitting. The conservation check cannot catch that on
+        # its own -- 490+490 clears any parent -- so it is excluded by measurement.
         return out
 
     def walk(self, f, depth=0):
@@ -120,13 +128,18 @@ class Partitioner:
         return n
 
     def bisect_year(self, f, n):
-        lo, hi = int(f.get("year_from", 1980)), int(f.get("year_to", 2030))
-        if lo < hi:
-            mid = (lo + hi) // 2
-            self.walk({**f, "year_from": lo, "year_to": mid})
-            self.walk({**f, "year_from": mid + 1, "year_to": hi})
-            return
-        with self.lock:                          # nothing left to split: record the loss
+        """Numeric axes, bisected in turn. year alone is not enough: after
+        make+state+typeid+year, Honda/Texas/2026 still held 490 listings with nothing left
+        to split, so only its top 24 were reachable -- that was 89% of the catalogue lost.
+        displacement and mileage are both on the browse form and both robots-permitted."""
+        for lo_k, hi_k, lo_d, hi_d in NUMERIC:
+            lo, hi = int(f.get(lo_k, lo_d)), int(f.get(hi_k, hi_d))
+            if lo < hi:
+                mid = lo + (hi - lo) // 2
+                self.walk({**f, lo_k: lo, hi_k: mid})
+                self.walk({**f, lo_k: mid + 1, hi_k: hi})
+                return
+        with self.lock:                          # every axis exhausted: record the loss
             self.leaks.append((url_of(f), n))
         sys.stderr.write(f"LEAK {url_of(f)} still {n} > {self.cap}\n")
 
