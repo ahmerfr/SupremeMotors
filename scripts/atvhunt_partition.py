@@ -55,6 +55,7 @@ BROWSE = A + "/atv-utv-for-sale"
 PAGE_CAP = 24                                  # server renders at most this many
 COUNT_RE = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
 ID_RE = re.compile(r"/l/(\d+)/")
+EMPTY_RE = re.compile(r"No results|no listings match|0 ATVs and UTVs", re.I)
 SLUG_RE = re.compile(r"/l/\d+/([a-z0-9][a-z0-9\-]{3,80})")
 
 TOL_LO, TOL_HI = 0.90, 1.05                    # children must account for their parent
@@ -173,7 +174,17 @@ class Partitioner:
             self.reqs += 1
             self.ids |= found
         m = COUNT_RE.search(body)
-        return (int(m.group(1).replace(",", "")) if m else None), body
+        if m:
+            return int(m.group(1).replace(",", "")), body
+        # An EMPTY slice renders no count element at all -- it swaps the <h1><b>N</b> for a
+        # plain title and says "No results" (measured: Texas+Polaris+vm:42660+typeid=7 and
+        # Alaska+Kayo+typeid=6 both 200, 0 listing links, ~105KB). Reading that as a failure
+        # cost 2,391 DROPs x 3 retries = ~7,200 requests, 41% of the last run's budget, and
+        # starved the worker pool on retry sleeps. A real page with zero listings is a
+        # legitimate answer of 0, not something to retry.
+        if body and not found and EMPTY_RE.search(body):
+            return 0, body
+        return None, body
 
     def models_for(self, make):
         """Model ids from the site's own model-selector modal. Values look like
