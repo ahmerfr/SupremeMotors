@@ -443,6 +443,31 @@ def modeldump(rep):
     rep["json_ids"] = re.findall(r'"(?:id|modelid|value)"\s*:\s*"?(\d+)"?', txt)[:20]
 
 
+def modelparam(rep):
+    """model-selector yields data-id="vm:42587" / SelectModel("vm42587") with a per-model
+    count (Polaris Outlaw = 940). Which browse param consumes it? The form exposes
+    modelid, trimid, t, st, pid, qid, premid -- try them against a cell whose size is
+    known so a real narrowing is unmistakable."""
+    B = A + "/atv-utv-for-sale"
+    cnt = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
+
+    def n_of(u):
+        _, t = get(u)
+        g = cnt.search(t)
+        return int(g.group(1).replace(",", "")) if g else None
+
+    rep["polaris_all"] = n_of(f"{B}?make=Polaris")            # 58,398
+    ids = ["42587", "vm42587", "vm:42587"]
+    rep["params"] = []
+    for prm in ("modelid", "t", "st", "trimid", "pid", "qid", "premid"):
+        for v in ids:
+            u = f"{B}?make=Polaris&{prm}={v}"
+            rep["params"].append({"param": prm, "value": v, "count": n_of(u)})
+    # and the stuck cell, with whichever shape wins
+    rep["stuck"] = n_of(f"{B}/Texas?make=Polaris&typeid=7&year_from=2026&year_to=2026"
+                        "&displacement_from=999&displacement_to=999")
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -470,6 +495,8 @@ def main():
                 models(rep)
             elif role == "modeldump":
                 modeldump(rep)
+            elif role == "modelparam":
+                modelparam(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
