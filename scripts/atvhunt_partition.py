@@ -225,6 +225,8 @@ if __name__ == "__main__":
     ap.add_argument("--part", type=int, default=0)
     ap.add_argument("--total", type=int, default=1)
     ap.add_argument("--rps", type=float, default=5.0)
+    ap.add_argument("--only-make", default=None, help="validate one make")
+    ap.add_argument("--only-state", default=None, help="validate one state")
     a = ap.parse_args()
 
     from curl_cffi import requests as rq
@@ -257,7 +259,14 @@ if __name__ == "__main__":
     # so a per-make split leaves one runner doing a third of the catalogue while the other
     # 17 idle. 22 x 52 = 1,144 roots spreads evenly and the tail shrinks to one state of
     # one make. Roots are interleaved so consecutive big states land on different runners.
-    if a.total > 1:
+    if a.only_make or a.only_state:
+        f0 = {}
+        if a.only_make:
+            f0["make"] = a.only_make
+        if a.only_state:
+            f0["_state"] = a.only_state
+        mine = [f0]
+    elif a.total > 1:
         roots = [{"make": m, "_state": st} for m in MAKES for st in STATES]
         mine = roots[a.part::a.total]
     else:
