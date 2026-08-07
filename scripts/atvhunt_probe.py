@@ -349,6 +349,46 @@ def filters(rep):
                              "ids": len(set(re.findall(r"/l/(\d+)/", txt)))})
 
 
+def coverage(rep):
+    """Do my split VALUE LISTS actually cover the catalogue? A dimension can partition
+    correctly and still lose listings if the enumerated values are incomplete -- e.g. a
+    make or state that exists on the site but is missing from my hard-coded list is simply
+    never visited. Sum the children and compare to the parent."""
+    B = A + "/atv-utv-for-sale"
+    cnt = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
+
+    def n_of(u):
+        _, txt = get(u)
+        g = cnt.search(txt)
+        return int(g.group(1).replace(",", "")) if g else None
+
+    MK = ["Polaris", "Can-Am", "Honda", "Kawasaki", "CFMOTO", "Yamaha", "Suzuki", "Kayo",
+          "Kymco", "SSR", "Segway", "Arctic Cat", "Argo", "Apollo", "Bennche", "DRR",
+          "Hisun Motors", "Odes", "Tao Motor", "Tracker Off Road", "Trailmaster", "Vitacci"]
+    ST = ("Alabama Alaska Arizona Arkansas California Colorado Connecticut Delaware Florida "
+          "Georgia Guam Hawaii Idaho Illinois Indiana Iowa Kansas Kentucky Louisiana Maine "
+          "Maryland Massachusetts Michigan Minnesota Mississippi Missouri Montana Nebraska "
+          "Nevada New-Hampshire New-Jersey New-Mexico New-York North-Carolina North-Dakota "
+          "Ohio Oklahoma Oregon Pennsylvania Puerto-Rico Rhode-Island South-Carolina "
+          "South-Dakota Tennessee Texas Utah Vermont Virginia Washington West-Virginia "
+          "Wisconsin Wyoming").split()
+
+    rep["total"] = n_of(B)
+    mk = {m: n_of(f"{B}?make={m.replace(' ', '+')}") for m in MK}
+    rep["make_counts"] = mk
+    rep["make_sum"] = sum(v for v in mk.values() if v)
+    st = {x: n_of(f"{B}/{x}") for x in ST}
+    rep["state_counts"] = st
+    rep["state_sum"] = sum(v for v in st.values() if v)
+    # and within ONE make, do the states add up?
+    pol = {x: n_of(f"{B}/{x}?make=Polaris") for x in ST}
+    rep["polaris_total"] = n_of(f"{B}?make=Polaris")
+    rep["polaris_state_sum"] = sum(v for v in pol.values() if v)
+    ty = {t: n_of(f"{B}?typeid={t}") for t in ("6", "7")}
+    rep["typeid_counts"] = ty
+    rep["typeid_sum"] = sum(v for v in ty.values() if v)
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -370,6 +410,8 @@ def main():
                 dump(rep)
             elif role == "filters":
                 filters(rep)
+            elif role == "coverage":
+                coverage(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
