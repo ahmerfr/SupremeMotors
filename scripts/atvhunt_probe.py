@@ -389,6 +389,44 @@ def coverage(rep):
     rep["typeid_sum"] = sum(v for v in ty.values() if v)
 
 
+def models(rep):
+    """Find a discriminator for cells that pin to one displacement. Polaris/Texas/typeid=7/
+    2026/999cc holds 1,564 listings with every current axis exhausted; model is the natural
+    split (RZR XP vs Pro vs Ranger vs General). mh.js exposes /model-selector."""
+    B = A + "/atv-utv-for-sale"
+    cnt = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
+    STUCK = f"{B}/Texas?make=Polaris&typeid=7&year_from=2026&year_to=2026&displacement_from=999&displacement_to=999"
+
+    def n_of(u):
+        _, t = get(u)
+        g = cnt.search(t)
+        return int(g.group(1).replace(",", "")) if g else None
+
+    rep["stuck_baseline"] = n_of(STUCK)
+    # 1. the model-selector endpoint mh.js references
+    rep["selector"] = []
+    for u in (f"{A}/model-selector?make=Polaris", f"{A}/model-selector?makeid=954",
+              f"{A}/model-selector?trimselector=1&make=Polaris",
+              f"{A}/dealer/model-selector?make=Polaris"):
+        m, t = get(u)
+        m["ids"] = re.findall(r'value="(\d+)"[^>]{0,60}>([^<]{1,40})', t)[:12]
+        m["len"] = len(t)
+        rep["selector"].append(m)
+    # 2. does the browse page itself carry a model <select>?
+    _, t = get(STUCK)
+    sel = re.search(r'<select[^>]*name="modelid".{0,4000}?</select>', t, re.S)
+    rep["modelid_select"] = re.findall(r'value="([^"]*)"[^>]*>([^<]{1,40})', sel.group(0))[:20] if sel else None
+    rep["trimid_select"] = bool(re.search(r'name="trimid"', t))
+    # 3. mileage with a saner max, and a few real model ids if we can see them
+    rep["mileage"] = {}
+    for lab, u in (("0-99999", f"{STUCK}&mileage_from=0&mileage_to=99999"),
+                   ("0-10", f"{STUCK}&mileage_from=0&mileage_to=10"),
+                   ("11-99999", f"{STUCK}&mileage_from=11&mileage_to=99999")):
+        rep["mileage"][lab] = n_of(u)
+    # 4. free-text as a fallback fan-out
+    rep["q"] = {w: n_of(f"{STUCK}&q={w}") for w in ("rzr", "ranger", "general", "xp")}
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -412,6 +450,8 @@ def main():
                 filters(rep)
             elif role == "coverage":
                 coverage(rep)
+            elif role == "models":
+                models(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
