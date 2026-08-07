@@ -1,0 +1,52 @@
+name: atvhunt wait for healthy
+
+# atvhunt's origin returned 503 "no healthy upstream" (Envoy: no backend instances) on all
+# 6 runner IPs while the geo layer still answered non-US IPs with 403. That is the site
+# being down, not us being blocked. Poll from a US runner until it serves a real page, so
+# the enumeration is dispatched against a healthy origin instead of burning a run on 503s.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: how long to keep polling
+        default: '50'
+
+permissions:
+  contents: read
+
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Poll until healthy
+        run: |
+          python - <<'PY'
+          import time, re, sys
+          from curl_cffi import requests as rq
+          S = rq.Session(impersonate="chrome")
+          U = "https://atvhunt.com/atv-utv-for-sale"
+          CNT = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
+          end = time.time() + ${{ inputs.minutes }} * 60
+          n = 0
+          while time.time() < end:
+              n += 1
+              try:
+                  r = S.get(U, timeout=(8, 25), impersonate="chrome")
+                  m = CNT.search(r.text)
+                  print(f"[{n}] code={r.status_code} bytes={len(r.content)} count={m.group(1) if m else None}", flush=True)
+                  if r.status_code == 200 and m:
+                      print(f"HEALTHY: {m.group(1)} listings")
+                      sys.exit(0)
+              except Exception as e:
+                  print(f"[{n}] err {e!r}", flush=True)
+              time.sleep(30)
+          print("still unhealthy after the window")
+          sys.exit(1)
+          PY
