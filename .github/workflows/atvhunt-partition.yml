@@ -1,0 +1,43 @@
+name: atvhunt partition (enumerate via filters)
+
+# atvhunt never paginates: no page/start/n/offset param, no pager markup, no XHR. But every
+# filtered URL reports its own count in <h1><b>N</b>. So the catalogue is enumerable by
+# recursive subdivision -- ask a slice its size, take its ids if <= 24, else split it on the
+# next robots-permitted filter (make, state, typeid, seats, then year bisection).
+
+on:
+  workflow_dispatch:
+    inputs:
+      makes:
+        description: "shard count (1 = single runner, whole catalogue)"
+        default: '1'
+      rps:
+        description: req/s per runner
+        default: '5'
+
+permissions:
+  contents: read
+
+jobs:
+  part:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        part: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_probe.py preflight pre-${{ matrix.part }}.json
+      - name: Partition shard ${{ matrix.part }}
+        run: python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt --part ${{ matrix.part }} --total 18 --rps ${{ inputs.rps }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pids-${{ matrix.part }}
+          path: ids-${{ matrix.part }}.txt
+          if-no-files-found: warn
