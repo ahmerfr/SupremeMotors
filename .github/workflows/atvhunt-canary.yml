@@ -1,0 +1,69 @@
+name: atvhunt canary (run this FIRST)
+
+# Three jobs, one wave, ~4 minutes. Nothing else may be dispatched until this returns,
+# because it measures the only two numbers the whole plan is sensitive to:
+#   Q  = requests a fresh runner IP serves before it is blackholed, ON DETAIL PAGES
+#   T  = end-to-end job occupancy (read it off the Actions UI job durations, both variants)
+# and it produces the curl_cffi wheel tarball the lean sweep job installs from.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hosts: { description: "comma list; add sibling hosts ONLY with the owner's explicit yes", default: 'atvhunt.com' }
+      n:     { description: requests per band, default: '1200' }
+      rps:   { description: probe rate, default: '120' }
+
+permissions:
+  contents: read
+
+jobs:
+  # ---- 1. the artefact the sweep needs, plus the FAT-vs-LEAN setup timing ---------------
+  wheels:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: time `pip install curl_cffi` from the index (the FAT path we are deleting)
+        run: |
+          s=$(date +%s)
+          pip install -q --break-system-packages curl_cffi
+          echo "FAT pip install: $(( $(date +%s) - s ))s"
+      - name: build the wheel tarball
+        run: |
+          mkdir w && pip download -q -d w curl_cffi
+          tar cf atvhunt-wheels.tar -C w .
+          ls -l atvhunt-wheels.tar
+      - name: time the LEAN install from those wheels
+        run: |
+          s=$(date +%s)
+          mkdir t && tar xf atvhunt-wheels.tar -C t
+          pip install -q --break-system-packages --no-index --no-deps t/*.whl
+          echo "LEAN wheel install: $(( $(date +%s) - s ))s"
+      - uses: actions/upload-artifact@v4
+        with: { name: wheels, path: atvhunt-wheels.tar }
+
+  # ---- 2. Q and rps on DETAIL pages, plus the dead-band question -----------------------
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q --break-system-packages curl_cffi
+      - run: python3 scripts/atvhunt_crawl.py --selftest && python3 scripts/atvhunt_parse.py --selftest
+      - name: probe
+        run: |
+          cd scripts
+          python3 atvhunt_canary.py --hosts ${{ inputs.hosts }} --n ${{ inputs.n }} --rps ${{ inputs.rps }} --conc 8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: canary, path: scripts/canary.json }
+
+  # ---- 3. the accounting baseline: 105 browse requests, the PROOF's left-hand side -----
+  cells:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q --break-system-packages curl_cffi
+      - run: python3 scripts/atvhunt_close.py --selftest
+      - run: cd scripts && python3 atvhunt_close.py --fetch cells-t0.json
+      - uses: actions/upload-artifact@v4
+        with: { name: cells-t0, path: scripts/cells-t0.json }

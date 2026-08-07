@@ -26,6 +26,27 @@ CATEGORY_ID = 1302
 IMG_ZONE = "https://sm-atvhunt.b-cdn.net"          # pull zone -> storage.googleapis.com
 IMG_ORIGIN_PATH = re.compile(r'/mhimg/p/\d+/\d+/[0-9a-f]+_[a-z]\.jpg')
 
+# body style needs digits and hyphens: "Side-by-Side UTV" (the industry-standard term for
+# a UTV), "4x4 Utility ATV", "2-Up ATV" were all silently rejected by [A-Za-z /] and thrown
+# away as sibling-marketplace listings by every gate downstream.
+SUB_RE = r'\b(New|Used)\s+([A-Za-z0-9][A-Za-z0-9 /-]{1,22}?(?:ATV|UTV))\s+in\s+([^,<]{1,40}),\s*([A-Z]{2})\b'
+# same shape, any category - used to log WHY a live page failed the ATV/UTV gate
+CAT_RE = re.compile(r'\b(?:New|Used)\s+([A-Za-z0-9][A-Za-z0-9 /-]{1,30}?)\s+in\s+[^,<]{1,40},\s*[A-Z]{2}\b')
+
+
+def _head(htmltext):
+    """The listing header region: everything before the first spec row. The subtitle is
+    rendered above the specs, so anything matching further down belongs to another car."""
+    i = htmltext.find('lp-specs-row')
+    return htmltext[:i] if i > 0 else htmltext
+
+
+def category_token(htmltext):
+    """The category word from a live page's header, whatever it is ('Sedan', 'Cruiser').
+    Written to other_*.txt so a too-tight ATV/UTV gate is fixable without re-fetching."""
+    m = CAT_RE.search(_head(htmltext))
+    return m.group(1).strip() if m else None
+
 
 def _txt(s):
     return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', ihtml.unescape(s or ''))).strip()
@@ -46,7 +67,7 @@ def _make_of(rest):
     """(make, rest_without_trailing_make) for the title minus its leading year.
 
     Most titles lead with the make ("Polaris Sportsman 570"), but a real slice of the
-    catalogue puts it LAST after a dash — "Brute Force 750 EPS LE Camo - Kawasaki",
+    catalogue puts it LAST after a dash - "Brute Force 750 EPS LE Camo - Kawasaki",
     "Outlander MAX Pro XU HD7 - Can-Am". Taking the first token there yields make="Brute"
     / "Outlander", which is not in MAKE_ID, so those rows silently lose make_id."""
     m = next((k for k in MAKES_BY_LEN if rest.lower().startswith(k.lower())), None)
@@ -66,7 +87,7 @@ def parse(htmltext, listing_id=None):
     # blurb / embedded blob) must never let any regex run long and freeze the GIL.
     htmltext = htmltext[:120000]
     # title / year / make / model. Bounded lazy {0,200} (no re.S) -> title stays on one
-    # line, `.` absorbs the ® and any nested tag chars, and the bound blocks backtracking.
+    # line, `.` absorbs the (R) and any nested tag chars, and the bound blocks backtracking.
     h1 = re.search(r'<h1[^>]*>(.{0,200}?)</h1>', htmltext)
     title = _txt(h1.group(1)) if h1 else ''
     title = title.replace('®', '').replace('™', '').strip()   # drop (R)/(TM)
@@ -76,8 +97,11 @@ def parse(htmltext, listing_id=None):
     make, rest = _make_of(rest)
     model = rest[len(make):].strip() if make and rest.lower().startswith(make.lower()) else rest
 
-    # subtitle: "New Utility UTV in City, ST" — search only the top (few New/Used tokens)
-    sub = re.search(r'\b(New|Used)\s+([A-Za-z][A-Za-z /]{1,22}?(?:ATV|UTV))\s+in\s+([^,<]{1,40}),\s*([A-Z]{2})\b', htmltext)
+    # subtitle: "New Utility UTV in City, ST" - the LISTING HEADER only, never the whole
+    # page: a "similar listings near you" cross-sell block on a sibling-marketplace page
+    # (a car on motohunt) donates an ATV body_style AND a state, which both passes the
+    # ATV/UTV gate and corrupts the per-state count that audits the gate.
+    sub = re.search(SUB_RE, _head(htmltext))
     condition = sub.group(1) if sub else (S.get('Condition') if (S := _specs(htmltext)) else None)
     body_style = _txt(sub.group(2)) if sub else None
     city = _txt(sub.group(3)) if sub else None
@@ -136,8 +160,14 @@ def parse(htmltext, listing_id=None):
 
 
 def is_listing(htmltext):
-    """True only for a real listing page (not a 429/soft-404/redirect landing)."""
-    return '<h1' in htmltext and 'lp-specs-row' in htmltext and 'VIN' in htmltext
+    """True for a real listing page (not a 429/soft-404/redirect landing).
+
+    'VIN' is NOT required. It used to be, and that made every VIN-less listing invisible:
+    fetch() classified it as "definitively not a listing", wrote the id to cov_ and the
+    coverage proof closed over it. A soft-404 has no spec rows at all, so <h1> + one
+    lp-specs-row is the real discriminator; the ATV/UTV gate in the crawler decides what
+    is ours, and atvhunt_close.py's per-state count is what proves nothing was lost."""
+    return '<h1' in htmltext and 'lp-specs-row' in htmltext
 
 
 def _selftest_makes():
@@ -151,7 +181,27 @@ def _selftest_makes():
         got, _ = _make_of(t)
         assert got == want, f'{t!r} -> {got!r}, want {want!r}'
     assert _make_of('Brute Force 750 - Kawasaki')[1] == 'Brute Force 750'   # suffix stripped
-    print('MAKE PARSE SELFTEST PASSED')
+
+    SPEC = '<div class="row lp-specs-row"><div><b>VIN:</b></div><div>3NSTAE9</div></div>'
+    # 1. hyphenated / digit-bearing body styles must survive the gate
+    for bs in ('Side-by-Side UTV', '4x4 Utility ATV', '2-Up ATV', 'Utility UTV', 'Sport ATV'):
+        r = parse(f'<h1>2026 Polaris Ranger</h1><p>New {bs} in Crossville, TN</p>{SPEC}')
+        assert r['body_style'] == bs, (bs, r['body_style'])
+        assert r['state'] == 'TN' and r['city'] == 'Crossville', r['city']
+    # 2. a cross-sell block BELOW the specs must not donate body_style or state. Without
+    #    the header anchor this Toyota passes the ATV gate and inflates TN's audited count.
+    car = (f'<h1>2021 Toyota Camry SE</h1><p>Used Sedan in Nashville, TN</p>{SPEC}'
+           '<div>Similar listings near you</div><p>New Utility UTV in Crossville, TN</p>')
+    r = parse(car)
+    assert r['body_style'] is None, r['body_style']
+    assert category_token(car) == 'Sedan', category_token(car)
+    # 3. a VIN-less listing is still a listing (it used to be classified as "not a listing"
+    #    and silently closed inside cov_)
+    novin = ('<h1>2019 Honda Rancher</h1><p>Used Utility ATV in Ada, OK</p>'
+             '<div class="row lp-specs-row"><div><b>Color:</b></div><div>Red</div></div>')
+    assert is_listing(novin) and parse(novin)['body_style'] == 'Utility ATV'
+    assert not is_listing('<h1>Page not found</h1>')
+    print('PARSE SELFTEST PASSED (make, body-style class, header anchor, VIN-less listing)')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,109 @@
+name: atvhunt tile sweep
+
+# ONE dispatch = one account = one 768,000-id window = 256 jobs x 750 ids.
+# 768000 / 4 accounts / 256 shards == 750 EXACTLY, so a shard's id list is never longer
+# than the per-IP quota and --maxreq can never be the thing that truncates coverage.
+#
+# NO actions/checkout, NO actions/setup-python, NO `pip install curl_cffi` from the index.
+# Those three cost ~30s of a ~70s job against ~10s of crawling; at 230 waves that is the
+# difference between ~154 minutes and ~254 minutes for identical work. The scripts are
+# curled from a PINNED SHA (main can move mid-run and silently change what later jobs
+# execute) and curl_cffi is installed from a committed manylinux wheel tarball (~3s, and
+# it keeps the JA3/JA4 impersonation the crawler rides on -- do not "simplify" this to
+# stdlib urllib unless atvhunt_canary.py has proved plain TLS gets 200s from /l/).
+
+on:
+  workflow_dispatch:
+    inputs:
+      lo:      { description: window start (multiple of 768000), required: true }
+      acct:    { description: this account's index 0-3, required: true }
+      sha:     { description: commit SHA to pull scripts from, required: true }
+      rps:     { description: per-job request rate, default: '90' }
+      maxreq:  { description: HTTP ATTEMPTS per job (the IP quota), default: '800' }
+      ids_url: { description: residue pass - raw URL of an id list, overrides --range, default: '' }
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      max-parallel: 20          # the free-plan account cap IS the throttle
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255]
+    steps:
+      - name: fetch code (pinned SHA, no checkout)
+        run: |
+          R=https://raw.githubusercontent.com/${{ github.repository }}/${{ inputs.sha }}
+          for f in atvhunt_crawl.py atvhunt_parse.py; do
+            curl -sfL --retry 3 --retry-all-errors -o $f $R/scripts/$f
+          done
+          curl -sfL --retry 3 --retry-all-errors -o w.tar $R/scripts/atvhunt-wheels.tar
+          tar xf w.tar
+          pip install -q --break-system-packages --no-index --no-deps ./*.whl
+          if [ -n "${{ inputs.ids_url }}" ]; then
+            curl -sfL --retry 3 -o ids.txt.gz "${{ inputs.ids_url }}"
+          fi
+      - name: crawl
+        run: |
+          if [ -n "${{ inputs.ids_url }}" ]; then
+            SRC="--ids ids.txt.gz"
+          else
+            SRC="--range ${{ inputs.lo }} $(( ${{ inputs.lo }} + 767999 )) --acct ${{ inputs.acct }} --nacct 4"
+          fi
+          python3 atvhunt_crawl.py out $SRC --shard ${{ matrix.shard }} --of 256 --rps ${{ inputs.rps }} --conc 8 --maxreq ${{ inputs.maxreq }} --budget 240
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: t-${{ inputs.lo }}-${{ inputs.acct }}-${{ matrix.shard }}
+          path: out/
+          compression-level: 9
+          retention-days: 3
+          if-no-files-found: warn
+
+  merge:                       # 256 artifacts in, 1 out. Without this the final download
+    needs: sweep               # is 18,432 artifacts and the artifact API rate-limits.
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { pattern: 't-${{ inputs.lo }}-${{ inputs.acct }}-*', merge-multiple: true, path: dl }
+      - name: fold artifacts and compute this account's gap set
+        env:
+          LO: '${{ inputs.lo }}'
+          ACCT: '${{ inputs.acct }}'
+        run: |
+          cat dl/shard_*.jsonl 2>/dev/null | gzip -9 > rows.jsonl.gz
+          cat dl/amb_*.txt     2>/dev/null | gzip -9 > amb.txt.gz
+          cat dl/other_*.txt   2>/dev/null | gzip -9 > other.txt.gz
+          cat dl/stats_*.json  2>/dev/null > stats.jsonl
+          python3 - <<'EOF'
+          import os, glob, json, gzip, statistics
+          lo, a = int(os.environ['LO']), int(os.environ['ACCT'])
+          want = set(range(lo + ((a - lo) % 4), lo + 768000, 4))
+          have = set()
+          for p in glob.glob('dl/cov_*.txt'):
+              have.update(int(x) for x in open(p).read().split())
+          miss = sorted(want - have)
+          with gzip.open('missing.txt.gz', 'wt') as f:
+              for i in miss:
+                  print(i, file=f)
+          s = [json.loads(l) for l in open('stats.jsonl')] if os.path.getsize('stats.jsonl') else []
+          med = statistics.median([x['attempts'] for x in s]) if s else 0
+          print(f"window {lo} acct {a}: shards={len(s)}/256 covered={len(want & have)}/{len(want)} "
+                f"missing={len(miss)} listings={sum(x['list'] for x in s)} "
+                f"ambiguous={sum(x['amb'] for x in s)} median_attempts_per_job={med}")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-${{ inputs.lo }}-${{ inputs.acct }}
+          path: |
+            rows.jsonl.gz
+            amb.txt.gz
+            other.txt.gz
+            missing.txt.gz
+            stats.jsonl
+          retention-days: 14
