@@ -1,0 +1,37 @@
+name: atvhunt rate ceiling
+
+# What raw request rate does ONE runner actually achieve against browse pages, with no
+# tree logic in the way? The partitioner managed 0.53 req/s with 32 in-flight while
+# logging only 3 x 429 fleet-wide -- so the bottleneck was assumed, never measured.
+
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        description: requests per runner
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  rate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        conc: [1, 8, 32, 64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_rate.py ${{ matrix.conc }} ${{ inputs.n }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rate-${{ matrix.conc }}
+          path: rate.json
+          if-no-files-found: warn
