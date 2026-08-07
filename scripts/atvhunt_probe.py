@@ -323,6 +323,35 @@ def dump(rep):
     rep["count_block"] = txt[max(0, j - 300):j + 900] if j >= 0 else None
 
 
+def filters(rep):
+    """Which URL FORM actually composes? The path segment is used for both states and
+    makes (/atv-utv-for-sale/Alabama and /atv-utv-for-sale/CFMOTO), so mixing a path state
+    with a ?make= query may silently ignore one of them. The form also exposes loc=."""
+    B = A + "/atv-utv-for-sale"
+    cnt = re.compile(r"<h1>\s*<b>([\d,]+)</b>", re.I)
+    rep["forms"] = []
+    for label, u in [
+        ("baseline",            B),
+        ("path make",           f"{B}/Polaris"),
+        ("query make",          f"{B}?make=Polaris"),
+        ("path state",          f"{B}/Texas"),
+        ("query loc",           f"{B}?loc=Texas"),
+        ("path state+q make",   f"{B}/Texas?make=Polaris"),
+        ("query make+loc",      f"{B}?make=Polaris&loc=Texas"),
+        ("query make+loc+rad",  f"{B}?make=Polaris&loc=Texas&rad=500"),
+        ("query make+typeid",   f"{B}?make=Polaris&typeid=7"),
+        ("query make+year",     f"{B}?make=Polaris&year_from=2024&year_to=2024"),
+        ("query make+yr+type",  f"{B}?make=Polaris&year_from=2024&year_to=2024&typeid=7"),
+        ("query seatsid",       f"{B}?make=Polaris&seatsid=2"),
+        ("query hasvin",        f"{B}?make=Polaris&hasvin=1"),
+    ]:
+        m, txt = get(u)
+        g = cnt.search(txt)
+        rep["forms"].append({"label": label, "url": u, "code": m.get("code"),
+                             "count": int(g.group(1).replace(",", "")) if g else None,
+                             "ids": len(set(re.findall(r"/l/(\d+)/", txt)))})
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -342,6 +371,8 @@ def main():
                 inspect(rep)
             elif role == "dump":
                 dump(rep)
+            elif role == "filters":
+                filters(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
