@@ -125,18 +125,25 @@ class Partitioner:
         return out
 
     def walk(self, f, depth=0):
-        """-> the slice's reported count, so a parent can verify its children add up."""
-        n, found = self.probe(f)
+        """-> the slice's reported count, so a parent can verify its children add up.
+
+        Order: cheap numeric bisection once a model is pinned, then the categorical
+        fan-outs, then numeric again, and only when EVERY option is spent is it a leak.
+        The previous version short-circuited into bisect_year and let that function
+        declare the leak, so a model root whose year+displacement ran out never fell back
+        to state/typeid -- the tree collapsed and returned 2,698 ids."""
+        n, _ = self.probe(f)
         if n is None:
             return 0
         if n <= self.cap:
             return n                            # ids already banked by probe()
-        # Once make+model are pinned, bisect the cheap numeric axes BEFORE spending a
-        # 52-way state or 2-way type fan-out on every node.
-        if "modelid" in f and not self._numeric_done(f):
-            self.bisect_year(f, n)
+
+        # 1. numeric axes first once a model is pinned: two children per level beats a
+        #    52-way state fan-out at every node.
+        if "modelid" in f and self.bisect(f):
             return n
-        # numeric bisection on YEAR is unbounded-depth, so prefer it once coarse dims run out
+
+        # 2. categorical fan-outs, with the conservation check.
         d = self.dims(f)
         if d:
             k, vals = d[0]
@@ -146,41 +153,36 @@ class Partitioner:
             # and we must fall through to one that is rather than lose the slice.
             got = 0
             for v in vals:
-                c = self.walk({**f, k: v}, depth + 1)
-                got += c or 0
-            if got < n * 0.9:
-                sys.stderr.write(
-                    f"SPLIT-LOSS {k} on {url_of(f)}: children {got} < parent {n}\n")
-                rest = d[1:]
-                if rest:
-                    k2, vals2 = rest[0]
-                    for v in vals2:
-                        self.walk({**f, k2: v}, depth + 1)
-                else:
-                    self.bisect_year(f, n)
+                got += self.walk({**f, k: v}, depth + 1) or 0
+            if got >= n * 0.9:
+                return n
+            sys.stderr.write(f"SPLIT-LOSS {k} on {url_of(f)}: children {got} < parent {n}\n")
+            for k2, vals2 in d[1:]:
+                for v in vals2:
+                    self.walk({**f, k2: v}, depth + 1)
+                return n
+
+        # 3. numeric axes as the fallback for anything the categoricals could not split.
+        if self.bisect(f):
             return n
-        self.bisect_year(f, n)
+
+        with self.lock:                          # genuinely nothing left
+            self.leaks.append((url_of(f), n))
+        sys.stderr.write(f"LEAK {url_of(f)} still {n} > {self.cap}\n")
         return n
 
-    def _numeric_done(self, f):
-        return all(int(f.get(lo_k, lo_d)) >= int(f.get(hi_k, hi_d))
-                   for lo_k, hi_k, lo_d, hi_d in NUMERIC)
-
-    def bisect_year(self, f, n):
-        """Numeric axes, bisected in turn. year alone is not enough: after
-        make+state+typeid+year, Honda/Texas/2026 still held 490 listings with nothing left
-        to split, so only its top 24 were reachable -- that was 89% of the catalogue lost.
-        displacement and mileage are both on the browse form and both robots-permitted."""
+    def bisect(self, f):
+        """Bisect the first numeric axis with room left. -> True if it split, False if all
+        numeric axes are exhausted. Deliberately does NOT decide leaks: that belongs to
+        walk(), which still has the categorical fan-outs to try."""
         for lo_k, hi_k, lo_d, hi_d in NUMERIC:
             lo, hi = int(f.get(lo_k, lo_d)), int(f.get(hi_k, hi_d))
             if lo < hi:
                 mid = lo + (hi - lo) // 2
                 self.walk({**f, lo_k: lo, hi_k: mid})
                 self.walk({**f, lo_k: mid + 1, hi_k: hi})
-                return
-        with self.lock:                          # every axis exhausted: record the loss
-            self.leaks.append((url_of(f), n))
-        sys.stderr.write(f"LEAK {url_of(f)} still {n} > {self.cap}\n")
+                return True
+        return False
 
 
 def selftest():

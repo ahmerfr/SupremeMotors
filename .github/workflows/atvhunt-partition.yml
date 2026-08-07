@@ -34,10 +34,15 @@ jobs:
       - run: pip install curl_cffi
       - run: python scripts/atvhunt_probe.py preflight pre-${{ matrix.part }}.json
       - name: Partition shard ${{ matrix.part }}
-        run: python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt --part ${{ matrix.part }} --total 18 --rps ${{ inputs.rps }}
+        run: python scripts/atvhunt_partition.py ids-${{ matrix.part }}.txt --part ${{ matrix.part }} --total 18 --rps ${{ inputs.rps }} 2> err-${{ matrix.part }}.log
+      - if: always()
+        run: tail -5 err-${{ matrix.part }}.log; cat ids-${{ matrix.part }}-stats.json || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pids-${{ matrix.part }}
-          path: ids-${{ matrix.part }}.txt
+          path: |
+            ids-${{ matrix.part }}.txt
+            ids-${{ matrix.part }}-stats.json
+            err-${{ matrix.part }}.log
           if-no-files-found: warn
