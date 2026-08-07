@@ -1,0 +1,31 @@
+name: atvhunt enum probe
+
+# Why did the facet harvest return exactly 24 ids/facet, and what enumeration route does
+# robots.txt actually permit? Reads the two unopened child sitemaps, the site's own pager
+# markup, Common Crawl's atvhunt coverage, and samples 240 ids for live-listing density.
+# Never requests a robots Disallow-ed pattern (start=, n=, /api/).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  enum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install curl_cffi
+      - run: python scripts/atvhunt_probe.py enum probe-enum.json
+      - if: always()
+        run: cat probe-enum.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-enum
+          path: probe-enum.json
+          retention-days: 30

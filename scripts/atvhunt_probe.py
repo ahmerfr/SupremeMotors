@@ -176,6 +176,66 @@ def witness(rep):
         "buy proxies; only crawling slower helps.")
 
 
+def enum(rep):
+    """Why did the facet harvest return exactly 24 ids per facet? And what enumeration
+    route is left that robots.txt actually permits?
+
+    robots.txt disallows *?start= *&start= *?n= *&n= (the site's REAL paging params) and
+    /api/. It does NOT disallow /l/{id}/ or typeid=. So a detail-page sweep is permitted
+    and facet paging is not. This role measures the permitted routes only -- it never
+    requests a Disallow-ed pattern."""
+    # 1. the two child sitemaps we discovered but never opened
+    rep["children"] = []
+    for u in (f"{A}/sitemap-homepage.xml", f"{A}/sitemap-search.xml"):
+        m, txt = get(u)
+        m["locs"] = txt.count("<loc>")
+        m["listing_locs"] = len(re.findall(r"<loc>[^<]*/l/\d+", txt))
+        m["sample"] = re.findall(r"<loc>([^<]+)</loc>", txt)[:5]
+        rep["children"].append(m)
+
+    # 2. what does the site's OWN pager link to? (read the markup; do not follow it)
+    m, txt = get(f"{A}/atv-utv-for-sale?typeid=7")
+    rep["pager"] = {
+        "ids_on_page": len(set(re.findall(r"/l/(\d+)/", txt))),
+        "rel_next": re.findall(r'rel="next"[^>]*href="([^"]{0,120})"', txt)[:3],
+        "start_links": re.findall(r'href="([^"]{0,120}[?&]start=[^"]{0,40})"', txt)[:5],
+        "n_links": re.findall(r'href="([^"]{0,120}[?&]n=[^"]{0,40})"', txt)[:5],
+        "page_links": re.findall(r'href="([^"]{0,120}[?&]page=[^"]{0,40})"', txt)[:5],
+        "total_hint": re.findall(r"([\d,]{3,})\s*(?:ATVs?|UTVs?|results?|listings?|matches)", txt)[:6],
+    }
+
+    # 3. Common Crawl: free, costs atvhunt ZERO requests. How many /l/ urls does it hold?
+    rep["cc"] = []
+    for idx in ("CC-MAIN-2026-30", "CC-MAIN-2026-22", "CC-MAIN-2025-38"):
+        try:
+            u = (f"https://index.commoncrawl.org/{idx}-index?"
+                 "url=atvhunt.com%2Fl%2F*&output=json&limit=1&showNumPages=true")
+            body = urllib.request.urlopen(u, timeout=60).read().decode("utf-8", "replace")
+            rep["cc"].append({"index": idx, "body": body[:300]})
+        except Exception as e:
+            rep["cc"].append({"index": idx, "err": str(e)[:120]})
+
+    # 4. THE decisive number for a permitted /l/{id} sweep: what fraction of the id space
+    # is a live atvhunt listing? Deterministic spread (no RNG) across 10.0M-13.72M.
+    lo, hi, N = 10_000_000, 13_720_000, 240
+    step = (hi - lo) // N
+    live = dead = other = 0
+    codes = {}
+    for k in range(N):
+        m, txt = get(f"{A}/l/{lo + k * step}/x")
+        c = m.get("code")
+        codes[str(c)] = codes.get(str(c), 0) + 1
+        if c == 200 and P.is_listing(txt):
+            live += 1
+        elif c == 200:
+            other += 1
+        else:
+            dead += 1
+    rep["density"] = {"sampled": N, "live": live, "soft200": other, "nonlisting": dead,
+                      "codes": codes, "hit_rate": round(live / N, 4),
+                      "implied_listings_in_range": int(live / N * (hi - lo))}
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -187,6 +247,8 @@ def main():
             rep["egress"] = egress()
             if role == "witness":
                 witness(rep)
+            elif role == "enum":
+                enum(rep)
             else:
                 surfaces(rep); shapes(rep); ladder(rep); recovery(rep)
     finally:
