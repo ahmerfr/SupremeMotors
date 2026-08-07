@@ -106,16 +106,18 @@ class Partitioner:
         out = []
         if "make" not in f:
             out.append(("make", MAKES))
-        if "_state" not in f:
-            out.append(("_state", STATES))
-        if "typeid" not in f:
-            out.append(("typeid", TYPEIDS))
-        # MODEL is the discriminator for cells that pin to a single displacement:
-        # Polaris/Texas/typeid=7/2026/999cc held 1,564 listings with every other axis spent.
+        # MODEL first after make. Splitting state (52) before model (40) builds 2,080 cells
+        # per make before year/displacement even begins -- one root took 20+ minutes. A model
+        # already implies its type, so make+model+year+displacement usually reaches <=24
+        # without ever paying the 52-way state fan-out.
         if "make" in f and "modelid" not in f:
             ms = self.models_for(f["make"])
             if ms:
                 out.append(("modelid", ms))
+        if "_state" not in f:
+            out.append(("_state", STATES))
+        if "typeid" not in f:
+            out.append(("typeid", TYPEIDS))
         # NO hasvin: measured non-partitioning. hasvin=1 narrows but hasvin=0 is IGNORED and
         # returns the parent set unchanged (Honda/Texas/2026: 490 for BOTH values), so it
         # duplicates work instead of splitting. The conservation check cannot catch that on
@@ -129,6 +131,11 @@ class Partitioner:
             return 0
         if n <= self.cap:
             return n                            # ids already banked by probe()
+        # Once make+model are pinned, bisect the cheap numeric axes BEFORE spending a
+        # 52-way state or 2-way type fan-out on every node.
+        if "modelid" in f and not self._numeric_done(f):
+            self.bisect_year(f, n)
+            return n
         # numeric bisection on YEAR is unbounded-depth, so prefer it once coarse dims run out
         d = self.dims(f)
         if d:
@@ -154,6 +161,10 @@ class Partitioner:
             return n
         self.bisect_year(f, n)
         return n
+
+    def _numeric_done(self, f):
+        return all(int(f.get(lo_k, lo_d)) >= int(f.get(hi_k, hi_d))
+                   for lo_k, hi_k, lo_d, hi_d in NUMERIC)
 
     def bisect_year(self, f, n):
         """Numeric axes, bisected in turn. year alone is not enough: after
@@ -291,8 +302,12 @@ if __name__ == "__main__":
             f0["_state"] = a.only_state
         mine = [f0]
     elif a.total > 1:
-        roots = [{"make": m, "_state": st} for m in MAKES for st in STATES]
+        roots = []
+        for m in MAKES:
+            ms = p.models_for(m)
+            roots += [{"make": m, "modelid": x} for x in ms] or [{"make": m}]
         mine = roots[a.part::a.total]
+        sys.stderr.write(f"roots={len(roots)} mine={len(mine)}\n")
     else:
         mine = [{}]
     for f in mine:
