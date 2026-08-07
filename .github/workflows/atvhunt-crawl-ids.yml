@@ -1,0 +1,128 @@
+name: atvhunt crawl (from partition ids)
+
+# Crawl the id list produced by atvhunt-partition.yml. Kept separate from atvhunt.yml
+# because that workflow harvests its own ids via atvhunt_ids.py (the 24-per-facet route
+# that capped at 23,640); this one takes the partitioner's output as given.
+#
+#   gh workflow run atvhunt-crawl-ids.yml -f ids_run_id=<partition run> -f rps=5
+#
+# rps 5 x 36 shards = 180 req/s aggregate, the rate measured safe (1,080 req/s blackholed
+# every IP at ~771 requests; 180 produced 22,983 listings at a 100% hit rate).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids_run_id:
+        description: run id of the atvhunt-partition run holding pids-* artifacts
+        required: true
+      rps:
+        description: req/s per runner
+        default: '5'
+      shards:
+        description: crawl shards (multiple of 18)
+        default: '36'
+      budget:
+        description: seconds of crawling per shard
+        default: '2400'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: atvhunt-crawl-ids
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.g.outputs.matrix }}
+      total: ${{ steps.g.outputs.total }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'pids-*'
+          merge-multiple: true
+          path: raw
+          run-id: ${{ inputs.ids_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - id: g
+        run: |
+          cat raw/ids-*.txt | sort -un > ids.txt
+          N=$(wc -l < ids.txt)
+          echo "canonical ids: $N"
+          test "$N" -gt 0 || { echo '::error::partition run produced zero ids'; exit 1; }
+          gzip -9 ids.txt
+          python3 -c "import json,os;n=int('${{ inputs.shards }}');print('matrix='+json.dumps(list(range(n))))" >> "$GITHUB_OUTPUT"
+          echo "total=$N" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atvhunt-ids
+          path: ids.txt.gz
+          retention-days: 30
+          if-no-files-found: error
+
+  crawl:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - uses: actions/download-artifact@v4
+        with:
+          name: atvhunt-ids
+      - name: Preflight
+        run: python scripts/atvhunt_probe.py preflight out/pre_${{ matrix.shard }}.json
+      - name: Crawl shard ${{ matrix.shard }} of ${{ needs.plan.outputs.total }} ids
+        run: >
+          python scripts/atvhunt_crawl.py out --ids ids.txt.gz
+          --shard ${{ matrix.shard }} --of ${{ inputs.shards }}
+          --rps ${{ inputs.rps }} --budget ${{ inputs.budget }} --conc 12
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvhunt-${{ matrix.shard }}
+          path: out/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: warn
+
+  merge:
+    needs: [plan, crawl]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: atvhunt-ids
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'atvhunt-*'
+          merge-multiple: true
+          path: dl
+      - run: python scripts/atvhunt_merge.py dl ids.txt.gz atvhunt-all.jsonl.gz missing.txt.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvhunt-merged
+          path: |
+            atvhunt-all.jsonl.gz
+            missing.txt.gz
+          retention-days: 30
