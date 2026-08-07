@@ -517,6 +517,32 @@ def drops(rep):
         rep["cases"].append(m)
 
 
+def sortvals(rep):
+    """Read the REAL sort values from the browse form's own <select name="sort">, then
+    test whether each yields a DIFFERENT top-24 for one cell. sort= is the only known way
+    past the 24-row cap in the 1,779 leaked cells holding 159,102 listings -- my earlier
+    calibration used guessed values (price_asc, newest, 1, 2...) and found none usable."""
+    B = A + "/atv-utv-for-sale"
+    _m, txt = get(B)
+    sel = re.search(r'<select[^>]*name="sort".{0,3000}?</select>', txt, re.S)
+    rep["select_html"] = re.sub(r"\s+", " ", sel.group(0))[:900] if sel else None
+    vals = re.findall(r'<option[^>]*value="([^"]*)"[^>]*>([^<]{0,40})', sel.group(0)) if sel else []
+    rep["options"] = vals
+    # a cell with far more than 24 so different orderings must expose different ids
+    CELL = f"{B}/Texas?make=Polaris&typeid=7"
+    base_m, base_txt = get(CELL)
+    base = set(re.findall(r"/l/(\d+)/", base_txt))
+    rep["baseline_ids"] = len(base)
+    rep["trials"] = []
+    for v, label in (vals or [])[:14]:
+        m, t = get(f"{CELL}&sort={v}")
+        ids = set(re.findall(r"/l/(\d+)/", t))
+        cnt = re.search(r"<h1>\s*<b>([\d,]+)</b>", t)
+        rep["trials"].append({"value": v, "label": label.strip()[:30], "code": m.get("code"),
+                              "ids": len(ids), "new_vs_baseline": len(ids - base),
+                              "count": cnt.group(1) if cnt else None})
+
+
 def main():
     role, outp = sys.argv[1], sys.argv[2]
     rep = {"role": role, "started": time.time()}
@@ -544,6 +570,8 @@ def main():
                 status(rep)
             elif role == "drops":
                 drops(rep)
+            elif role == "sortvals":
+                sortvals(rep)
             elif role == "models":
                 models(rep)
             elif role == "modeldump":
