@@ -13,8 +13,11 @@ on:
   workflow_dispatch:
     inputs:
       ids_run_id:
-        description: run id of the atvhunt-partition run holding pids-* artifacts
-        required: true
+        description: partition run id holding pids-* artifacts (blank = use the committed union)
+        default: ''
+      ids_file:
+        description: committed id list to use when ids_run_id is blank
+        default: scripts/atvhunt-ids/union.txt.gz
       rps:
         description: req/s per runner
         default: '5'
@@ -42,7 +45,8 @@ jobs:
       total: ${{ steps.g.outputs.total }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - if: inputs.ids_run_id != ''
+        uses: actions/download-artifact@v4
         with:
           pattern: 'pids-*'
           merge-multiple: true
@@ -51,7 +55,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - id: g
         run: |
-          cat raw/ids-*.txt | sort -un > ids.txt
+          # Enumeration runs are ADDITIVE: each one truncates at a different point, so the
+          # union across runs (93,163 = 52.6%) is nearly double the best single run
+          # (49,975 = 28.2%). The committed union is that accumulation.
+          if [ -n "${{ inputs.ids_run_id }}" ]; then
+            cat raw/ids-*.txt | sort -un > ids.txt
+          else
+            zcat "${{ inputs.ids_file }}" | sort -un > ids.txt
+          fi
           N=$(wc -l < ids.txt)
           echo "canonical ids: $N"
           test "$N" -gt 0 || { echo '::error::partition run produced zero ids'; exit 1; }
