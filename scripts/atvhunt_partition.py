@@ -236,8 +236,16 @@ if __name__ == "__main__":
         return ""
 
     p = Partitioner(get, rps=a.rps)
-    roots = [{"make": m} for m in MAKES] if a.total > 1 else [{}]
-    for f in roots[a.part::a.total] if a.total > 1 else roots:
+    # Shard on make x STATE, not make alone. Polaris is 58,399 of 177,161 listings (33%),
+    # so a per-make split leaves one runner doing a third of the catalogue while the other
+    # 17 idle. 22 x 52 = 1,144 roots spreads evenly and the tail shrinks to one state of
+    # one make. Roots are interleaved so consecutive big states land on different runners.
+    if a.total > 1:
+        roots = [{"make": m, "_state": st} for m in MAKES for st in STATES]
+        mine = roots[a.part::a.total]
+    else:
+        mine = [{}]
+    for f in mine:
         p.walk(f)
     with open(a.out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(sorted(p.ids, key=int)) + "\n")
