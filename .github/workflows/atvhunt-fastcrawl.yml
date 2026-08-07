@@ -1,0 +1,62 @@
+name: atvhunt crawl (fresh-IP fleet)
+
+# The detail crawl hits the SAME per-IP quota as enumeration: ~800 successful requests,
+# then the IP is blackholed. That is why the 36-shard pass covered only 31% of its ids --
+# each shard spent its quota early and then collected 429s for the rest of its budget.
+#
+# So: many short jobs. 256 jobs x ~700 detail fetches = 179,200 requests per dispatch,
+# which covers the whole 108,010-id union in one run with headroom for retries.
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: matrix size (each job = one fresh IP)
+        default: '256'
+      maxreq:
+        description: detail fetches per job (stay under the ~800 wall)
+        default: '700'
+      ids_file:
+        description: committed id list
+        default: scripts/atvhunt-ids/union.txt.gz
+
+permissions:
+  contents: read
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.g.outputs.matrix }}
+    steps:
+      - id: g
+        run: python3 -c "import json;print('matrix='+json.dumps(list(range(${{ inputs.jobs }}))))" >> "$GITHUB_OUTPUT"
+
+  crawl:
+    needs: gen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        shard: ${{ fromJSON(needs.gen.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install curl_cffi
+      - name: Crawl slice ${{ matrix.shard }} until the IP is spent
+        run: >
+          python scripts/atvhunt_crawl.py out --ids ${{ inputs.ids_file }}
+          --shard ${{ matrix.shard }} --of ${{ inputs.jobs }}
+          --rps 60 --conc 12 --budget 420 --maxreq ${{ inputs.maxreq }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fc-${{ matrix.shard }}
+          path: out/
+          compression-level: 9
+          retention-days: 7
+          if-no-files-found: warn
