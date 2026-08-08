@@ -1,0 +1,69 @@
+name: atvhunt slug rule
+
+# The homepage links listings as /l/<ID>/2026-Polaris-Ranger-500-Base -- the slug is the
+# vehicle title. Every request this project ever made used /l/<ID>/x, a placeholder slug
+# that the site used to accept. /l/13365869/x now returns 403 from a runner whose IP is
+# clean enough to fetch the homepage, so the slug itself is very likely the rule.
+#
+# That would explain everything: id enumeration dies (slugs are unguessable) while the
+# homepage and browse pages stay up, and it needs no ASN blocking at all.
+#
+# This isolates the variable. Same id, same clean IP, same session: real slug vs "x" vs a
+# wrong-but-plausible slug, each with and without the homepage cookie and Referer.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6,7,8]
+    steps:
+      - name: isolate
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          IP=$(curl -s https://api.ipify.org)
+          H=$(curl -s -c jar.txt -o home.html -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY ip=$IP home=$H"; exit 0; fi
+          echo "CLEAN ip=$IP"
+
+          # A real listing link, verbatim from the page the site just served us.
+          REAL=$(grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' home.html | head -1)
+          if [ -z "$REAL" ]; then echo "NO LISTING LINKS ON HOMEPAGE"; exit 0; fi
+          ID=$(echo "$REAL" | cut -d/ -f3)
+          SLUG=$(echo "$REAL" | cut -d/ -f4)
+          echo "REAL=$REAL  id=$ID  slug=$SLUG"
+
+          try() {  # label url extra-curl-args...
+            L="$1"; U="$2"; shift 2
+            C=$(curl -s -o t.html -w '%{http_code}' -A "$UA" "$@" "$U")
+            printf '  %-34s %s -> %s bytes=%s %s\n' "$L" "$U" "$C" "$(wc -c < t.html)" \
+                   "$(grep -q lp-specs-row t.html && echo LISTING || echo -)"
+          }
+
+          echo "--- the slug, isolated (cookie + referer held constant) ---"
+          try "real slug"        "https://atvhunt.com$REAL"            -b jar.txt -e https://atvhunt.com/
+          try "slug=x"           "https://atvhunt.com/l/$ID/x"         -b jar.txt -e https://atvhunt.com/
+          try "slug=wrong-title" "https://atvhunt.com/l/$ID/2020-Honda-Foreman-500" -b jar.txt -e https://atvhunt.com/
+          try "no slug"          "https://atvhunt.com/l/$ID"           -b jar.txt -e https://atvhunt.com/
+
+          echo "--- with the real slug, is the cookie or referer needed? ---"
+          try "real, no cookie"  "https://atvhunt.com$REAL"            -e https://atvhunt.com/
+          try "real, no referer" "https://atvhunt.com$REAL"            -b jar.txt
+          try "real, neither"    "https://atvhunt.com$REAL"
+
+          echo "--- does a KNOWN-OLD id still work with its real slug? ---"
+          try "old id, slug x"   "https://atvhunt.com/l/13365869/x"    -b jar.txt -e https://atvhunt.com/
+
+          echo "--- do browse pages carry listing links we can harvest? ---"
+          curl -s -b jar.txt -o br.html -A "$UA" -e https://atvhunt.com/ \
+               "https://atvhunt.com/atv-utv-for-sale/Polaris"
+          echo "  browse bytes=$(wc -c < br.html) listing_links=$(grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' br.html | sort -u | wc -l)"
+          grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' br.html | sort -u | head -5
