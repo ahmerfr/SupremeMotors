@@ -33,24 +33,18 @@ jobs:
           WORKER: ${{ inputs.worker }}
           N: ${{ inputs.n }}
         run: |
-          python - <<'PY'
-          import json, os, urllib.request
-          W = os.environ["WORKER"].rstrip("/")
-          IDS = [13365869, 13731138, 13165993, 13430881, 13612328, 13053195,
-                 13080827, 13687072, 13539467, 10000722, 11824355, 12989643]
-          me = json.load(urllib.request.urlopen("https://ipinfo.io/json", timeout=20))
-          print("RUNNER", me.get("ip"), me.get("org"), me.get("country"))
-          ok = armor = other = 0
-          for i in IDS[:int(os.environ["N"])]:
-              try:
-                  d = json.load(urllib.request.urlopen(f"{W}/?id={i}", timeout=45))
-              except Exception as e:
-                  print(f"  id={i} WORKER-ERR {e}"); other += 1; continue
-              tag = "OPEN" if d.get("is_listing") else ("ARMOR" if d.get("status") == 403 else "OTHER")
-              if tag == "OPEN": ok += 1
-              elif tag == "ARMOR": armor += 1
-              else: other += 1
-              print(f"  id={i} colo={d.get('colo')} status={d.get('status')} "
-                    f"bytes={d.get('bytes')} -> {tag}  {(d.get('title') or '')[:44]}")
-          print(f"GATE: OPEN={ok} ARMOR={armor} other={other}")
-          PY
+          # curl, not urllib: we need the RESPONSE HEADERS of a failure. The previous run
+          # got "WORKER-ERR 403" from urllib with the body discarded, so we could not tell
+          # whether Cloudflare was refusing the runner or atvhunt was refusing the Worker.
+          # cf-ray/cf-mitigated in the headers settles it. Browser UA because workers.dev
+          # carries Cloudflare bot management and Python-urllib is a declared bot.
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          curl -s https://ipinfo.io/json | head -c 200; echo
+          echo "=== headers of one call ==="
+          curl -sS -D - -o /tmp/b.txt -A "$UA" "$WORKER/?id=13365869" | head -20
+          echo "=== body ==="; head -c 600 /tmp/b.txt; echo
+          echo "=== gate, browser UA ==="
+          for i in 13365869 13731138 13165993 13430881 13612328 13053195                    13080827 13687072 13539467 10000722 11824355 12989643; do
+            curl -sS -A "$UA" -w ' <- outer=%{http_code}
+' "$WORKER/?id=$i" | head -c 300
+          done
