@@ -1,0 +1,64 @@
+name: atvhunt request shape
+
+# Measured, not assumed:
+#   homepage      7 of 25 global nodes return 200
+#   browse        2 of 25
+#   /l/{id}/x     0 of 25 -- including the very nodes that get 200 on the homepage
+#
+# So a path rule covers the detail URL on top of the per-IP list. A real buyer must still
+# be able to open a listing, so the rule is conditional on something our request lacks:
+# the URL shape may have changed, or it may need the cookie the homepage sets, or a
+# same-origin Referer. This finds out from a runner that has proven its IP is clean.
+#
+# 25% of runner IPs return 200 on the homepage, so a job that draws a dirty one exits
+# immediately and the matrix supplies another.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6,7,8,9,10]
+    steps:
+      - name: discover
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          IP=$(curl -s https://api.ipify.org)
+          H=$(curl -s -c jar.txt -o home.html -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY ip=$IP home=$H"; exit 0; fi
+          echo "CLEAN ip=$IP homebytes=$(wc -c < home.html)"
+          echo "--- cookies the homepage set ---"
+          grep -v '^#' jar.txt | head -10 || echo "(none)"
+
+          echo "--- every distinct link shape on the homepage ---"
+          grep -oE 'href="[^"]+"' home.html | sed 's/href="//;s/"$//' \
+            | sed -E 's#^(https?://[^/]+)##' | grep '^/' \
+            | sed -E 's#/[0-9]{5,}#/<ID>#g' | sort | uniq -c | sort -rn | head -25
+
+          echo "--- candidate listing links, verbatim ---"
+          grep -oE 'href="[^"]+"' home.html | sed 's/href="//;s/"$//' \
+            | grep -iE '/l/|/listing|/detail|for-sale/' | sort -u | head -10 > cand.txt
+          cat cand.txt || true
+
+          echo "--- fetch each candidate WITH the homepage cookie + Referer ---"
+          while read -r u; do
+            [ -z "$u" ] && continue
+            case "$u" in http*) FULL="$u";; *) FULL="https://atvhunt.com$u";; esac
+            C=$(curl -s -b jar.txt -c jar.txt -o d.html -w '%{http_code}' \
+                    -A "$UA" -e 'https://atvhunt.com/' "$FULL")
+            printf '  %s -> %s bytes=%s %s\n' "$FULL" "$C" "$(wc -c < d.html)" \
+                   "$(grep -q lp-specs-row d.html && echo LISTING || echo no-listing)"
+          done < cand.txt
+
+          echo "--- control: the old /l/{id}/x shape, same cookie + Referer ---"
+          C=$(curl -s -b jar.txt -o o.html -w '%{http_code}' -A "$UA" \
+                  -e 'https://atvhunt.com/' https://atvhunt.com/l/13365869/x)
+          echo "  /l/13365869/x -> $C bytes=$(wc -c < o.html)"
