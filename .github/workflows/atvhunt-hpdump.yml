@@ -1,0 +1,35 @@
+name: atvhunt homepage dump
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4]
+    steps:
+      - name: dump
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          H=$(curl -s --compressed -o home.html -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY home=$H"; exit 0; fi
+          echo "CLEAN bytes=$(wc -c < home.html)"
+          echo "=== markup around first listing card ==="
+          python3 - <<'PY'
+          import re
+          h = open("home.html", encoding="utf-8", errors="replace").read()
+          m = re.search(r'/l/\d+/[A-Za-z0-9._-]+', h)
+          if m:
+              s = max(0, m.start()-1400)
+              print(h[s:m.start()+400])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: home-${{ matrix.k }}
+          path: home.html
+          if-no-files-found: ignore
