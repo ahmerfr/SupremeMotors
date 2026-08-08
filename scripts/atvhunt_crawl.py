@@ -42,11 +42,23 @@ WIN, NACCT, NSHARD, SLICE = 768_000, 4, 256, 750
 NWIN = 18
 
 
+PROXY = os.environ.get("ATVHUNT_PROXY") or None
+
+
 def sess_local():
     # curl_cffi Session is NOT thread-safe: one per worker thread. No header overrides --
     # they contradict the client hints the JA3/JA4 impersonation already sends.
+    #
+    # ATVHUNT_PROXY routes through a residential exit. Every datacenter egress we tested is
+    # refused by Cloud Armor (AS8075 GitHub, AS396982 GCP, and all Bunny edge ASNs return
+    # the same 134-byte deny page), and six different TLS fingerprints on one blocked IP
+    # behaved identically -- so it is the network, and only a non-datacenter exit changes
+    # it. Kept as an env var so a metered credential never lands in the repo or in argv.
     if not hasattr(_tls, "s"):
-        _tls.s = rq.Session(impersonate="chrome")
+        kw = {"impersonate": "chrome"}
+        if PROXY:
+            kw["proxies"] = {"http": PROXY, "https": PROXY}
+        _tls.s = rq.Session(**kw)
     return _tls.s
 
 
