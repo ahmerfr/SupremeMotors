@@ -1,0 +1,61 @@
+name: atvhunt dump
+
+# /l/<id> (no slug) returns 200 -- only the literal slug "x" is refused, which is the
+# fingerprint every request this project ever sent. But the 200 body is ~20 KB and has no
+# lp-specs-row, the marker the parser keys on, so either the markup was redesigned or the
+# content now arrives over XHR. This dumps the real bytes so the parser is rewritten
+# against what the site actually serves rather than against a guess.
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: listing id to dump
+        default: '13745135'
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6]
+    steps:
+      - name: dump
+        env:
+          LID: ${{ inputs.id }}
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          H=$(curl -s -o /dev/null -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY home=$H"; exit 0; fi
+          echo "CLEAN ip=$(curl -s https://api.ipify.org)"
+
+          # --compressed: the site gzips, and the 13.5 KB/page budget assumed wire bytes.
+          curl -s --compressed -A "$UA" -o d.html "https://atvhunt.com/l/$LID"
+          echo "bytes=$(wc -c < d.html)"
+          echo "=== title ==="; grep -oE '<title>[^<]*</title>' d.html | head -2
+          echo "=== markers ==="
+          for m in lp-specs-row __NEXT_DATA__ __NUXT__ application/ld+json data-page 'window.__' vin VIN price; do
+            printf '  %-16s %s\n' "$m" "$(grep -c -- "$m" d.html || true)"
+          done
+          echo "=== any api/json endpoints referenced ==="
+          grep -oE '"/[a-z0-9/_.-]*(api|json|graphql)[a-z0-9/_.-]*"' d.html | sort -u | head -10
+          echo "=== script srcs ==="
+          grep -oE 'src="[^"]+\.js[^"]*"' d.html | sort -u | head -8
+          echo "=== first 1800 chars ==="
+          head -c 1800 d.html
+          echo
+          echo "=== last 1200 chars ==="
+          tail -c 1200 d.html
+          echo
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dump-${{ matrix.k }}
+          path: d.html
+          if-no-files-found: ignore
