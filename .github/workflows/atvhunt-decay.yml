@@ -1,0 +1,34 @@
+name: atvhunt block decay watch
+
+# ONE request per dispatch. The wide fleet escalated atvhunt from a soft block (200 with
+# non-listing content) to a hard 403 on runner IPs. Polling harder is how a timed ban
+# becomes a longer one, so this is deliberately the smallest possible probe: fetch a
+# single known-good listing and report the status code.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  poke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q curl_cffi
+      - run: |
+          python - <<'PY'
+          import json, urllib.request
+          from curl_cffi import requests as rq
+          ip = json.load(urllib.request.urlopen("https://ipinfo.io/json", timeout=15))
+          r = rq.get("https://atvhunt.com/l/13365869/x", impersonate="chrome",
+                     timeout=(8, 20), allow_redirects=False)
+          listing = ("lp-specs-row" in r.text) and ("<h1" in r.text)
+          print(json.dumps({"ip": ip.get("ip"), "country": ip.get("country"),
+                            "code": r.status_code, "bytes": len(r.content),
+                            "is_listing": listing}))
+          PY
