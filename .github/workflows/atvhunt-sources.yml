@@ -1,0 +1,77 @@
+name: atv source probe
+
+# atvhunt's listing pages are closed behind reCAPTCHA Enterprise and that is not going to
+# change, so this looks for an ATV/UTV inventory source that is actually open.
+#
+# Run from GitHub, not from the dev machine: probing these from a Pakistani residential IP
+# returned 403/919-byte WAF pages for atvtrader, cycletrader and equipmenttrader, which is
+# the same mistake that had this project blaming ASNs for atvhunt's slug rule. A US runner
+# is the honest test bed for US marketplaces.
+#
+# Classification is by CONTENT, not by string match: a page is only a challenge if it is
+# SMALL and has no listings. Flagging any page that loads recaptcha.js marks every site
+# with a contact form as walled -- machinerytrader scored 856 KB, 344 links and 48 prices
+# and was still called blocked.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet curl_cffi
+      - name: probe
+        run: |
+          python - <<'PY'
+          import re, concurrent.futures as cf
+          from curl_cffi import requests as rq
+
+          SOURCES = [
+            ("atvtrader",       "https://www.atvtrader.com/ATVs-For-Sale"),
+            ("cycletrader",     "https://www.cycletrader.com/ATV-Four-Wheeler/motorcycles-for-sale"),
+            ("equipmenttrader", "https://www.equipmenttrader.com/ATV/atvs-for-sale"),
+            ("rockymountain",   "https://www.rockymountainatvmc.com/"),
+            ("powersportsmax",  "https://www.powersportsmax.com/"),
+            ("tractorhouse",    "https://www.tractorhouse.com/"),
+            ("machinerytrader", "https://www.machinerytrader.com/"),
+            ("govdeals",        "https://www.govdeals.com/"),
+            ("mascus",          "https://www.mascus.com/"),
+            ("atvhunt-home",    "https://atvhunt.com/"),
+          ]
+          CH = re.compile(r"recaptcha/(enterprise|api)\.js|checking your browser|"
+                          r"just a moment|cf-browser-verification|datadome|px-captcha", re.I)
+
+          def probe(name, url):
+              s = rq.Session(impersonate="chrome")
+              try:
+                  r = s.get(url, timeout=(20,45), allow_redirects=True)
+                  b = r.text or ""
+              except Exception as e:
+                  return (name, f"ERR {type(e).__name__}", 0, 0, 0, "-", url)
+              n = len(r.content)
+              links  = len(set(re.findall(r'href="(/[^"]{8,})"', b)))
+              prices = len(re.findall(r"\$\s?\d[\d,]{2,}", b))
+              # a challenge is SMALL and contentless; recaptcha.js on a big page is a form
+              walled = bool(CH.search(b)) and (n < 60000 or links < 40)
+              verdict = "WALL" if walled else ("OPEN" if r.status_code==200 and links>40 else "?")
+              return (name, r.status_code, n, links, prices, verdict, url)
+
+          with cf.ThreadPoolExecutor(max_workers=6) as ex:
+              rows = list(ex.map(lambda t: probe(*t), SOURCES))
+
+          print(f"{'source':18}{'status':>8}{'bytes':>9}{'links':>7}{'prices':>7}  verdict")
+          print("-"*70)
+          for n,st,by,li,pr,v,u in sorted(rows, key=lambda x:(x[5]!="OPEN", -x[3])):
+              print(f"{n:18}{str(st):>8}{by:>9}{li:>7}{pr:>7}  {v}")
+          print()
+          for n,st,by,li,pr,v,u in rows:
+              if v=="OPEN": print(f"OPEN: {n:18} {u}")
+          PY
