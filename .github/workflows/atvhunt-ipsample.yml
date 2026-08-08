@@ -1,0 +1,41 @@
+name: atvhunt ip sample
+
+# check-host.net proved the block is PER-IP, not per-ASN: AS213535 node us5 (New York)
+# returns 200 while node uk1 (London) returns 403, and 7 of 25 datacenter nodes worldwide
+# are clean. So "AS8075 is blocked" was wrong -- the fleet burned the specific ranges it
+# hammered, and a fresh runner may land on a clean address.
+#
+# This measures that fraction and nothing else: 20 jobs, one runner IP each, 3 requests
+# per job. If a meaningful share come back 200 the crawl is free again -- a job that finds
+# itself blocked simply exits and its shard is retried elsewhere.
+
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        description: how many runner IPs to sample
+        default: '20'
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+    steps:
+      - name: probe
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          IP=$(curl -s https://api.ipify.org)
+          H=$(curl -s -o /dev/null -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          # A detail page as well as the homepage: the homepage could be cached at the edge
+          # while the listing path is the one under the rule.
+          D=$(curl -s -o /tmp/d.html -w '%{http_code}' -A "$UA" https://atvhunt.com/l/13365869/x)
+          B=$(wc -c < /tmp/d.html)
+          if grep -q 'lp-specs-row' /tmp/d.html; then V=LISTING; else V=no-listing; fi
+          echo "RESULT ip=$IP home=$H detail=$D bytes=$B $V"

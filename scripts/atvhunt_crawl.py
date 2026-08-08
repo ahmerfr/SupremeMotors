@@ -79,6 +79,12 @@ class Governor:
         self.next_slot = 0.0
         self.last_cut = 0.0
         self.ok = self.f429 = self.blocked = self.attempts = 0
+        # Metered residential egress is billed per BYTE, not per request, and a 100 MB
+        # trial is ~7.5k pages -- roughly four minutes at full tilt. --maxreq cannot
+        # protect it because a 403 costs 134 bytes and a listing costs 13.5 KB, a 100x
+        # spread. Counted here so every call site is capped by construction.
+        self.bytes = 0
+        self.maxbytes = 0
 
     def gate(self):
         while True:
@@ -128,11 +134,18 @@ def fetch(sess, i, gov, maxreq):
     for _ in range(3):
         if maxreq and gov.attempts >= maxreq:
             return None, None                  # IP quota spent: leave the id for a retry
+        if gov.maxbytes and gov.bytes >= gov.maxbytes:
+            return None, None                  # byte budget spent: same treatment
         gov.gate()
         try:
             r = sess.get(BASE.format(i), timeout=(8, 12), allow_redirects=False, **IMP)
         except Exception:
             time.sleep(1); continue
+        # +900 for request line, headers and TLS record overhead, which a metered proxy
+        # bills but len(content) does not see. Deliberately an over-estimate: running out
+        # of budget early is recoverable, an overage on a trial account is not.
+        with gov.lock:
+            gov.bytes += len(r.content or b"") + 900
         if r.status_code == 429:
             gov.on_429(); continue
         if r.status_code in (401, 403):
@@ -171,6 +184,10 @@ def main():
                     help="stop after N HTTP ATTEMPTS. MEASURED: a runner IP serves ~750-800 "
                          "requests then is blackholed. A short job on a fresh IP beats a "
                          "long job on a spent one.")
+    ap.add_argument("--maxmb", type=float, default=0,
+                    help="stop after N MB of response traffic. For metered residential "
+                         "egress, where the bill is bytes and --maxreq cannot bound it: a "
+                         "403 costs 134 bytes and a listing 13.5 KB.")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     tag = f"{a.shard:03d}of{a.of}"
@@ -189,6 +206,7 @@ def main():
     print(f"shard {tag}: {len(todo)} of {len(ids)} ids, rps={a.rps} maxreq={a.maxreq}", flush=True)
 
     gov = Governor(a.rps)
+    gov.maxbytes = int(a.maxmb * 1024 * 1024)
     wlock = threading.Lock()
     op = lambda n: open(os.path.join(a.outdir, f"{n}_{tag}.txt"), "a", encoding="utf-8")
     fh = open(os.path.join(a.outdir, f"shard_{tag}.jsonl"), "a", encoding="utf-8")
@@ -238,7 +256,9 @@ def main():
     for f in (cov, fh, amb, other):
         f.close()
     st = dict(c, tag=tag, ids=len(ids), attempts=gov.attempts, ok=gov.ok,
-              f429=gov.f429, blocked=gov.blocked, secs=round(time.time() - t0, 1))
+              f429=gov.f429, blocked=gov.blocked, secs=round(time.time() - t0, 1),
+              mb=round(gov.bytes / 1048576, 3),
+              kb_per_listing=round(gov.bytes / 1024 / max(1, c["list"]), 1))
     json.dump(st, open(os.path.join(a.outdir, f"stats_{tag}.json"), "w"))
     print(f"shard {tag} DONE: {st}", flush=True)
 
@@ -259,6 +279,29 @@ def selftest():
     t = time.time(); g2.next_slot = 0; g2.gate(); g2.gate()
     assert g2.next_slot >= t + 4.0 - 1e-6            # token bucket paces two grants at 0.5 rps
     assert g2.attempts == 2, "gate() must count HTTP ATTEMPTS, not ids"
+
+    # THE BYTE CAP. An untested budget guard on a metered credential is worse than none:
+    # it reads as protection while the trial drains. fetch() is driven against a fake
+    # session so the cap is proven to stop the crawl, offline and for free.
+    class FakeResp:
+        status_code, headers = 200, {}
+        content = b"x" * 13_000
+        text = "<h1>t</h1><div class='lp-specs-row'>x</div>"
+
+    class FakeSess:
+        n = 0
+        def get(self, *_a, **_k):
+            FakeSess.n += 1
+            return FakeResp()
+
+    g3, fs = Governor(1e9), FakeSess()
+    g3.maxbytes = 10 * 13_900                        # ~10 pages at 13,000 + 900 overhead
+    for k in range(500):
+        fetch(fs, k, g3, 0)
+    assert 10 <= FakeSess.n <= 11, FakeSess.n        # stopped at the cap, not at 500
+    assert g3.bytes >= g3.maxbytes
+    assert fetch(fs, 999, g3, 0) == (None, None), "spent budget must not issue a request"
+    assert FakeSess.n <= 11, "a request escaped after the budget was spent"
 
     # THE COVERAGE PROOF. 18 windows x 4 accounts x 256 shards must tile [0, 13,824,000)
     # with every shard exactly SLICE ids -- so --maxreq (which caps ATTEMPTS) can never be
