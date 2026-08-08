@@ -1,0 +1,89 @@
+name: atvhunt secfetch
+
+# The listing response carries `vary: Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site`.
+# The server therefore keys its answer on those headers -- and curl sends none of them,
+# while every real browser navigation sends all three. So the reCAPTCHA page may simply be
+# what this site serves to a request that does not look like a navigation, rather than a
+# challenge aimed at us. This sends the headers a normal Chrome navigation sends and sees
+# what comes back. Nothing here solves or bypasses a challenge; it makes the request
+# well-formed.
+#
+# Also pulls /sitemap.xml, which returned a live <sitemapindex> -- a URL list the site
+# publishes for crawlers on purpose.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secfetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6,7,8]
+    steps:
+      - name: test
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          H=$(curl -s --compressed -o home.html -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY home=$H"; exit 0; fi
+          echo "CLEAN ip=$(curl -s https://api.ipify.org)"
+          REAL=$(grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' home.html | head -1)
+          ID=$(echo "$REAL" | cut -d/ -f3)
+          echo "target=$REAL"
+
+          verdict() { grep -q -i recaptcha "$1" && echo CAPTCHA \
+                      || { grep -qi 'vin\|engine\|mileage\|<h1' "$1" && echo CONTENT || echo other; } ; }
+
+          echo "### 1. bare curl (what every previous test sent)"
+          curl -s --compressed -o a.html -A "$UA" "https://atvhunt.com$REAL"
+          echo "    bytes=$(wc -c < a.html) $(verdict a.html)"
+
+          echo "### 2. + full Sec-Fetch navigation headers"
+          curl -s --compressed -o b.html -A "$UA" \
+            -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Mode: navigate' \
+            -H 'Sec-Fetch-Site: none' -H 'Sec-Fetch-User: ?1' \
+            -H 'Upgrade-Insecure-Requests: 1' \
+            -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
+            -H 'Accept-Language: en-US,en;q=0.9' \
+            "https://atvhunt.com$REAL"
+          echo "    bytes=$(wc -c < b.html) $(verdict b.html)"
+
+          echo "### 3. + Sec-Fetch-Site: same-origin and a Referer (in-site click)"
+          curl -s --compressed -o c.html -A "$UA" -e 'https://atvhunt.com/' \
+            -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Mode: navigate' \
+            -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-User: ?1' \
+            -H 'Upgrade-Insecure-Requests: 1' \
+            -H 'sec-ch-ua: "Chromium";v="126", "Not)A;Brand";v="24", "Google Chrome";v="126"' \
+            -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' \
+            -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8' \
+            -H 'Accept-Language: en-US,en;q=0.9' \
+            "https://atvhunt.com$REAL"
+          echo "    bytes=$(wc -c < c.html) $(verdict c.html)"
+
+          echo "### 4. same as 3 but carrying the cookie the homepage set"
+          curl -s --compressed -c j.txt -o /dev/null -A "$UA" https://atvhunt.com/
+          curl -s --compressed -b j.txt -o d.html -A "$UA" -e 'https://atvhunt.com/' \
+            -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Mode: navigate' \
+            -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-User: ?1' \
+            -H 'Upgrade-Insecure-Requests: 1' \
+            "https://atvhunt.com$REAL"
+          echo "    bytes=$(wc -c < d.html) $(verdict d.html)"
+
+          echo "### best body so far, first 700 chars"
+          for f in d.html c.html b.html a.html; do
+            if [ "$(verdict $f)" = "CONTENT" ]; then echo "  (from $f)"; head -c 700 "$f"; echo; break; fi
+          done
+
+          echo "### 5. the sitemap they publish for crawlers"
+          curl -s --compressed -A "$UA" https://atvhunt.com/sitemap.xml -o sm.xml
+          echo "    sitemap.xml bytes=$(wc -c < sm.xml)"; cat sm.xml
+          for child in $(grep -oE '<loc>[^<]+</loc>' sm.xml | sed 's/<[^>]*>//g' | head -3); do
+            curl -s --compressed -A "$UA" "$child" -o ch.xml
+            echo "    $child -> bytes=$(wc -c < ch.xml) urls=$(grep -c '<loc>' ch.xml || true)"
+            grep -oE '<loc>[^<]+</loc>' ch.xml | sed 's/<[^>]*>//g' | head -3 | sed 's/^/      /'
+          done
