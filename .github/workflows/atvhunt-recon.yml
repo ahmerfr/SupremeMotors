@@ -1,0 +1,83 @@
+name: atvhunt recon
+
+# Every transport verdict this project reached -- GitHub blocked, GCP blocked, Bunny
+# blocked, Cloudflare blocked -- was measured with /l/{id}/x, and that literal "x" slug is
+# what atvhunt's WAF matches. So all four verdicts were reading our own fingerprint. This
+# re-measures every surface with the corrected URL and, more importantly, hunts for a
+# surface that serves listing DATA without a challenge.
+#
+# Known so far, from clean runners (25% of runner IPs fetch the homepage fine):
+#   /            200, 101 KB, server-rendered, real /l/<id>/<slug> links
+#   /l/<id>      200, ~20 KB, Google reCAPTCHA Enterprise challenge page
+#   /l/<id>/x    403, 134 B, Cloud Armor deny
+# The open question is WHY the homepage escapes: if it is edge-cached, other cached URLs
+# escape too, and cache headers will say so.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker:
+        description: cloudflare worker base url
+        default: 'https://atvgate.sm-a8c7dd.workers.dev'
+
+permissions:
+  contents: read
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [1,2,3,4,5,6,7,8,9,10]
+    env:
+      WORKER: ${{ inputs.worker }}
+    steps:
+      - name: recon
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+          H=$(curl -s --compressed -o home.html -w '%{http_code}' -A "$UA" https://atvhunt.com/)
+          if [ "$H" != "200" ]; then echo "DIRTY home=$H"; exit 0; fi
+          IP=$(curl -s https://api.ipify.org); echo "CLEAN ip=$IP homebytes=$(wc -c < home.html)"
+
+          echo "### A. why does the homepage escape? cache headers:"
+          curl -s -D - -o /dev/null -A "$UA" https://atvhunt.com/ \
+            | grep -iE '^(age|cache-control|x-cache|cf-cache-status|via|etag|vary|server):' | sed 's/^/    /'
+          echo "    -- vs a listing page --"
+          ID=$(grep -oE '/l/[0-9]+/' home.html | head -1 | tr -dc '0-9')
+          curl -s -D - -o /dev/null -A "$UA" "https://atvhunt.com/l/$ID" \
+            | grep -iE '^(age|cache-control|x-cache|cf-cache-status|via|etag|vary|server):' | sed 's/^/    /'
+
+          echo "### B. machine-readable surfaces the site publishes on purpose:"
+          for p in /robots.txt /sitemap.xml /sitemap_index.xml /sitemap-index.xml /feed /rss.xml; do
+            C=$(curl -s --compressed -o s.txt -w '%{http_code}' -A "$UA" "https://atvhunt.com$p")
+            printf '    %-22s %s bytes=%s %s\n' "$p" "$C" "$(wc -c < s.txt)" \
+                   "$(head -c 90 s.txt | tr -d '\n\r')"
+          done
+
+          echo "### C. how much of the catalogue does the homepage itself expose?"
+          echo "    distinct listing links on /: $(grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' home.html | sort -u | wc -l)"
+          for q in '?page=2' '?start=24' '?n=100' '/atv-utv-for-sale?page=2'; do
+            C=$(curl -s --compressed -o p.html -w '%{http_code}' -A "$UA" "https://atvhunt.com/$q")
+            printf '    %-26s %s bytes=%s links=%s\n' "$q" "$C" "$(wc -c < p.html)" \
+                   "$(grep -oE '/l/[0-9]+/[A-Za-z0-9._-]+' p.html | sort -u | wc -l)"
+          done
+
+          echo "### D. does the homepage JS reveal a data endpoint?"
+          grep -oE '"/[a-zA-Z0-9/_.-]*(api|json|search|query|graphql)[a-zA-Z0-9/_.-]*"' home.html \
+            | sort -u | head -12 | sed 's/^/    /'
+          grep -oE 'src="[^"]+\.js[^"]*"' home.html | sort -u | head -6 | sed 's/^/    /'
+
+          echo "### E. cloudflare egress, corrected url, US colo:"
+          for m in home bare; do
+            printf '    mode=%-5s ' "$m"
+            curl -s -A "$UA" "$WORKER/?id=$ID&mode=$m" | head -c 240; echo
+          done
+
+          echo "### F. is the challenge served to EVERY listing fetch, or scored?"
+          for n in 1 2 3; do
+            curl -s --compressed -o l.html -A "$UA" "https://atvhunt.com/l/$ID"
+            printf '    try%s bytes=%s %s\n' "$n" "$(wc -c < l.html)" \
+              "$(grep -q -i recaptcha l.html && echo CAPTCHA || echo NO-CAPTCHA)"
+          done
