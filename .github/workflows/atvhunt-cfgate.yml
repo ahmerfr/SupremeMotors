@@ -1,0 +1,56 @@
+name: atvhunt cloudflare gate
+
+# atvhunt 403s AS8075 (GitHub), AS396982 (GCP) and every Bunny edge ASN. Cloudflare
+# egresses from AS13335, which is on none of Cloud Armor's three public-cloud sub-lists
+# (-aws, -azure, -gcp) and is not one of the two ASNs the operator blocked by hand.
+#
+# The runner NEVER touches atvhunt -- it only calls the Worker. A Worker runs in the colo
+# nearest its CALLER, so a US runner puts it in a US colo and the origin pull leaves from
+# a US Cloudflare IP. Called from Pakistan it would exit in Asia and hit the geo rule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        description: how many ids to probe
+        default: '12'
+      worker:
+        description: worker base url
+        default: 'https://atvgate.sm-a8c7dd.workers.dev'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - env:
+          WORKER: ${{ inputs.worker }}
+          N: ${{ inputs.n }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          W = os.environ["WORKER"].rstrip("/")
+          IDS = [13365869, 13731138, 13165993, 13430881, 13612328, 13053195,
+                 13080827, 13687072, 13539467, 10000722, 11824355, 12989643]
+          me = json.load(urllib.request.urlopen("https://ipinfo.io/json", timeout=20))
+          print("RUNNER", me.get("ip"), me.get("org"), me.get("country"))
+          ok = armor = other = 0
+          for i in IDS[:int(os.environ["N"])]:
+              try:
+                  d = json.load(urllib.request.urlopen(f"{W}/?id={i}", timeout=45))
+              except Exception as e:
+                  print(f"  id={i} WORKER-ERR {e}"); other += 1; continue
+              tag = "OPEN" if d.get("is_listing") else ("ARMOR" if d.get("status") == 403 else "OTHER")
+              if tag == "OPEN": ok += 1
+              elif tag == "ARMOR": armor += 1
+              else: other += 1
+              print(f"  id={i} colo={d.get('colo')} status={d.get('status')} "
+                    f"bytes={d.get('bytes')} -> {tag}  {(d.get('title') or '')[:44]}")
+          print(f"GATE: OPEN={ok} ARMOR={armor} other={other}")
+          PY
