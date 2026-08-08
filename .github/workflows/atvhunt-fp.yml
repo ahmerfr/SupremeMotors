@@ -1,0 +1,54 @@
+name: atvhunt tls fingerprint test
+# Every atvhunt request we have ever made used curl_cffi impersonate="chrome". If the
+# block keys on the TLS/JA3 fingerprint rather than the ASN, a different client on the
+# SAME blocked IP will get through -- which would mean none of the ASNs were ever the
+# problem. Six clients, one request each.
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  fp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q curl_cffi requests
+      - run: |
+          python - <<'PY'
+          import json, urllib.request, ssl
+          U = "https://atvhunt.com/l/13365869/x"
+          out = []
+
+          # 1. stdlib urllib - OpenSSL fingerprint, nothing like Chrome
+          try:
+              r = urllib.request.urlopen(urllib.request.Request(U, headers={
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}), timeout=25)
+              b = r.read(); out.append(("urllib", r.status, len(b), b"lp-specs-row" in b))
+          except Exception as e:
+              out.append(("urllib", getattr(e, "code", "ERR"), 0, False))
+
+          # 2. requests - urllib3 fingerprint
+          try:
+              import requests
+              r = requests.get(U, timeout=25, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"})
+              out.append(("requests", r.status_code, len(r.content), "lp-specs-row" in r.text))
+          except Exception as e:
+              out.append(("requests", "ERR", 0, False))
+
+          # 3-6. curl_cffi with DIFFERENT impersonations
+          from curl_cffi import requests as rq
+          for imp in ("chrome", "safari17_0", "firefox133", "chrome99_android"):
+              try:
+                  r = rq.get(U, impersonate=imp, timeout=25)
+                  out.append((f"cffi:{imp}", r.status_code, len(r.content), "lp-specs-row" in r.text))
+              except Exception as e:
+                  out.append((f"cffi:{imp}", "ERR", 0, False))
+
+          ip = json.load(urllib.request.urlopen("https://ipinfo.io/json", timeout=15))
+          print("EGRESS", ip.get("ip"), ip.get("org"))
+          for n, c, b, l in out:
+              print(f"FP {n:18} code={c:<6} bytes={b:<8} listing={l}")
+          PY
